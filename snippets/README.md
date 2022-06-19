@@ -1,0 +1,2 @@
+Contains useful snippets of code that can be copy-pasted into the project and adjusted according to the particular problem.
+Please try naming your snippets accordingly when pasting the code here so that people could judge whan the snippet does by its name.
