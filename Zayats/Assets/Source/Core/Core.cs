@@ -86,6 +86,7 @@ namespace Zayats.Core
                 {
                     Bonuses = new(),
                     Items = new(),
+                    Currency = new(),
                     Position = 0,
                 };
             }
@@ -244,9 +245,33 @@ namespace Zayats.Core
             }
         }
 
+        public static void CollectCoinsAtCurrentPosition(this GameContext game, int playerId)
+        {
+            CollectCoinsAtPosition(game, playerId, game.State.Players[playerId].Position);
+        }
+
+        public static void CollectCoinsAtPosition(this GameContext game, int playerId, int position)
+        {
+            ref var player = ref game.State.Players[playerId];
+            var currenciesInCell = game.GetDataInCell(Components.CurrencyId, position);
+            var currencies = currenciesInCell.Select(a => (a.ListIndex, a.ThingId)).Reverse().ToArray();
+
+            var things = game.State.Board.Cells[position].Things;
+            foreach (var index in currencies.Select(a => a.ListIndex))
+                things.RemoveAt(index);
+
+            foreach (var thingId in currencies.Select(a => a.ThingId))
+                AddInventoryItem(game, playerId, thingId);
+        }
+
         public static void AddInventoryItem(this GameContext game, int playerId, int thingId)
         {
             game.State.Players[playerId].Items.Add(thingId);
+            game.HandleEvent(Events.OnAddedInventoryItem, new()
+            {
+                PlayerId = playerId,
+                ThingId = thingId,
+            });
         }
 
         public static void DestroyThing(this GameContext game, int thingId)
@@ -294,11 +319,7 @@ namespace Zayats.Core
 
         public static void HandleEvent<T>(this GameContext game, int eventId, ref T eventData) where T : struct
         {
-            var obj = game.EventHandlers[eventId];
-            if (obj is null)
-                return;
-            var handler = (Events.Handler<T>) obj;
-            handler(game, ref eventData);
+            game.GetEventProxy<T>(eventId).Handle(game, ref eventData);
         }
 
         public static void HandleEvent<T>(this GameContext game, TypedIdentifier<T> eventId, ref T eventData) where T : struct
@@ -328,9 +349,9 @@ namespace Zayats.Core
 
     public struct ComponentProxy<T> where T : struct
     {
-        public ComponentStorage<T> Storage;
+        public T[] Storage;
         public int Index;
-        public readonly ref T Component => ref Storage.Data[Index];
+        public readonly ref T Component => ref Storage[Index];
     }
 
     public struct ListItemComponentProxy<T> where T : struct
@@ -484,8 +505,8 @@ namespace Zayats.Core
 
             public readonly Handler<T> Get() => (Handler<T>) EventHandlers[EventIndex];
             public readonly void Set(Handler<T> handler) => EventHandlers[EventIndex] = handler;
-            public readonly void HandleEvent(GameContext game, ref T eventData) => Get()?.Invoke(game, ref eventData);
-            public readonly void HandleEvent(GameContext game, T eventData) => HandleEvent(game, ref eventData);
+            public readonly void Handle(GameContext game, ref T eventData) => Get()?.Invoke(game, ref eventData);
+            public readonly void Handle(GameContext game, T eventData) => Handle(game, ref eventData);
         }
 
         public struct PlayerMovedContext
@@ -503,7 +524,14 @@ namespace Zayats.Core
         public static TypedIdentifier<PlayerPositionChangedContext> OnPositionChanged = new(1);
         public static TypedIdentifier<int> OnPlayerWon = new(2);
 
-        public const int Count = 3;
+        public struct AddedInventoryItemContext
+        {
+            public int PlayerId;
+            public int ThingId;
+        }
+        public static TypedIdentifier<AddedInventoryItemContext> OnAddedInventoryItem = new(3);
+
+        public const int Count = 4;
     }
 
     public static class Data
@@ -566,7 +594,7 @@ namespace Zayats.Core
 
         public bool TryGetSingle(int thingIndex, out ComponentProxy<T> proxy)
         {
-            proxy.Storage = this;
+            proxy.Storage = Data;
             return (MapThingIdToIndex.TryGetValue(thingIndex, out proxy.Index));
         }
 
@@ -580,7 +608,7 @@ namespace Zayats.Core
             return new()
             {
                 Index = index,
-                Storage = this,
+                Storage = Data,
             };
         }
     }
