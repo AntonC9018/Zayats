@@ -1,0 +1,9 @@
+{
+	"name": "dev_cli",
+    "dependencies": {
+        "jcli": { "path": "./third_party/jcli" }
+    },
+    "workingDirectory": "..",
+    "targetPath": "../build_folder",
+    "targetName": "dev"
+}

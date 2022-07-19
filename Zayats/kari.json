@@ -1,0 +1,10 @@
+{
+    "inputFolder": "Assets/Source",
+
+    // The plugin paths are passed via the cli tool
+    "generatedNamespaceSuffix": "Generated",
+    "rootNamespace": "Zayats",
+    "outputMode": "NestedDirectory",
+    "inputMode": "UnityAsmdefs",
+    "commonProjectName": "Common"
+}
