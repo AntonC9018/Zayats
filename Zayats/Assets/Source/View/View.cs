@@ -1,6 +1,6 @@
 using UnityEngine;
 using Zayats.Core;
-using Kari.Plugins.EnumArray;
+using Kari.Plugins.AdvancedEnum;
 using Zayats.Unity.View.Generated;
 using static Zayats.Core.Assert;
 using System.Linq;
@@ -139,7 +139,7 @@ namespace Zayats.Unity.View
             Debug.Log(_itemHolders[0]);
             _itemHolders[0].gameObject.SetActive(true);
             
-            _game = Initialization.CreateGameContext(cellCountNotIncludingFirstAndLast: VisualCells.Length);
+            _game = Initialization.CreateGameContext(cellCountNotIncludingFirstAndLast: VisualCells.Length - 2);
 
             const int seed = 5;
             UnityEngine.Random.InitState(seed);

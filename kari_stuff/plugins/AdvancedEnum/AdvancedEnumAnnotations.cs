@@ -1,4 +1,4 @@
-namespace Kari.Plugins.EnumArray
+namespace Kari.Plugins.AdvancedEnum
 {
     using System;
     using System.Diagnostics;

@@ -29,15 +29,11 @@ struct SetupCommand
         {
             KariBuild build;
             build.context = &kariContext;
-            auto status = build.onExecute();
+            auto status = build.buildKari();
             if (status != 0)
                 return status;
-        }
-        {
-            PluginBuild pluginBuild;
-            pluginBuild.context = &kariContext;
-            // Hacky way to do this, don't care for now.
-            auto status = pluginBuild.buildPlugins(Plugins.custom, Plugins.kariInternal);
+
+            status = build.buildPlugins(Plugins.custom, Plugins.kariInternal);
             if (status != 0)
                 return status;
         }
@@ -55,7 +51,7 @@ struct SetupCommand
 
 // TODO: Maybe should build too?
 @Command("kari", "Deals with the code generator.")
-@(Subcommands!(KariRun, KariBuild, PluginBuild))
+@(Subcommands!(KariRun, KariBuild))
 struct KariContext
 {
     @ParentCommand
@@ -80,7 +76,7 @@ struct Plugins
 {
     @disable this();
     static immutable(string[]) kariInternal = ["Flags"];
-    static immutable(string[]) custom = ["EnumArray"];
+    static immutable(string[]) custom = ["AdvancedEnum"];
 }
 
 
@@ -144,34 +140,10 @@ struct KariBuild
 {
     @ParentCommand
     KariContext* context;
-
-    int onExecute()
-    {
-        writeln("Building Kari.");
-        auto pid = spawnProcess2([
-            "dotnet", "build", 
-            "--configuration", context.configuration,
-            "/p:KariBuildPath=" ~ context.buildDirectory ~ `\`],
-            context.kariPath);
-        const status = wait(pid);
-        if (status != 0)
-        {
-            writeln("Kari build failed.");
-            return status;
-        }
-        return status;
-    }
-}
-
-@Command("plugin-build", "Builds the given plugin")
-struct PluginBuild
-{
-    @ParentCommand
-    KariContext* context;
-
+    
     @("Whether to build all plugins at once")
     @(ArgConfig.parseAsFlag)
-    bool all;
+    bool allPlugins;
 
     @("Plugin names to be built. Can include either internal or external plugin names.")
     @(ArgConfig.aggregate)
@@ -209,10 +181,11 @@ struct PluginBuild
     {
         import std.algorithm;
 
-        if (all)
-        {
+        if (allPlugins)
             return buildPlugins(Plugins.custom, Plugins.kariInternal);
-        }
+
+        if (plugins.length == 0)
+            return buildKari();
 
         auto isPluginBuilt = new bool[plugins.length];
 
@@ -247,5 +220,22 @@ struct PluginBuild
         }
 
         return buildPlugins(customPluginsToBuild, internalPluginsToBuild);
+    }
+
+    int buildKari()
+    {
+        writeln("Building Kari.");
+        auto pid = spawnProcess2([
+            "dotnet", "build", 
+            "--configuration", context.configuration,
+            "/p:KariBuildPath=" ~ context.buildDirectory ~ `\`],
+            context.kariPath);
+        const status = wait(pid);
+        if (status != 0)
+        {
+            writeln("Kari build failed.");
+            return status;
+        }
+        return status;
     }
 }

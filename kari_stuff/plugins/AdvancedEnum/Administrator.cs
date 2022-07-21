@@ -2,17 +2,17 @@ using System.Threading.Tasks;
 using Kari.GeneratorCore.Workflow;
 using Kari.Utils;
 
-namespace Kari.Plugins.EnumArray
+namespace Kari.Plugins.AdvancedEnum
 {
-    public class EnumArrayAdministrator : IAdministrator
+    public class AdvancedEnumAdministrator : IAdministrator
     {
-        public EnumArrayAnalyzer[] _analyzers;
+        public AdvancedEnumAnalyzer[] _analyzers;
         
         public void Initialize()
         {
             AdministratorHelpers.Initialize(ref _analyzers);
-            var logger = new NamedLogger("EnumArray");
-            EnumArraySymbols.Initialize(logger);
+            var logger = new NamedLogger("AdvancedEnum");
+            AdvancedEnumSymbols.Initialize(logger);
         }
         
         public Task Collect()
@@ -24,13 +24,13 @@ namespace Kari.Plugins.EnumArray
         {
             AdministratorHelpers.AddCodeString(
                 MasterEnvironment.Instance.CommonPseudoProject,
-                "EnumArrayAnnotations.cs", "EnumArray", GetAnnotations());
+                "AdvancedEnumAnnotations.cs", "AdvancedEnum", GetAnnotations());
 
             return Task.WhenAll(
-                AdministratorHelpers.GenerateAsync(_analyzers, "EnumArray.cs")
+                AdministratorHelpers.GenerateAsync(_analyzers, "AdvancedEnum.cs")
             );
         }
         
-        public string GetAnnotations() => DummyEnumArrayAnnotations.Text;
+        public string GetAnnotations() => DummyAdvancedEnumAnnotations.Text;
     }
 }

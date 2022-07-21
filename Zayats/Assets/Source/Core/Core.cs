@@ -60,7 +60,7 @@ namespace Zayats.Core
             }
 
             {
-                var cells = new Data.Cell[cellCountNotIncludingFirstAndLast];
+                var cells = new Data.Cell[cellCountNotIncludingFirstAndLast + 2];
                 game.State.Board.Cells = cells;
                 foreach (ref var cell in cells.AsSpan())
                     cell.Things = new();
@@ -86,7 +86,6 @@ namespace Zayats.Core
                 {
                     Bonuses = new(),
                     Items = new(),
-                    Currency = new(),
                     Position = 0,
                 };
             }
@@ -540,7 +539,6 @@ namespace Zayats.Core
         {
             public List<int> Items;
             public List<int> Bonuses;
-            public List<int> Currency;
             public int Position;
             public int ThingId;
         }

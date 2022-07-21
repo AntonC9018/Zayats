@@ -5,19 +5,19 @@ using Kari.GeneratorCore.Workflow;
 using Kari.Utils;
 using Microsoft.CodeAnalysis;
 
-namespace Kari.Plugins.EnumArray
+namespace Kari.Plugins.AdvancedEnum
 {
-    public class EnumArrayAnalyzer : ICollectSymbols, IGenerateCode
+    public class AdvancedEnumAnalyzer : ICollectSymbols, IGenerateCode
     {
-        private readonly List<EnumArrayInfo> _infos = new();
+        private readonly List<AdvancedEnumInfo> _infos = new();
         
         public void CollectSymbols(ProjectEnvironment environment)
         {
             foreach (var type in environment.TypesWithAttributes)
             {
-                if (type.TryGetAttribute(EnumArraySymbols.GenerateArrayWrapperAttribute, new(type.Name), out var attribute))
+                if (type.TryGetAttribute(AdvancedEnumSymbols.GenerateArrayWrapperAttribute, new(type.Name), out var attribute))
                 {
-                    _infos.Add(new EnumArrayInfo(attribute, type));
+                    _infos.Add(new AdvancedEnumInfo(attribute, type));
                 }
             }
         }
@@ -96,7 +96,7 @@ namespace Kari.Plugins.EnumArray
                 {
                     b.AppendLine("switch (key)");
                     b.StartBlock();
-                    b.AppendLine("default: throw new Kari.Plugins.EnumArray.InvalidEnumValueException((int) key);");
+                    b.AppendLine("default: throw new Kari.Plugins.AdvancedEnum.InvalidEnumValueException((int) key);");
                 }
 
                 void AppendSwitchEnd(ref CodeBuilder b)
@@ -177,7 +177,7 @@ namespace Kari.Plugins.EnumArray
                     }
                 }
 
-                // Getters and setters for values by name
+                // Getters and setters for values by name.
                 {
                     foreach (var enumMember in enumMembers)
                     {
@@ -202,7 +202,6 @@ namespace Kari.Plugins.EnumArray
                     }
                 }
 
-                // IEnumerator stuff and helpers for indexing
                 {
                     b.AppendLine($"public static implicit operator T[]({generatedTypeName}<T> a) => a.Values;");
                     b.AppendLine($"public readonly T[] Array => Values;");
@@ -218,12 +217,12 @@ namespace Kari.Plugins.EnumArray
         }
     }
 
-    public readonly struct EnumArrayInfo
+    public readonly struct AdvancedEnumInfo
     {
         public readonly GenerateArrayWrapperAttribute Attribute;
         public readonly INamedTypeSymbol Symbol;
 
-        public EnumArrayInfo(GenerateArrayWrapperAttribute attribute, INamedTypeSymbol symbol)
+        public AdvancedEnumInfo(GenerateArrayWrapperAttribute attribute, INamedTypeSymbol symbol)
         {
             Attribute = attribute;
             Symbol = symbol;

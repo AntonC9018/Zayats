@@ -536,7 +536,7 @@ MonoBehaviour:
   - {fileID: 697231575}
   - {fileID: 2016595052}
   CountsToSpawn:
-    Values: 02000000010000000200000002000000
+    Values: 02000000010000000200000004000000
   PrefabsToSpawn:
     Values:
     - {fileID: 3774758881139110045, guid: 875c3e9599022804a856584928a8b309, type: 3}
@@ -2172,7 +2172,7 @@ Transform:
   m_GameObject: {fileID: 1974683624}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -161, y: -136, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 100, y: 100, z: 100}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1057446533}
