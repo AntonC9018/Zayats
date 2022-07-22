@@ -13,12 +13,99 @@ namespace Kari.Plugins.AdvancedEnum
         
         public void CollectSymbols(ProjectEnvironment environment)
         {
+            HashSet<int> enumValues = new();
+
             foreach (var type in environment.TypesWithAttributes)
             {
                 if (type.TryGetAttribute(AdvancedEnumSymbols.GenerateArrayWrapperAttribute, new(type.Name), out var attribute))
                 {
-                    _infos.Add(new AdvancedEnumInfo(attribute, type));
+                    var enumMembers = type.GetFields().Where(m => m.Name != "Count").ToArray();
+                    if (enumMembers.Length == 0)
+                        continue;
+
+                    enumValues.Clear();
+                    foreach (var enumMember in enumMembers)
+                        enumValues.Add((int) enumMember.ConstantValue);
+                    int numUniqueEnumValues = enumValues.Count;
+
+                    bool IsSimple()
+                    {
+                        BitArray valueMet = new(numUniqueEnumValues);
+                        foreach (var enumMember in enumMembers)
+                        {
+                            int value = (int) enumMember.ConstantValue;
+                            if (value < 0 || value >= valueMet.Length)
+                                return false;
+                            valueMet[value] = true;
+                        }
+                        for (int i = 0; i < valueMet.Length; i++)
+                        {
+                            if (!valueMet[i])
+                                return false; 
+                        }
+                        return true;
+                    }
+                    bool useSimpleVariant = IsSimple();
+
+
+                    Dictionary<int, int> uniqueValueToIndexMap;
+                    
+                    if (useSimpleVariant)
+                    {
+                        uniqueValueToIndexMap = null;
+                    }
+                    else
+                    {
+                        uniqueValueToIndexMap = new();
+                        int index = 0;
+                        foreach (var value in enumValues)
+                            uniqueValueToIndexMap.Add(value, index);
+                    }
+                    
+                    _infos.Add(new AdvancedEnumInfo(
+                        generatedTypeName: attribute.TypeName ?? type.Name + "Array",
+                        type, useSimpleVariant, numUniqueEnumValues, enumMembers, uniqueValueToIndexMap));
                 }
+            }
+        }
+
+        public void AddUnityPropertyDrawers(MasterEnvironment master, ProjectEnvironmentData project)
+        {
+            if (_infos.Count == 0) 
+                return;
+
+            var editorProjectName = project.Name + ".Editor";
+            var targetProject = master.AllProjectDatas.FirstOrDefault(p => p.Name == editorProjectName, master.RootPseudoProject);
+            foreach (var info in _infos)
+            {
+                var b = CodeBuilder.Create();
+                b.AppendLine("namespace ", targetProject.GeneratedNamespaceName);
+                b.StartBlock();
+                b.AppendLine("using UnityEditor;");
+                b.AppendLine("[CustomPropertyDrawer(typeof(", project.GeneratedNamespaceName.Join(info.GeneratedTypeName), "<>))]");
+
+                string propertyDrawerName = info.Symbol.Name + "PropertyDrawer";
+                b.AppendLine("public class ", propertyDrawerName, " : Kari.Plugins.AdvancedEnum.Editor.EnumArrayDrawer");
+                b.StartBlock();
+
+                // This info might also be useful elsewhere.
+                string[] names = new string[info.NumUniqueEnumValues];
+                foreach (var member in info.EnumMembers)
+                {
+                    int index = info.UseSimpleVariant
+                        ? (int) member.ConstantValue
+                        : info.UniqueValueToIndexMap[(int) member.ConstantValue];
+                    names[index] ??= member.Name;
+                }
+                string namesList = string.Join(", ", names.Select(a => '"' + a + '"'));
+
+                b.AppendLine("private static readonly string[] _Names = new[] {", namesList, "};");
+                b.AppendLine("protected override string[] Names => _Names;");
+                b.EndBlock();
+                b.EndBlock();
+
+                var fragment = CodeFragment.CreateFromBuilder(propertyDrawerName + ".cs", project.Name, b);
+                targetProject.AddCodeFragment(fragment);
             }
         }
         
@@ -32,59 +119,16 @@ namespace Kari.Plugins.AdvancedEnum
             b.StartBlock();
             b.AppendLine("using System;");
             
-            HashSet<int> enumValues = new();
 
             foreach (var info in _infos)
             {
-                var enumMembers = info.Symbol.GetFields().Where(m => m.Name != "Count").ToArray();
-                if (enumMembers.Length == 0)
-                    continue;
-
-                var generatedTypeName = info.Attribute.TypeName ?? info.Symbol.Name + "Array";
+                var generatedTypeName = info.GeneratedTypeName;
 
                 b.AppendLine($"[Serializable]");
                 b.AppendLine($"public partial struct {generatedTypeName}<T>");
                 b.StartBlock();
 
-                enumValues.Clear();
-                foreach (var enumMember in enumMembers)
-                    enumValues.Add((int) enumMember.ConstantValue);
-                int numUniqueEnumValues = enumValues.Count;
-
-
-                bool IsSimple()
-                {
-                    BitArray valueMet = new(numUniqueEnumValues);
-                    foreach (var enumMember in enumMembers)
-                    {
-                        int value = (int) enumMember.ConstantValue;
-                        if (value < 0 || value >= valueMet.Length)
-                            return false;
-                        valueMet[value] = true;
-                    }
-                    for (int i = 0; i < valueMet.Length; i++)
-                    {
-                        if (!valueMet[i])
-                            return false; 
-                    }
-                    return true;
-                }
-                bool useSimpleVariant = IsSimple();
-
-
-                Dictionary<int, int> uniqueValueToIndexMap;
-                
-                if (useSimpleVariant)
-                {
-                    uniqueValueToIndexMap = null;
-                }
-                else
-                {
-                    uniqueValueToIndexMap = new();
-                    int index = 0;
-                    foreach (var value in enumValues)
-                        uniqueValueToIndexMap.Add(value, index);
-                }
+                int numUniqueEnumValues = info.NumUniqueEnumValues;
 
                 b.AppendLine("public /*readonly*/ T[] Values;");
 
@@ -114,16 +158,16 @@ namespace Kari.Plugins.AdvancedEnum
                         b.AppendLine($"public readonly ref T GetRef({fullyQualifiedEnumName} key)");
                         b.StartBlock();
 
-                        if (useSimpleVariant)
+                        if (info.UseSimpleVariant)
                         {
                             b.AppendLine("return ref Values[(int) key];");
                         }
                         else
                         {
                             AppendSwitchBegin(ref b);
-                            foreach (var enumMember in enumMembers)
+                            foreach (var enumMember in info.EnumMembers)
                             {
-                                int index = uniqueValueToIndexMap[(int) enumMember.ConstantValue];
+                                int index = info.UniqueValueToIndexMap[(int) enumMember.ConstantValue];
                                 b.AppendLine(FormatSwitchCase(enumMember.Name), $"return ref Values[{index}];");
                             }
                             AppendSwitchEnd(ref b);
@@ -136,16 +180,16 @@ namespace Kari.Plugins.AdvancedEnum
                         b.AppendLine($"public readonly T Get({fullyQualifiedEnumName} key)");
                         b.StartBlock();
 
-                        if (useSimpleVariant)
+                        if (info.UseSimpleVariant)
                         {
                             b.AppendLine("return Values[(int) key];");
                         }
                         else
                         {
                             AppendSwitchBegin(ref b);
-                            foreach (var enumMember in enumMembers)
+                            foreach (var enumMember in info.EnumMembers)
                             {
-                                int index = uniqueValueToIndexMap[(int) enumMember.ConstantValue];
+                                int index = info.UniqueValueToIndexMap[(int) enumMember.ConstantValue];
                                 b.AppendLine(FormatSwitchCase(enumMember.Name), $"return Values[{index}];");
                             }
                             AppendSwitchEnd(ref b);
@@ -158,16 +202,16 @@ namespace Kari.Plugins.AdvancedEnum
                         b.AppendLine($"public readonly void Set({fullyQualifiedEnumName} key, T value)");
                         b.StartBlock();
 
-                        if (useSimpleVariant)
+                        if (info.UseSimpleVariant)
                         {
                             b.AppendLine("Values[(int) key] = value;");
                         }
                         else
                         {
                             AppendSwitchBegin(ref b);
-                            foreach (var enumMember in enumMembers)
+                            foreach (var enumMember in info.EnumMembers)
                             {
-                                int index = uniqueValueToIndexMap[(int) enumMember.ConstantValue];
+                                int index = info.UniqueValueToIndexMap[(int) enumMember.ConstantValue];
                                 b.AppendLine(FormatSwitchCase(enumMember.Name), $"Values[{index}] = value; break;");
                             }
                             AppendSwitchEnd(ref b);
@@ -179,16 +223,16 @@ namespace Kari.Plugins.AdvancedEnum
 
                 // Getters and setters for values by name.
                 {
-                    foreach (var enumMember in enumMembers)
+                    foreach (var enumMember in info.EnumMembers)
                     {
                         string access;
-                        if (useSimpleVariant)
+                        if (info.UseSimpleVariant)
                         {
                             access = $"Values[(int) {fullyQualifiedEnumName}.{enumMember.Name}]";
                         }
                         else
                         {
-                            int index = uniqueValueToIndexMap[(int) enumMember.ConstantValue];
+                            int index = info.UniqueValueToIndexMap[(int) enumMember.ConstantValue];
                             access = $"Values[{index}]";
                         }
 
@@ -219,13 +263,21 @@ namespace Kari.Plugins.AdvancedEnum
 
     public readonly struct AdvancedEnumInfo
     {
-        public readonly GenerateArrayWrapperAttribute Attribute;
+        public readonly string GeneratedTypeName;
         public readonly INamedTypeSymbol Symbol;
+        public readonly bool UseSimpleVariant;
+        public readonly int NumUniqueEnumValues;
+        public readonly IFieldSymbol[] EnumMembers;
+        public readonly Dictionary<int, int> UniqueValueToIndexMap;
 
-        public AdvancedEnumInfo(GenerateArrayWrapperAttribute attribute, INamedTypeSymbol symbol)
+        public AdvancedEnumInfo(string generatedTypeName, INamedTypeSymbol symbol, bool useSimpleVariant, int numUniqueEnumValues, IFieldSymbol[] enumMembers, Dictionary<int, int> uniqueValueToIndexMap)
         {
-            Attribute = attribute;
+            GeneratedTypeName = generatedTypeName;
             Symbol = symbol;
+            UseSimpleVariant = useSimpleVariant;
+            NumUniqueEnumValues = numUniqueEnumValues;
+            EnumMembers = enumMembers;
+            UniqueValueToIndexMap = uniqueValueToIndexMap;
         }
     }
 }

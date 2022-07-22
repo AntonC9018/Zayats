@@ -6,5 +6,9 @@
     "rootNamespace": "Zayats",
     "outputMode": "NestedDirectory",
     "inputMode": "UnityAsmdefs",
-    "commonProjectName": "Common"
+    "commonProjectName": "Common",
+
+    // AdvancedEnum
+    "generateUnityThings": true,
+    "advancedEnumCommonUnityProjectName": "Common.Editor"
 }

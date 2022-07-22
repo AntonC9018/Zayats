@@ -51,6 +51,7 @@ namespace Zayats.Unity.View
         private GameObject[] _things;
         private Transform[] _itemHolders;
         private GameContext _game;
+        private int _seed;
 
         public void OnValidate()
         {
