@@ -7,6 +7,8 @@ using System.Linq;
 using System;
 using UnityEngine.UI;
 using TMPro;
+using System.Collections.Generic;
+using static Zayats.Core.Events;
 
 namespace Zayats.Unity.View
 {
@@ -23,6 +25,9 @@ namespace Zayats.Unity.View
         EternalMine,
         RegularMine,
         Coin,
+        RespawnPoint,
+        Totem,
+        Rabbit,
     }
 
     [GenerateArrayWrapper("GameplayButtonArray")]
@@ -91,39 +96,6 @@ namespace Zayats.Unity.View
                 _randomState = UnityEngine.Random.state;
                 return t;
             }
-
-            public int GetUnoccupiedCellIndex(GameContext game)
-            {
-                UnityEngine.Random.state = _randomState;
-                int lower = 1;
-                var cells = game.State.Board.Cells;
-                int upperInclusive = cells.Length - 2;
-                int attemptCounter = 0;
-                const int maxAttempts = 10;
-                int t;
-                bool maxAttemptsReached = false;
-                do
-                {
-                    t = GetIntInternal(lower, upperInclusive);
-                    attemptCounter++;
-                }
-                while (cells[t].Things.Count != 0
-                    || (maxAttemptsReached = attemptCounter >= maxAttempts));
-
-                _randomState = UnityEngine.Random.state;
-
-                if (maxAttemptsReached)
-                {
-                    for (int i = 0; i < cells.Length; i++)
-                    {
-                        if (cells[i].Things.Count == 0)
-                            return i;
-                    }
-                    return -1;
-                }
-
-                return t;
-            }
         }
 
         public void Start()
@@ -162,11 +134,12 @@ namespace Zayats.Unity.View
             var mineStorage = Components.InitializeStorage(_game, Components.MineId, CountsToSpawn.EternalMine + CountsToSpawn.RegularMine);
             var playerStorage = Components.InitializeStorage(_game, Components.PlayerId, CountsToSpawn.Player);
             var coinStorage = Components.InitializeStorage(_game, Components.CurrencyId, CountsToSpawn.Coin);
+            Components.InitializeStorage(_game, Components.ThingSpecificEventsId);
+            var respawnPointIdsStorage = Components.InitializeStorage(_game, Components.RespawnPointIdsId, CountsToSpawn.Player);
+            var respawnPositionStorage = Components.InitializeStorage(_game, Components.RespawnPositionId, CountsToSpawn.RespawnPoint);
+            var pickupStorage = Components.InitializeStorage(_game, Components.PickupActionId);
+            var pickupDelegateStorage = Components.InitializeStorage(_game, Components.AttachedPickupDelegateId);
 
-            Vector3 WithZ(Vector3 prev, float z)
-            {
-                return new Vector3(prev.x, prev.y, z);
-            }
 
             void ArrangeThings(int position)
             {
@@ -198,11 +171,12 @@ namespace Zayats.Unity.View
                 obj.transform.parent = VisualCells[position];
             }
 
-            void SpawnRandomly(IRandom random, int id, GameObject obj)
+            int SpawnRandomly(IRandom random, int id, GameObject obj)
             {
                 int randomPos = spawnRandom.GetUnoccupiedCellIndex(_game);
                 if (randomPos != -1)
                     SpawnOn(randomPos, id, obj);
+                return randomPos;
             }
 
 
@@ -217,8 +191,15 @@ namespace Zayats.Unity.View
                 {
                     case ThingKind.Player:
                     {
-                        Initialization.InitializePlayer(instanceIndex, id, _game.State.Players, playerStorage);
-                        SpawnOn(0, id, obj);
+                        _game.InitializePlayer(index: instanceIndex, thingId: id, playerStorage);
+                        respawnPointIdsStorage.Add(id).Component = new Stack<int>();
+                        
+                        {
+                            var stats = _game.State.Players[instanceIndex].Stats; 
+                            stats.Set(Stats.RollAdditiveBonus, 0);
+                        }
+
+                        SpawnOn(position: 0, id, obj);
                         break;
                     }
                     case ThingKind.EternalMine:
@@ -246,6 +227,20 @@ namespace Zayats.Unity.View
                         SpawnRandomly(spawnRandom, id, obj);
                         break;
                     }
+                    case ThingKind.RespawnPoint:
+                    {
+                        int position = SpawnRandomly(spawnRandom, id, obj);
+                        respawnPositionStorage.Add(id).Component = position;
+                        break;
+                    }
+                    case ThingKind.Totem:
+                    {
+                        var pickup = TotemPickup.Instance;
+                        pickupStorage.Add(id).Component = pickup;
+                        pickupDelegateStorage.Add(id);
+                        SpawnRandomly(spawnRandom, id, obj);
+                        break;
+                    }
                 }
                 id++;
             }
@@ -256,22 +251,22 @@ namespace Zayats.Unity.View
             _game.GetEventProxy(Events.OnPositionChanged).Add(
                 (GameContext game, ref Events.PlayerPositionChangedContext context) =>
                 {
-                    game.CollectCoinsAtCurrentPosition(context.PlayerId);
+                    game.CollectCoinsAtCurrentPosition(context.PlayerIndex);
                     
                     var currencyStorage = game.GetComponentStorage(Components.CurrencyId);
                     int totalAmount = 0;
-                    foreach (var currency in game.GetDataInItems(Components.CurrencyId, context.PlayerId))
+                    foreach (var currency in game.GetDataInItems(Components.CurrencyId, context.PlayerIndex))
                     {
                         // The component contains the amount that the coin represents.
                         totalAmount += currency.Component;
                     }
-                    Debug.LogFormat("The player {0} now has {1} currency.", context.PlayerId, totalAmount);
+                    Debug.LogFormat("The player {0} now has {1} currency.", context.PlayerIndex, totalAmount);
                 });
 
             _game.GetEventProxy(Events.OnPositionChanged).Add(
                 (GameContext game, ref Events.PlayerPositionChangedContext context) =>
                 {
-                    var player = game.State.Players[context.PlayerId];
+                    var player = game.State.Players[context.PlayerIndex];
 
                     var targetTransform = VisualCells[player.Position];
                     var playerTransform = _things[player.ThingId].transform;
@@ -285,6 +280,15 @@ namespace Zayats.Unity.View
                     ArrangeThings(position);
                 });
 
+            _game.GetEventProxy(Events.OnPositionChanged).Add(
+                (GameContext game, ref Events.PlayerPositionChangedContext context) =>
+                {
+                    int playerId = game.State.Players[context.PlayerIndex].ThingId;
+                    var storage = game.GetComponentStorage(Components.ThingSpecificEventsId);
+                    if (storage.TryGetSingle(playerId, out var e))
+                        e.Component.GetEventProxy(Events.OnPositionChanged).Handle(game, ref context);
+                });
+
             _game.GetEventProxy(Events.OnPlayerWon).Add(
                 (GameContext game, ref int playerId) =>
                 {
@@ -295,7 +299,7 @@ namespace Zayats.Unity.View
             _game.GetEventProxy(Events.OnAddedInventoryItem).Add(
                 (GameContext game, ref Events.AddedInventoryItemContext context) =>
                 {
-                    var holder = _itemHolders[context.PlayerId];
+                    var holder = _itemHolders[context.PlayerIndex];
                     _things[context.ThingId].transform.SetParent(holder, worldPositionStays: false);
                 });
 
@@ -306,7 +310,7 @@ namespace Zayats.Unity.View
                 int roll = _game.RollAmount(playerId);
                 _game.MovePlayer(new()
                 {
-                    PlayerId = playerId,
+                    PlayerIndex = playerId,
                     Amount = roll,
                     Details = Logic.MovementDetails.Normal,
                 });
