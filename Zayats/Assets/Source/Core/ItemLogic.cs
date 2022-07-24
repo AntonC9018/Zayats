@@ -24,6 +24,15 @@ namespace Zayats.Core
             GetEventProxy(info.Game, info.PlayerIndex).Add(_handler);
         }
 
+        public virtual bool ShouldRemoveFromCellOnPickup(ItemInteractionInfo info)
+        {
+            return true;
+        }
+
+        public virtual bool IsInventoryItem(ItemInteractionInfo info)
+        {
+            return true;
+        }
     }
 
     public struct ItemInteractionInfo
@@ -34,6 +43,18 @@ namespace Zayats.Core
         public int Position;
     }
 
+    public interface IPickupEffect
+    {
+        void DoPickupEffect(ItemInteractionInfo info);
+        void DoDropEffect(ItemInteractionInfo info);
+    }
+
+    public interface IPickup : IPickupEffect
+    {
+        bool ShouldRemoveFromCellOnPickup(ItemInteractionInfo info);
+        bool IsInventoryItem(ItemInteractionInfo info);
+    }
+    
     public abstract class AttachEffectHandlerPickupBase<TEventData> : IPickup where TEventData : struct
     {
         protected abstract int EventId { get; }
@@ -44,12 +65,12 @@ namespace Zayats.Core
         {
             Events.Handler<TEventData> wrappedDelegate = (GameContext game, ref TEventData eventData) => DoEffect(info, ref eventData);
             info.Game.GetPlayerEventProxy<TEventData>(info.PlayerIndex, EventId).Add(wrappedDelegate);
-            info.Game.GetComponent(Components.AttachedPickupDelegateId, info.ThingId).Component = wrappedDelegate;
+            info.Game.GetComponent(Components.AttachedPickupDelegateId, info.ThingId).Value = wrappedDelegate;
         }
 
         protected void DoDetach(ItemInteractionInfo info)
         {
-            ref object obj = ref info.Game.GetComponent(Components.AttachedPickupDelegateId, info.ThingId).Component;
+            ref object obj = ref info.Game.GetComponent(Components.AttachedPickupDelegateId, info.ThingId).Value;
             var wrappedDelegate = (Events.Handler<TEventData>) obj;
             obj = null;
             info.Game.GetPlayerEventProxy<TEventData>(info.PlayerIndex, EventId).Remove(wrappedDelegate);
@@ -66,10 +87,8 @@ namespace Zayats.Core
             DoDrop(info);
         }
 
-        protected void ReturnToShop(ItemInteractionInfo info)
-        {
-            info.Game.State.Shop.Items.Add(info.ThingId);
-        }
+        public virtual bool ShouldRemoveFromCellOnPickup(ItemInteractionInfo info) => true;
+        public virtual bool IsInventoryItem(ItemInteractionInfo info) => true;
     }
 
     public static class PickupHelper
@@ -78,18 +97,6 @@ namespace Zayats.Core
             TypedIdentifier<TEventData> eventId, Events.Handler<TEventData> handler) where TEventData : struct
         {
             return new(eventId.Id, handler);
-        }
-
-        public static void DropAddingToCell(this IPickup pickup, ItemInteractionInfo info)
-        {
-            info.Game.State.Board.Cells[info.Position].Things.Add(info.ThingId);
-            pickup.DoDropEffect(info);
-        }
-
-        public static void PickupRemovingFromCell(this IPickup pickup, ItemInteractionInfo info)
-        {
-            info.Game.State.Board.Cells[info.Position].Things.Remove(info.ThingId);
-            pickup.DoPickupEffect(info);
         }
     }
 
@@ -100,7 +107,7 @@ namespace Zayats.Core
         protected override int EventId => Events.OnTrySavePlayer.Id;
         protected override void DoDrop(ItemInteractionInfo info)
         {
-            ReturnToShop(info);
+            info.Game.AddThingToShop(info.ThingId);
         }
         protected override void DoEffect(ItemInteractionInfo info, ref Events.SavePlayerContext eventData)
         {
@@ -115,44 +122,97 @@ namespace Zayats.Core
         public static readonly PlayerInventoryPickup Instance = new();
         private PlayerInventoryPickup(){}
 
-        void IPickup.DoDropEffect(ItemInteractionInfo info)
+        public bool IsInventoryItem(ItemInteractionInfo info) => true;
+        public bool ShouldRemoveFromCellOnPickup(ItemInteractionInfo info) => true;
+
+        void IPickupEffect.DoDropEffect(ItemInteractionInfo info)
         {
-            info.Game.State.Players[info.PlayerIndex].Items.Remove(info.ThingId);
         }
 
-        void IPickup.DoPickupEffect(ItemInteractionInfo info)
+        void IPickupEffect.DoPickupEffect(ItemInteractionInfo info)
         {
-            info.Game.State.Players[info.PlayerIndex].Items.Add(info.ThingId);
-        }
-
-        public static void DoDropEffect(ItemInteractionInfo info)
-        {
-            info.Game.State.Players[info.PlayerIndex].Items.Remove(info.ThingId);
-        }
-
-        public static void DoPickupEffect(ItemInteractionInfo info)
-        {
-            info.Game.State.Players[info.PlayerIndex].Items.Add(info.ThingId);
         }
     }
 
-    public sealed class MinePickup : IPickup
+    public class MinePickup : IPickup
     {
-        private static Components.Mine GetMineComponent(ItemInteractionInfo info)
+        public Components.Mine _mine;
+
+        public MinePickup(Components.Mine mine)
         {
-            var flags = info.Game.GetComponent(Components.MineId, info.ThingId).Component;
-            return flags;
+            _mine = mine;
         }
 
-        void IPickup.DoDropEffect(ItemInteractionInfo info)
+        public void DoDropEffect(ItemInteractionInfo info)
         {
-            var flags = GetMineComponent(info);
-            
+            info.Game.AddThingToShop(info.ThingId);
         }
 
-        void IPickup.DoPickupEffect(ItemInteractionInfo info)
+        public void DoPickupEffect(ItemInteractionInfo info)
         {
-            throw new System.NotImplementedException();
+            info.Game.KillPlayer(new()
+            {
+                PlayerIndex = info.PlayerIndex,
+                Reason = Reasons.Explosion(info.ThingId),
+            });
+            if (_mine.DestroyOnDetonation)
+                info.Game.DestroyThing(info.ThingId);
         }
+
+        public bool IsInventoryItem(ItemInteractionInfo info) => _mine.PutInInventoryOnDetonation;
+        public bool ShouldRemoveFromCellOnPickup(ItemInteractionInfo info) => _mine.RemoveOnDetonation;
+    }
+
+    public sealed class AddStatPickup : IPickup
+    {
+        public AddStatPickup(TypedIdentifier<float> id, float value) : this(id.Id, value)
+        {
+        }
+        
+        public AddStatPickup(TypedIdentifier<int> id, int value) : this(id.Id, (float) value)
+        {
+        }
+        
+        public AddStatPickup(int id, float value)
+        {
+            StatValue = value;
+            StatIndex = id;
+        }
+
+        public float StatValue { get; }
+        public int StatIndex { get; }
+
+        private Stats.Proxy GetProxy(in ItemInteractionInfo info)
+        {
+            return info.Game.State.Players[info.PlayerIndex].Stats.GetProxy(StatIndex);
+        }
+
+        public void DoDropEffect(ItemInteractionInfo info) => GetProxy(info).Value -= StatValue;
+        public void DoPickupEffect(ItemInteractionInfo info) => GetProxy(info).Value += StatValue;
+        public bool IsInventoryItem(ItemInteractionInfo info) => true;
+        public bool ShouldRemoveFromCellOnPickup(ItemInteractionInfo info) => true;
+    }
+
+    public sealed class TowerPickup : IPickup
+    {
+        public static readonly TowerPickup Instance = new();
+        private TowerPickup(){}
+
+        public void DoDropEffect(ItemInteractionInfo info)
+        {
+            int respawnPointId = info.Game.GetComponent(Components.RespawnPointIdId, info.ThingId).Value;
+            int respawnPosition = info.Game.GetComponent(Components.RespawnPositionId, respawnPointId).Value;
+            // How do we handle dropping back on cell?
+            info.Game.State.Board.Cells[respawnPosition].Things.Add(info.ThingId);
+        }
+
+        public void DoPickupEffect(ItemInteractionInfo info)
+        {
+            int respawnPointId = info.Game.GetComponent(Components.RespawnPointIdId, info.ThingId).Value;
+            info.Game.PushRespawnPoint(info.PlayerIndex, respawnPointId);
+        }
+
+        public bool IsInventoryItem(ItemInteractionInfo info) => true;
+        public bool ShouldRemoveFromCellOnPickup(ItemInteractionInfo info) => true;
     }
 }

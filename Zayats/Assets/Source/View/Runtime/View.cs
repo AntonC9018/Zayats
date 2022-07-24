@@ -28,6 +28,7 @@ namespace Zayats.Unity.View
         RespawnPoint,
         Totem,
         Rabbit,
+        Tower,
     }
 
     [GenerateArrayWrapper("GameplayButtonArray")]
@@ -36,12 +37,15 @@ namespace Zayats.Unity.View
         Roll,
         UseItem,
         Settings,
+        Restart,
     }
 
     [GenerateArrayWrapper("GameplayTextArray")]
     public enum GameplayTextKind
     {
         Win,
+        Seed,
+        CoinCounter,
     }
 
     public class View : MonoBehaviour
@@ -49,14 +53,26 @@ namespace Zayats.Unity.View
         public Transform[] VisualCells;
         public ThingArray<int> CountsToSpawn;
         public ThingArray<GameObject> PrefabsToSpawn;
+        public ThingArray<int> ItemCosts;
         public GameplayButtonArray<Button> GameplayButtons;
         public GameplayTextArray<TMP_Text> GameplayText;
         public Transform HolderPrefab;
         public Transform ItemHolderHolder;
-        private GameObject[] _things;
+        public Color[] PlayerCharacterColors;
+        private GameObject[] _thingGameObjects;
         private Transform[] _itemHolders;
         private GameContext _game;
+
         private int _seed;
+        private int Seed
+        {
+            get => _seed;
+            set
+            {
+                _seed = value;
+                GameplayText.Seed.text = value.ToString();
+            }
+        }
 
         public void OnValidate()
         {
@@ -67,12 +83,17 @@ namespace Zayats.Unity.View
 
             if (IsNullOrEmpty(CountsToSpawn.Array))
                 CountsToSpawn = ThingArray<int>.Create();
+            if (IsNullOrEmpty(ItemCosts.Array))
+                ItemCosts = ThingArray<int>.Create();
             if (IsNullOrEmpty(PrefabsToSpawn.Array))
                 PrefabsToSpawn = ThingArray<GameObject>.Create();
             if (IsNullOrEmpty(GameplayButtons.Array))
                 GameplayButtons = GameplayButtonArray<Button>.Create();
             if (IsNullOrEmpty(GameplayText.Array))
                 GameplayText = GameplayTextArray<TMP_Text>.Create();
+            if (PlayerCharacterColors is null || PlayerCharacterColors.Length < CountsToSpawn.Player)
+                Array.Resize(ref PlayerCharacterColors, CountsToSpawn.Player);
+            CountsToSpawn.RespawnPoint = CountsToSpawn.Tower;
         }
 
         public class Random : IRandom
@@ -98,26 +119,29 @@ namespace Zayats.Unity.View
             }
         }
 
-        public void Start()
+        public class UnityLogger : Core.ILogger
         {
-            GameplayText.Win.gameObject.SetActive(false);
-
-            _itemHolders = new Transform[CountsToSpawn.Player];
-            foreach (ref var holder in _itemHolders.AsSpan())
+            public void Debug(string message)
             {
-                holder = GameObject.Instantiate(HolderPrefab);
-                holder.SetParent(ItemHolderHolder, worldPositionStays: false);
-                holder.gameObject.SetActive(false);
+                UnityEngine.Debug.Log(message);
             }
-            Debug.Log(_itemHolders[0]);
-            _itemHolders[0].gameObject.SetActive(true);
-            
+
+            public void Debug(string format, object value)
+            {
+                UnityEngine.Debug.LogFormat(format, value);
+            }
+        }
+
+        private GameContext InitializeGame()
+        {
             _game = Initialization.CreateGameContext(cellCountNotIncludingFirstAndLast: VisualCells.Length - 2);
 
-            const int seed = 5;
+            int seed = Seed;
             UnityEngine.Random.InitState(seed);
             var gameRandom = new Random(UnityEngine.Random.state);
             _game.Random = gameRandom;
+
+            _game.Logger = new UnityLogger();
 
             var initializationContext = new Initialization.GameInitializationContext
             {
@@ -129,9 +153,9 @@ namespace Zayats.Unity.View
             UnityEngine.Random.InitState(seed + 1);
             var spawnRandom = new Random(UnityEngine.Random.state);
             
-            _things = new GameObject[CountsToSpawn.Array.Sum()];
+            _thingGameObjects = new GameObject[CountsToSpawn.Array.Sum()];
 
-            var mineStorage = Components.InitializeStorage(_game, Components.MineId, CountsToSpawn.EternalMine + CountsToSpawn.RegularMine);
+            var costStorage = Components.InitializeStorage(_game, Components.CurrencyCostId, CountsToSpawn.EternalMine + CountsToSpawn.RegularMine);
             var playerStorage = Components.InitializeStorage(_game, Components.PlayerId, CountsToSpawn.Player);
             var coinStorage = Components.InitializeStorage(_game, Components.CurrencyId, CountsToSpawn.Coin);
             Components.InitializeStorage(_game, Components.ThingSpecificEventsId);
@@ -139,6 +163,24 @@ namespace Zayats.Unity.View
             var respawnPositionStorage = Components.InitializeStorage(_game, Components.RespawnPositionId, CountsToSpawn.RespawnPoint);
             var pickupStorage = Components.InitializeStorage(_game, Components.PickupActionId);
             var pickupDelegateStorage = Components.InitializeStorage(_game, Components.AttachedPickupDelegateId);
+            var respawnPointIdStorage = Components.InitializeStorage(_game, Components.RespawnPointIdId, CountsToSpawn.Tower);
+            assertNoneNull(_game.State.ComponentsByType);
+
+            var regularMinePickup = new MinePickup(new()
+            {
+                DestroyOnDetonation = false,
+                PutInInventoryOnDetonation = true,
+                RemoveOnDetonation = true,
+            });
+
+            var eternalMinePickup = new MinePickup(new()
+            {
+                DestroyOnDetonation = false,
+                PutInInventoryOnDetonation = false,
+                RemoveOnDetonation = false,
+            });
+
+            var rabbitPickup = new AddStatPickup(Stats.RollAdditiveBonus, 1);
 
 
             void ArrangeThings(int position)
@@ -152,7 +194,7 @@ namespace Zayats.Unity.View
 
                 for (int i = 0; i < things.Count; i++)
                 {
-                    var transform = _things[things[i]].transform;
+                    var transform = _thingGameObjects[things[i]].transform;
                     Vector3 cellPosition = VisualCells[position].position;
                     
                     Vector3 thingPosition;
@@ -185,64 +227,90 @@ namespace Zayats.Unity.View
             {
                 ref int id = ref initializationContext.CurrentId;
                 var obj = GameObject.Instantiate(PrefabsToSpawn[kindIndex]);
-                _things[id] = obj;
+                _thingGameObjects[id] = obj;
+
+                if (ItemCosts[kindIndex] > 0 && kindIndex != (int) ThingKind.Player)
+                    costStorage.Add(id).Value = ItemCosts[kindIndex];
 
                 switch ((ThingKind) kindIndex)
                 {
+                    default: assert(false, $"Unhandled thing kind {(ThingKind) kindIndex}"); break;
+
                     case ThingKind.Player:
                     {
                         _game.InitializePlayer(index: instanceIndex, thingId: id, playerStorage);
-                        respawnPointIdsStorage.Add(id).Component = new Stack<int>();
+                        respawnPointIdsStorage.Add(id).Value = new Stack<int>();
                         
                         {
                             var stats = _game.State.Players[instanceIndex].Stats; 
                             stats.Set(Stats.RollAdditiveBonus, 0);
                         }
 
+                        obj.GetComponent<SpriteRenderer>().color = PlayerCharacterColors[instanceIndex];
+
                         SpawnOn(position: 0, id, obj);
                         break;
                     }
                     case ThingKind.EternalMine:
                     {
-                        ref var mine = ref mineStorage.Add(id).Component;
-                        mine.DestroyOnDetonation = false;
-                        mine.PutInInventoryOnDetonation = false;
-                        mine.RemoveOnDetonation = false;
+                        pickupStorage.Add(id).Value = eternalMinePickup;
                         SpawnRandomly(spawnRandom, id, obj);
                         break;
                     }
                     case ThingKind.RegularMine:
                     {
-                        ref var mine = ref mineStorage.Add(id).Component;
-                        mine.DestroyOnDetonation = false;
-                        mine.PutInInventoryOnDetonation = true;
-                        mine.RemoveOnDetonation = true;
+                        pickupStorage.Add(id).Value = regularMinePickup;
                         SpawnRandomly(spawnRandom, id, obj);
                         break;
                     }
                     case ThingKind.Coin:
                     {
-                        ref var coin = ref coinStorage.Add(id).Component;
-                        coin = 1;
+                        coinStorage.Add(id).Value = 1;
+                        pickupStorage.Add(id).Value = PlayerInventoryPickup.Instance;
                         SpawnRandomly(spawnRandom, id, obj);
                         break;
                     }
                     case ThingKind.RespawnPoint:
                     {
                         int position = SpawnRandomly(spawnRandom, id, obj);
-                        respawnPositionStorage.Add(id).Component = position;
+                        respawnPositionStorage.Add(id).Value = position;
                         break;
                     }
                     case ThingKind.Totem:
                     {
                         var pickup = TotemPickup.Instance;
-                        pickupStorage.Add(id).Component = pickup;
+                        pickupStorage.Add(id).Value = pickup;
                         pickupDelegateStorage.Add(id);
                         SpawnRandomly(spawnRandom, id, obj);
                         break;
                     }
+                    case ThingKind.Rabbit:
+                    {
+                        pickupStorage.Add(id).Value = rabbitPickup;
+                        SpawnRandomly(spawnRandom, id, obj);
+                        break;
+                    }
+                    case ThingKind.Tower:
+                    {
+                        pickupStorage.Add(id).Value = TowerPickup.Instance;
+                        respawnPointIdStorage.Add(id);
+                        break;
+                    }
                 }
                 id++;
+            }
+
+            // Associate respawn points with the items.
+            {
+                int[] idsOfPositions = respawnPositionStorage.MapThingIdToIndex.Keys.ToArray();
+                int[] idsOfPointStorage = respawnPointIdStorage.MapThingIdToIndex.Keys.ToArray();
+                assert(idsOfPositions.Length >= idsOfPointStorage.Length, "why and also how?");
+                for (int i = 0; i < idsOfPointStorage.Length; i++)
+                {
+                    int refereeId = idsOfPointStorage[i];
+                    respawnPointIdStorage.GetProxy(refereeId).Value = idsOfPositions[i];
+                    SpawnOn(respawnPositionStorage.GetProxy(idsOfPositions[i]).Value, refereeId, _thingGameObjects[refereeId]);
+                }
             }
 
             for (int cellIndex = 0; cellIndex < VisualCells.Length; cellIndex++)
@@ -251,25 +319,10 @@ namespace Zayats.Unity.View
             _game.GetEventProxy(Events.OnPositionChanged).Add(
                 (GameContext game, ref Events.PlayerPositionChangedContext context) =>
                 {
-                    game.CollectCoinsAtCurrentPosition(context.PlayerIndex);
-                    
-                    var currencyStorage = game.GetComponentStorage(Components.CurrencyId);
-                    int totalAmount = 0;
-                    foreach (var currency in game.GetDataInItems(Components.CurrencyId, context.PlayerIndex))
-                    {
-                        // The component contains the amount that the coin represents.
-                        totalAmount += currency.Component;
-                    }
-                    Debug.LogFormat("The player {0} now has {1} currency.", context.PlayerIndex, totalAmount);
-                });
-
-            _game.GetEventProxy(Events.OnPositionChanged).Add(
-                (GameContext game, ref Events.PlayerPositionChangedContext context) =>
-                {
                     var player = game.State.Players[context.PlayerIndex];
 
                     var targetTransform = VisualCells[player.Position];
-                    var playerTransform = _things[player.ThingId].transform;
+                    var playerTransform = _thingGameObjects[player.ThingId].transform;
                     playerTransform.parent = targetTransform;
 
                     int position = player.Position;
@@ -280,15 +333,6 @@ namespace Zayats.Unity.View
                     ArrangeThings(position);
                 });
 
-            _game.GetEventProxy(Events.OnPositionChanged).Add(
-                (GameContext game, ref Events.PlayerPositionChangedContext context) =>
-                {
-                    int playerId = game.State.Players[context.PlayerIndex].ThingId;
-                    var storage = game.GetComponentStorage(Components.ThingSpecificEventsId);
-                    if (storage.TryGetSingle(playerId, out var e))
-                        e.Component.GetEventProxy(Events.OnPositionChanged).Handle(game, ref context);
-                });
-
             _game.GetEventProxy(Events.OnPlayerWon).Add(
                 (GameContext game, ref int playerId) =>
                 {
@@ -296,30 +340,73 @@ namespace Zayats.Unity.View
                     GameplayText.Win.gameObject.SetActive(true);
                 });
 
-            _game.GetEventProxy(Events.OnAddedInventoryItem).Add(
-                (GameContext game, ref Events.AddedInventoryItemContext context) =>
+            _game.GetEventProxy(Events.OnItemAddedToInventory).Add(
+                (GameContext game, ref ItemInteractionInfo context) =>
                 {
                     var holder = _itemHolders[context.PlayerIndex];
-                    _things[context.ThingId].transform.SetParent(holder, worldPositionStays: false);
+                    _thingGameObjects[context.ThingId].transform.SetParent(holder, worldPositionStays: false);
                 });
 
+            _game.GetEventProxy(Events.OnNextTurn).Add(
+                (GameContext game, ref NextTurnContext context) =>
+                {
+                    _itemHolders[context.PreviousPlayerIndex].gameObject.SetActive(false);
+                    _itemHolders[context.CurrentPlayerIndex].gameObject.SetActive(true);
+
+                    {
+                        var currencyStorage = game.GetComponentStorage(Components.CurrencyId);
+                        int totalAmount = 0;
+                        foreach (var currency in game.GetDataInItems(Components.CurrencyId, context.CurrentPlayerIndex))
+                        {
+                            // The component contains the amount that the coin represents.
+                            totalAmount += currency.Component;
+                        }
+                        GameplayText.CoinCounter.text = totalAmount.ToString();
+                    }
+                });
+
+            _game.GetEventProxy(Events.OnCellContentChanged).Add(
+                (GameContext game, ref CellContentChangedContext context) =>
+                {
+                    // This is ok, because it will be eventually animated.
+                    ArrangeThings(context.CellPosition);
+                });
+
+            _itemHolders[0].gameObject.SetActive(true);
+            GameplayText.Win.gameObject.SetActive(false);
+            GameplayText.CoinCounter.text = "0";
+
+            // _game.GetEventProxy(Events.OnItemRemovedFromInventory).Add(
+            //     (GameContext game, ref ItemInteractionInfo context) =>
+            //     {
+            //         var holder = _itemHolders[context.PlayerIndex];
+            //         _things[context.ThingId].transform.SetParent(holder, worldPositionStays: false);
+            //     });
+
+            return _game;
+        }
+
+        public void Start()
+        {
+            const int initialSeed = 5;
+            Seed = initialSeed;
+
+            GameplayText.Win.gameObject.SetActive(false);
+
+            _itemHolders = new Transform[CountsToSpawn.Player];
+            foreach (ref var holder in _itemHolders.AsSpan())
+            {
+                holder = GameObject.Instantiate(HolderPrefab);
+                holder.SetParent(ItemHolderHolder, worldPositionStays: false);
+                holder.gameObject.SetActive(false);
+            }
+            _itemHolders[0].gameObject.SetActive(true);
+
+            InitializeGame();
 
             GameplayButtons.Roll.onClick.AddListener(() =>
             {
-                int playerId = _game.State.CurrentPlayerId;
-                int roll = _game.RollAmount(playerId);
-                _game.MovePlayer(new()
-                {
-                    PlayerIndex = playerId,
-                    Amount = roll,
-                    Details = Logic.MovementDetails.Normal,
-                });
-                {
-                    ref var a = ref _game.State.CurrentPlayerId;
-                    _itemHolders[a].gameObject.SetActive(false);
-                    a = (a + 1) % _game.State.Players.Length;
-                    _itemHolders[a].gameObject.SetActive(true);
-                }
+                _game.ExecuteCurrentPlayersTurn();
             });
 
             GameplayButtons.Settings.onClick.AddListener(() =>
@@ -330,6 +417,14 @@ namespace Zayats.Unity.View
             GameplayButtons.UseItem.onClick.AddListener(() =>
             {
                 Debug.Log("Use Item Clicked");
+            });
+
+            GameplayButtons.Restart.onClick.AddListener(() =>
+            {
+                foreach (var thing in _thingGameObjects)
+                    Destroy(thing);
+                Seed = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
+                InitializeGame();
             });
         }
     }

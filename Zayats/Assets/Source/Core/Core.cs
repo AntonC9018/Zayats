@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -97,7 +98,7 @@ namespace Zayats.Core
         {
             ref var player = ref game.State.Players[index];
             player.ThingId = thingId;
-            playerStorage.Add(thingId).Component.PlayerIndex = index;
+            playerStorage.Add(thingId).Value.PlayerIndex = index;
         }
 
         public struct MineInitializationContext
@@ -106,42 +107,6 @@ namespace Zayats.Core
             public int NormalMineCount;
             public IRandom Random;
             public Action<int, int> OnMineSpawned;
-        }
-
-        public static void InitializeMines(this ref GameInitializationContext initContext, MineInitializationContext mineContext)
-        {
-            int totalMineCount = mineContext.EternalMineCount + mineContext.NormalMineCount;
-            var componentStorage = Components.InitializeStorage(initContext.Game, Components.MineId, totalMineCount);
-
-            for (int i = 0; i < totalMineCount; i++)
-            {
-                int randomCellIndex = mineContext.Random.GetUnoccupiedCellIndex(initContext.Game);
-                if (randomCellIndex == -1)
-                    return;
-
-                ref var t = ref componentStorage.Add(initContext.CurrentId).Component;
-                int mineTypeIndex;
-                if (i < mineContext.EternalMineCount)
-                {
-                    t.DestroyOnDetonation = false;
-                    t.PutInInventoryOnDetonation = false;
-                    t.RemoveOnDetonation = false;
-                    mineTypeIndex = 0;
-                }
-                else
-                {
-                    t.DestroyOnDetonation = false;
-                    t.RemoveOnDetonation = true;
-                    t.PutInInventoryOnDetonation = true;
-                    mineTypeIndex = 1;
-                }
-                assert(t.ValidateMine(), "Mine flags were invalid.");
-                
-                initContext.Game.State.Board.Cells[randomCellIndex].Things.Add(initContext.CurrentId);
-                mineContext.OnMineSpawned?.Invoke(mineTypeIndex, initContext.CurrentId);
-
-                initContext.CurrentId++;
-            }
         }
     }
 
@@ -159,11 +124,24 @@ namespace Zayats.Core
             public MovementDetails Details;
         }
 
-        public static void TranslatePlayerToPosition_NoEvents(this GameContext game, ref Data.Player player, int toPosition)
+        public static void MovePlayerInBetweenCells(this GameContext game, ref Data.Player player, int toPosition)
         {
             player.GetCell(game).Things.Remove(player.ThingId);
             player.Position = toPosition;
+            game.TriggerSingleThingRemovedFromCellEvent(player.ThingId, player.Position);
             player.GetCell(game).Things.Add(player.ThingId);
+            game.TriggerSingleThingAddedToCellEvent(player.ThingId, toPosition);
+        }
+
+        public static bool MaybeEndGame(this GameContext game, int playerIndex)
+        {
+            if (CheckFinish(game.State.Board, game.State.Players[playerIndex].Position))
+            {
+                game.State.IsOver = true;
+                game.HandlePlayerEvent(Events.OnPlayerWon, playerIndex, playerIndex);
+                return true;
+            }
+            return false;
         }
 
         // Returns true if the game ends as a result of the move.
@@ -172,11 +150,9 @@ namespace Zayats.Core
             ref var player = ref game.State.Players[context.PlayerIndex];
             
             int startingPosition = player.Position;
-
             var toPosition = Math.Min(player.Position + context.Amount, game.State.Board.Cells.Length - 1);
-            TranslatePlayerToPosition_NoEvents(game, ref player, toPosition);
-            var events = game.GetComponent(Components.ThingSpecificEventsId, player.ThingId);
-            
+            MovePlayerInBetweenCells(game, ref player, toPosition);
+
             game.HandlePlayerEvent(Events.OnMoved, context.PlayerIndex, new()
             {
                 Movement = context,
@@ -187,14 +163,7 @@ namespace Zayats.Core
                 PlayerIndex = context.PlayerIndex,
                 StartingPosition = startingPosition,
             });
-
-            if (CheckFinish(game.State.Board, player.Position))
-            {
-                game.HandlePlayerEvent(Events.OnPlayerWon, context.PlayerIndex, context.PlayerIndex);
-                return true;
-            }
-
-            return false;
+            return game.MaybeEndGame(context.PlayerIndex);
         }
 
         public static void MovePlayer(this GameContext game, MovementContext context)
@@ -203,39 +172,14 @@ namespace Zayats.Core
 
             if (DoPlayerMove(game, context))
                 return;
+            
+            int positionAfterMove = player.Position;
+            game.CollectPickupsAtCurrentPosition(context.PlayerIndex);
+            // Collecting items has triggered a move, so it's been completed already.
+            if (player.Position != positionAfterMove)
+                return;
 
-            // Mines.
-            var mines = game.GetDataInCell(Components.MineId, player.Position).GetEnumerator();
-            if (mines.MoveNext())
-            {
-                var mineIt = mines.Current;
-                int thingId = mineIt.ThingId;
-                
-                ref var mine = ref mineIt.Component;
-                if (mine.RemoveOnDetonation)
-                    mineIt.List.RemoveAt(mineIt.ListIndex);
-                if (mine.PutInInventoryOnDetonation)
-                {
-                    DoDefaultPickupEffectWithEvent(new()
-                    {
-                        Game = game,
-                        PlayerIndex = context.PlayerIndex,
-                        ThingId = thingId,
-                        Position = player.Position,
-                    });
-                }
-                if (mine.DestroyOnDetonation)
-                    DestroyThing(game, thingId);
-
-                if (KillPlayer(game, new()
-                    {
-                        Reason = Reasons.Explosion(thingId),
-                        PlayerIndex = context.PlayerIndex,
-                    }))
-                {
-                    return;
-                }
-            }
+            
 
             // Jumping over other players.
             var players = game.GetDataInCell(Components.PlayerId, player.Position).GetEnumerator();
@@ -265,48 +209,68 @@ namespace Zayats.Core
 
         public static void CollectPickupsAtPosition(this GameContext game, int playerIndex, int position)
         {
-            ref var player = ref game.State.Players[playerIndex];
             var pickupsInCell = game.GetDataInCell(Components.PickupActionId, position);
             var pickupInfos = pickupsInCell.Select(a => (Pickup: a.Component, a.ListIndex, a.ThingId)).Reverse().ToArray();
 
+            ItemInteractionInfo info;
+            info.Game = game;
+            info.PlayerIndex = playerIndex;
+            info.Position = position;
+            
+            var things = game.State.Board.Cells[position].Things;
+            
+            // They have to be removed before their effect is executed,
+            // because the effect may mess with the cell's content.
+            // This is also why we have to enumerate the data in the cell.
+            foreach (var pickupInfo in pickupInfos)
             {
-                var things = game.State.Board.Cells[position].Things;
-                foreach (var index in pickupInfos.Select(a => a.ListIndex))
-                    things.RemoveAt(index);
+                info.ThingId = pickupInfo.ThingId;
+                if (pickupInfo.Pickup.ShouldRemoveFromCellOnPickup(info))
+                    things.RemoveAt(pickupInfo.ListIndex);
             }
 
-            {
-                ItemInteractionInfo info;
-                info.Game = game;
-                info.PlayerIndex = playerIndex;
-                info.Position = position;
+            game.TriggerThingsRemovedFromCellEvent(pickupInfos.Select(i => i.ThingId), pickupInfos.Length, position);
 
-                foreach (var pickupInfo in pickupInfos)
-                {
-                    info.ThingId = pickupInfo.ThingId;
-                    DoPickupEffectWithEvent(pickupInfo.Pickup, info);
-                }
+            foreach (var pickupInfo in pickupInfos)
+            {
+                info.ThingId = pickupInfo.ThingId;
+                DoPickupEffectWithEvent(pickupInfo.Pickup, info);
+                if (pickupInfo.Pickup.IsInventoryItem(info))
+                    AddItemToInventory(info);
             }
         }
 
         public static void DoPickupEffectWithEvent(this IPickup pickup, ItemInteractionInfo info)
         {
             pickup.DoPickupEffect(info);
-            info.Game.HandlePlayerEvent(Events.OnAddedInventoryItem, info.PlayerIndex, new()
-            {
-                PlayerIndex = info.PlayerIndex,
-                ThingId = info.Position,
-            });
+            info.Game.HandlePlayerEvent(Events.OnThingPickedUp, info.PlayerIndex, ref info);
         }
 
-        public static void DoDefaultPickupEffectWithEvent(ItemInteractionInfo info)
+        public static void AddThingToShop(this GameContext game, int thingId)
         {
-            PlayerInventoryPickup.DoDropEffect(info);
-            info.Game.HandlePlayerEvent(Events.OnAddedInventoryItem, info.PlayerIndex, new()
-            {
-                PlayerIndex = info.PlayerIndex,
-                ThingId = info.Position,
-            });
+            game.State.Shop.Items.Add(thingId);
+        }
+
+        // public static void DoDefaultPickupEffectWithEvent(ItemInteractionInfo info)
+        // {
+        //     PlayerInventoryPickup.DoDropEffect(info);
+        //     info.Game.HandlePlayerEvent(Events.OnThingPickedUp, info.PlayerIndex, new()
+        //     {
+        //         PlayerIndex = info.PlayerIndex,
+        //         ThingId = info.Position,
+        //     });
+        // }
+
+        public static void AddItemToInventory(ItemInteractionInfo info)
+        {
+            info.Game.State.Players[info.PlayerIndex].Items.Add(info.ThingId);
+            info.Game.HandlePlayerEvent(Events.OnItemAddedToInventory, info.PlayerIndex, ref info);
+        }
+
+        public static void RemoveItemFromInventory(ItemInteractionInfo info)
+        {
+            info.Game.State.Players[info.PlayerIndex].Items.Remove(info.ThingId);
+            info.Game.HandlePlayerEvent(Events.OnItemRemovedFromInventory, info.PlayerIndex, ref info);
         }
 
         public static void DestroyThing(this GameContext game, int thingId)
@@ -345,7 +309,7 @@ namespace Zayats.Core
             int startingPosition = player.Position;
             int respawnPosition = GetRespawnPositionByPoppingRespawnPoint(game, context.PlayerIndex);
             
-            TranslatePlayerToPosition_NoEvents(game, ref player, respawnPosition);
+            MovePlayerInBetweenCells(game, ref player, respawnPosition);
 
             game.HandlePlayerEvent(Events.OnPlayerDied, context.PlayerIndex, context);
             game.HandlePlayerEvent(Events.OnPositionChanged, context.PlayerIndex, new()
@@ -364,12 +328,12 @@ namespace Zayats.Core
             int playerId = game.State.Players[playerIndex].ThingId;
             if (game.TryGetComponent(Components.RespawnPointIdsId, playerId, out var respawn))
             {
-                var respawnStack = respawn.Component;
+                var respawnStack = respawn.Value;
                 if (respawnStack is null || respawnStack.Count == 0)
                     return defaultPosition;
 
                 int respawnPointId = respawnStack.Pop();
-                int respawnPosition = game.GetComponent(Components.RespawnPositionId, respawnPointId).Component;
+                int respawnPosition = game.GetComponent(Components.RespawnPositionId, respawnPointId).Value;
 
                 game.HandlePlayerEvent(Events.OnRespawnPositionPopped, playerId, new()
                 {
@@ -382,17 +346,235 @@ namespace Zayats.Core
             return defaultPosition;
         }
 
+        public static void PushRespawnPoint(this GameContext game, int playerIndex, int respawnPointId)
+        {
+            var respawnPointStorage = game.GetComponentStorage(Components.RespawnPointIdsId);
+            int playerId = game.State.Players[playerIndex].ThingId;
+            if (!respawnPointStorage.TryGetProxy(playerId, out var respawnPointsStackProxy))
+                respawnPointsStackProxy = respawnPointStorage.Add(playerId);
+            var stack = respawnPointsStackProxy.Value ??= new();
+            stack.Push(respawnPointId);
+
+            game.HandlePlayerEvent(Events.OnRespawnPositionPushed, playerId, new()
+            {
+                PlayerIndex = playerIndex,
+                RespawnPointId = respawnPointId,
+                RespawnPointIds = stack,
+                RespawnPosition = game.GetComponent(Components.RespawnPositionId, respawnPointId).Value,
+            });
+        }
+
         public static int RollAmount(this GameContext game, int playerIndex)
         {
             ref var player = ref game.State.Players[playerIndex];
             int rolledValue = game.Random.GetInt(1, 6);
             int rollBonus = player.Stats.Get(Stats.RollAdditiveBonus);
+
+            // Questionable
+            game.HandlePlayerEvent(Events.OnAmountRolled, playerIndex, new()
+            {
+                PlayerIndex = playerIndex,
+                BonusAmount = rollBonus,
+                RolledAmount = rolledValue,
+            });
+
             return rolledValue + rollBonus;
         }
 
         public static bool CheckFinish(in Data.Board board, int position)
         {
             return position >= board.Cells.Length - 1;
+        }
+
+        public static void EndCurrentPlayersTurn(this GameContext game)
+        {
+            ref int a = ref game.State.CurrentPlayerId;
+            int previousPlayer = a;
+            a = (a + 1) % game.State.Players.Length;
+            int currentPlayer = a;
+
+            game.HandleEvent(Events.OnNextTurn, new()
+            {
+                PreviousPlayerIndex = previousPlayer,
+                CurrentPlayerIndex = currentPlayer,
+            });
+        }
+
+        public static void ExecuteCurrentPlayersTurn(this GameContext game)
+        {
+            int playerId = game.State.CurrentPlayerId;
+            int roll = game.RollAmount(playerId);
+            game.MovePlayer(new()
+            {
+                PlayerIndex = playerId,
+                Amount = roll,
+                Details = Logic.MovementDetails.Normal,
+            });
+            if (!game.State.IsOver)
+                game.EndCurrentPlayersTurn();
+        }
+    }
+
+    public class GameContext
+    {
+        public Data.Game State;
+        public Events.Storage EventHandlers;
+        public IRandom Random;
+        public ILogger Logger;
+    }
+
+    public interface ILogger
+    {
+        void Debug(string message);
+        void Debug(string format, object value);
+    }
+
+    public struct ComponentProxy
+    {
+        public object Storage;
+        public int Index;
+        public readonly ref T Get<T>() => ref ((ComponentStorage<T>) Storage).Data[Index];
+    }
+
+    public struct ComponentProxy<T>
+    {
+        public T[] Storage;
+        public int Index;
+        public readonly bool Exists => Index != -1;
+        public readonly ref T Value => ref Storage[Index];
+    }
+
+    public struct ListItemComponentProxy<T>
+    {
+        public ComponentProxy<T> Proxy;
+        public int ListIndex;
+        public List<int> List;
+        public readonly int ThingId => List[ListIndex];
+        public readonly ref T Component => ref Proxy.Value;
+    }
+
+    public static class Helper
+    {
+        public static IEnumerable<ListItemComponentProxy<T>> GetItemInList<T>(List<int> list, ComponentStorage<T> componentStorage)
+        {
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (componentStorage.TryGetProxy(list[i], out var proxy))
+                {
+                    yield return new()
+                    {
+                        Proxy = proxy,
+                        ListIndex = i,
+                        List = list,
+                    };
+                }
+            }
+        }
+        public static IEnumerable<ListItemComponentProxy<T>> GetDataInCell<T>(this GameContext game, int componentId, int cellIndex)
+        {
+            var things = game.State.Board.Cells[cellIndex].Things;
+            var componentStorage = game.GetComponentStorage<T>(componentId);
+            return GetItemInList(things, componentStorage);
+        }
+
+        public static IEnumerable<ListItemComponentProxy<T>> GetDataInItems<T>(this GameContext game, int componentId, int playerIndex)
+        {
+            var things = game.State.Players[playerIndex].Items;
+            var componentStorage = game.GetComponentStorage<T>(componentId);
+            return GetItemInList(things, componentStorage);
+        }
+
+        public static IEnumerable<ListItemComponentProxy<T>> GetDataInItems<T>(this GameContext game, TypedIdentifier<T> componentId, int playerIndex)
+        {
+            return GetDataInItems<T>(game, componentId.Id, playerIndex);
+        }
+
+        public static IEnumerable<ListItemComponentProxy<T>> GetDataInCell<T>(this GameContext game, TypedIdentifier<T> componentId, int cellId)
+        {
+            return GetDataInCell<T>(game, componentId.Id, cellId);
+        }
+
+        public static ComponentStorage<T> GetComponentStorage<T>(this GameContext game, int componentId)
+        {
+            return (ComponentStorage<T>) game.State.ComponentsByType[componentId];
+        }
+
+        public static ComponentStorage<T> GetComponentStorage<T>(this GameContext game, TypedIdentifier<T> componentId)
+        {
+            return GetComponentStorage<T>(game, componentId.Id);
+        }
+
+        public static bool TryGetComponent<T>(this GameContext game, TypedIdentifier<T> componentId, int thingId, out ComponentProxy<T> proxy)
+        {
+            return GetComponentStorage(game, componentId).TryGetProxy(thingId, out proxy);
+        }
+
+        public static ComponentProxy<T> GetComponent<T>(this GameContext game, TypedIdentifier<T> componentId, int thingId)
+        {
+            TryGetComponent(game, componentId, thingId, out var result);
+            return result;
+        }
+
+        public static ref Data.Cell GetCell(this ref Data.Player player, GameContext game)
+        {
+            return ref game.State.Board.Cells[player.Position];
+        }
+
+        public static bool ValidateMine(this in Components.Mine mine)
+        {
+            if (mine.RemoveOnDetonation && !mine.DestroyOnDetonation)
+                return false;
+            if (mine.PutInInventoryOnDetonation && !mine.RemoveOnDetonation)
+                return false;
+            return true;
+        }
+
+        public static Events.Proxy<T> GetEventProxy<T>(this GameContext game, int eventId) where T : struct
+        {
+            return new Events.Proxy<T>
+            {
+                EventHandlers = game.EventHandlers,
+                EventIndex = eventId,
+            };
+        }
+
+        public static Events.Proxy<T> GetEventProxy<T>(this GameContext game, TypedIdentifier<T> eventId) where T : struct
+        {
+            return new Events.Proxy<T>
+            {
+                EventHandlers = game.EventHandlers,
+                EventIndex = eventId.Id,
+            };
+        }
+
+        public static int GetUnoccupiedCellIndex(this IRandom random, GameContext game)
+        {
+            int lower = 1;
+            var cells = game.State.Board.Cells;
+            int upperInclusive = cells.Length - 2;
+            int attemptCounter = 0;
+            const int maxAttempts = 10;
+            int t;
+            bool maxAttemptsReached = false;
+            do
+            {
+                t = random.GetInt(lower, upperInclusive);
+                attemptCounter++;
+            }
+            while (cells[t].Things.Count != 0
+                || (maxAttemptsReached = attemptCounter >= maxAttempts));
+
+            if (maxAttemptsReached)
+            {
+                for (int i = 0; i < cells.Length; i++)
+                {
+                    if (cells[i].Things.Count == 0)
+                        return i;
+                }
+                return -1;
+            }
+
+            return t;
         }
 
         public static void HandleEvent<T>(this GameContext game, int eventId, ref T eventData) where T : struct
@@ -471,161 +653,70 @@ namespace Zayats.Core
 
         public static Events.Proxy<TEventData> GetPlayerEventProxy<TEventData>(this GameContext game, int playerIndex, int eventId) where TEventData : struct
             => game.State.Players[playerIndex].Events.GetEventProxy<TEventData>(eventId);
-    }
 
-    public class GameContext
-    {
-        public Data.Game State;
-        public Events.Storage EventHandlers;
-        public IRandom Random;
-    }
-
-    public struct ComponentProxy
-    {
-        public object Storage;
-        public int Index;
-        public readonly ref T Get<T>() => ref ((ComponentStorage<T>) Storage).Data[Index];
-    }
-
-    public struct ComponentProxy<T>
-    {
-        public T[] Storage;
-        public int Index;
-        public readonly bool HasComponent => Index != -1;
-        public readonly ref T Component => ref Storage[Index];
-    }
-
-    public struct ListItemComponentProxy<T>
-    {
-        public ComponentProxy<T> Proxy;
-        public int ListIndex;
-        public List<int> List;
-        public readonly int ThingId => List[ListIndex];
-        public readonly ref T Component => ref Proxy.Component;
-    }
-
-    public static class Helper
-    {
-        public static IEnumerable<ListItemComponentProxy<T>> GetItemInList<T>(List<int> list, ComponentStorage<T> componentStorage)
+        public static ArraySegment<T> AsArraySegment<T>(this T[] from, int offset, int count)
         {
-            for (int i = 0; i < list.Count; i++)
+            return new(from, offset, count);
+        }
+
+        public static void TriggerSingleThingAddedToCellEvent(this GameContext game, int thingId, int cellPosition)
+        {
+            var a = ArrayPool<int>.Shared.Rent(1);
+            a[0] = thingId;
+            game.HandleEvent(Events.OnCellContentChanged, new()
             {
-                if (componentStorage.TryGetSingle(list[i], out var proxy))
-                {
-                    yield return new()
-                    {
-                        Proxy = proxy,
-                        ListIndex = i,
-                        List = list,
-                    };
-                }
-            }
-        }
-        public static IEnumerable<ListItemComponentProxy<T>> GetDataInCell<T>(this GameContext game, int componentId, int cellIndex)
-        {
-            var things = game.State.Board.Cells[cellIndex].Things;
-            var componentStorage = game.GetComponentStorage<T>(componentId);
-            return GetItemInList(things, componentStorage);
+                AddedThings = a.AsArraySegment(0, 1),
+                CellPosition = cellPosition,
+                RemovedThings = Array.Empty<int>(),
+            });
+            ArrayPool<int>.Shared.Return(a);
         }
 
-        public static IEnumerable<ListItemComponentProxy<T>> GetDataInItems<T>(this GameContext game, int componentId, int playerIndex)
+        public static void TriggerSingleThingRemovedFromCellEvent(this GameContext game, int thingId, int cellPosition)
         {
-            var things = game.State.Players[playerIndex].Items;
-            var componentStorage = game.GetComponentStorage<T>(componentId);
-            return GetItemInList(things, componentStorage);
-        }
-
-        public static IEnumerable<ListItemComponentProxy<T>> GetDataInItems<T>(this GameContext game, TypedIdentifier<T> componentId, int playerIndex)
-        {
-            return GetDataInItems<T>(game, componentId.Id, playerIndex);
-        }
-
-        public static IEnumerable<ListItemComponentProxy<T>> GetDataInCell<T>(this GameContext game, TypedIdentifier<T> componentId, int cellId)
-        {
-            return GetDataInCell<T>(game, componentId.Id, cellId);
-        }
-
-        public static ComponentStorage<T> GetComponentStorage<T>(this GameContext game, int componentId)
-        {
-            return (ComponentStorage<T>) game.State.ComponentsByType[componentId];
-        }
-
-        public static ComponentStorage<T> GetComponentStorage<T>(this GameContext game, TypedIdentifier<T> componentId)
-        {
-            return GetComponentStorage<T>(game, componentId.Id);
-        }
-
-        public static bool TryGetComponent<T>(this GameContext game, TypedIdentifier<T> componentId, int thingId, out ComponentProxy<T> proxy)
-        {
-            return GetComponentStorage(game, componentId).TryGetSingle(thingId, out proxy);
-        }
-
-        public static ComponentProxy<T> GetComponent<T>(this GameContext game, TypedIdentifier<T> componentId, int thingId)
-        {
-            TryGetComponent(game, componentId, thingId, out var result);
-            return result;
-        }
-
-        public static ref Data.Cell GetCell(this ref Data.Player player, GameContext game)
-        {
-            return ref game.State.Board.Cells[player.Position];
-        }
-
-        public static bool ValidateMine(this in Components.Mine mine)
-        {
-            if (mine.RemoveOnDetonation && !mine.DestroyOnDetonation)
-                return false;
-            if (mine.PutInInventoryOnDetonation && !mine.RemoveOnDetonation)
-                return false;
-            return true;
-        }
-
-        public static Events.Proxy<T> GetEventProxy<T>(this GameContext game, int eventId) where T : struct
-        {
-            return new Events.Proxy<T>
+            var a = ArrayPool<int>.Shared.Rent(1);
+            a[0] = thingId;
+            game.HandleEvent(Events.OnCellContentChanged, new()
             {
-                EventHandlers = game.EventHandlers,
-                EventIndex = eventId,
-            };
+                AddedThings = Array.Empty<int>(),
+                CellPosition = cellPosition,
+                RemovedThings = a.AsArraySegment(0, 1),
+            });
+            ArrayPool<int>.Shared.Return(a);
         }
 
-        public static Events.Proxy<T> GetEventProxy<T>(this GameContext game, TypedIdentifier<T> eventId) where T : struct
+        private static T[] Rented<T>(IEnumerable<T> things, int count)
         {
-            return new Events.Proxy<T>
-            {
-                EventHandlers = game.EventHandlers,
-                EventIndex = eventId.Id,
-            };
+            var a = ArrayPool<T>.Shared.Rent(count);
+            int i = 0;
+            foreach (T id in things)
+                a[i++] = id;
+            assert(i == count);
+            return a;
         }
 
-        public static int GetUnoccupiedCellIndex(this IRandom random, GameContext game)
+        public static void TriggerThingsAddedToCellEvent(this GameContext game, IEnumerable<int> thingIds, int numElementsAdded, int cellPosition)
         {
-            int lower = 1;
-            var cells = game.State.Board.Cells;
-            int upperInclusive = cells.Length - 2;
-            int attemptCounter = 0;
-            const int maxAttempts = 10;
-            int t;
-            bool maxAttemptsReached = false;
-            do
+            var a = Rented(thingIds, numElementsAdded);
+            game.HandleEvent(Events.OnCellContentChanged, new()
             {
-                t = random.GetInt(lower, upperInclusive);
-                attemptCounter++;
-            }
-            while (cells[t].Things.Count != 0
-                || (maxAttemptsReached = attemptCounter >= maxAttempts));
+                AddedThings = a.AsArraySegment(0, numElementsAdded),
+                CellPosition = cellPosition,
+                RemovedThings = Array.Empty<int>(),
+            });
+            ArrayPool<int>.Shared.Return(a);
+        }
 
-            if (maxAttemptsReached)
+        public static void TriggerThingsRemovedFromCellEvent(this GameContext game, IEnumerable<int> thingIds, int numElementsRemoved, int cellPosition)
+        {
+            var a = Rented(thingIds, numElementsRemoved);
+            game.HandleEvent(Events.OnCellContentChanged, new()
             {
-                for (int i = 0; i < cells.Length; i++)
-                {
-                    if (cells[i].Things.Count == 0)
-                        return i;
-                }
-                return -1;
-            }
-
-            return t;
+                AddedThings = Array.Empty<int>(),
+                CellPosition = cellPosition,
+                RemovedThings = a.AsArraySegment(0, numElementsRemoved),
+            });
+            ArrayPool<int>.Shared.Return(a);
         }
     }
 
@@ -734,7 +825,7 @@ namespace Zayats.Core
             public Logic.MovementContext Movement;
             public int StartingPosition;
         }
-        public static TypedIdentifier<PlayerMovedContext> OnMoved = new(0);
+        public static readonly TypedIdentifier<PlayerMovedContext> OnMoved = new(0);
 
         public struct PlayerPositionChangedContext
         {
@@ -742,15 +833,9 @@ namespace Zayats.Core
             public int StartingPosition;
             public Data.Reason Reason;
         }
-        public static TypedIdentifier<PlayerPositionChangedContext> OnPositionChanged = new(1);
-        public static TypedIdentifier<int> OnPlayerWon = new(2);
-
-        public struct AddedInventoryItemContext
-        {
-            public int PlayerIndex;
-            public int ThingId;
-        }
-        public static TypedIdentifier<AddedInventoryItemContext> OnAddedInventoryItem = new(3);
+        public static readonly TypedIdentifier<PlayerPositionChangedContext> OnPositionChanged = new(1);
+        public static readonly TypedIdentifier<int> OnPlayerWon = new(2);
+        public static readonly TypedIdentifier<ItemInteractionInfo> OnThingPickedUp = new(3);
         public struct SavePlayerContext : IContinue
         {
             public bool WasSaved;
@@ -759,14 +844,14 @@ namespace Zayats.Core
 
             bool IContinue.Continue => !WasSaved;
         }
-        public static TypedIdentifier<SavePlayerContext> OnTrySavePlayer = new(4);
+        public static readonly TypedIdentifier<SavePlayerContext> OnTrySavePlayer = new(4);
 
         public struct PlayerSavedContext
         {
             public Data.Reason SaveReason;
             public Logic.KillPlayerContext Kill;
         }
-        public static TypedIdentifier<PlayerSavedContext> OnPlayerSaved = new(5);
+        public static readonly TypedIdentifier<PlayerSavedContext> OnPlayerSaved = new(5);
 
         public struct RespawnPositionChanged
         {
@@ -775,11 +860,36 @@ namespace Zayats.Core
             public int RespawnPosition;
             public Stack<int> RespawnPointIds;
         }
-        public static TypedIdentifier<RespawnPositionChanged> OnRespawnPositionPopped = new(6);
-        public static TypedIdentifier<RespawnPositionChanged> OnRespawnPositionPushed = new(7);
-        public static TypedIdentifier<Logic.KillPlayerContext> OnPlayerDied = new(8);
+        public static readonly TypedIdentifier<RespawnPositionChanged> OnRespawnPositionPopped = new(6);
+        public static readonly TypedIdentifier<RespawnPositionChanged> OnRespawnPositionPushed = new(7);
+        public static readonly TypedIdentifier<Logic.KillPlayerContext> OnPlayerDied = new(8);
+        public static readonly TypedIdentifier<ItemInteractionInfo> OnItemAddedToInventory = new(9);
+        public static readonly TypedIdentifier<ItemInteractionInfo> OnItemRemovedFromInventory = new(10);
+        public struct NextTurnContext
+        {
+            public int PreviousPlayerIndex;
+            public int CurrentPlayerIndex;
+        }
+        public static readonly TypedIdentifier<NextTurnContext> OnNextTurn = new(11);
+        public struct CellContentChangedContext
+        {
+            // This memory will be invalidated after the event ends.
+            // If you need to keep this data, make a copy.
+            public ArraySegment<int> AddedThings;
+            public ArraySegment<int> RemovedThings;
+            public int CellPosition;
+        }
+        public static readonly TypedIdentifier<CellContentChangedContext> OnCellContentChanged = new(12);
+        
+        public struct AmountRolledContext
+        {
+            public int PlayerIndex;
+            public int RolledAmount;
+            public int BonusAmount;
+        }
+        public static readonly TypedIdentifier<AmountRolledContext> OnAmountRolled = new(13);
 
-        public const int Count = 9;
+        public const int Count = 14;
     }
 
     public static class Data
@@ -806,6 +916,7 @@ namespace Zayats.Core
 
         public struct Game
         {
+            public bool IsOver; 
             public Board Board;
             public Player[] Players;
             public int CurrentPlayerId;
@@ -843,13 +954,22 @@ namespace Zayats.Core
         public Dictionary<int, int> MapThingIdToIndex;
         public int Count;
 
-        public bool TryGetSingle(int thingIndex, out ComponentProxy<T> proxy)
+        public bool TryGetProxy(int thingIndex, out ComponentProxy<T> proxy)
         {
             proxy.Storage = Data;
             if (MapThingIdToIndex.TryGetValue(thingIndex, out proxy.Index))
                 return true;
             proxy.Index = -1;
             return false;
+        }
+
+        public ComponentProxy<T> GetProxy(int thingIndex)
+        {
+            return new()
+            {
+                Index = MapThingIdToIndex[thingIndex],
+                Storage = Data,
+            };
         }
 
         public ComponentProxy<T> Add(int thingIndex)
@@ -875,7 +995,7 @@ namespace Zayats.Core
             public bool PutInInventoryOnDetonation;
             public bool DestroyOnDetonation;
         }
-        public static readonly TypedIdentifier<Mine> MineId = new(0);
+        public static readonly TypedIdentifier<int> CurrencyCostId = new(0);
 
         public struct Player
         {
@@ -889,8 +1009,8 @@ namespace Zayats.Core
         public static readonly TypedIdentifier<int> RespawnPositionId = new(5);
         public static readonly TypedIdentifier<IPickup> PickupActionId = new(6);
         public static readonly TypedIdentifier<object> AttachedPickupDelegateId = new(7);
-
-        public const int Count = 8;
+        public static readonly TypedIdentifier<int> RespawnPointIdId = new(8);
+        public const int Count = 9;
 
         public static ComponentStorage<T> CreateStorage<T>(TypedIdentifier<T> id, int initialSize = 4)
         {
@@ -912,12 +1032,6 @@ namespace Zayats.Core
         {
             public int AddedValue;
         }
-    }
-
-    public interface IPickup
-    {
-        void DoPickupEffect(ItemInteractionInfo info);
-        void DoDropEffect(ItemInteractionInfo info);
     }
 
     public static class Stats
@@ -951,7 +1065,7 @@ namespace Zayats.Core
             }
         }
 
-        public static Proxy GetStatProxy(this Stats.Storage storage, int id)
+        public static Proxy GetProxy(this Stats.Storage storage, int id)
         {
             return new Proxy
             {
@@ -959,21 +1073,21 @@ namespace Zayats.Core
                 Index = id,
             };
         }
-        public static Proxy GetStatProxy(this Stats.Storage storage, TypedIdentifier<float> id)
+        public static Proxy GetProxy(this Stats.Storage storage, TypedIdentifier<float> id)
         {
-            return GetStatProxy(storage, id.Id);
+            return GetProxy(storage, id.Id);
         }
-        public static IntProxy GetStatProxy(this Stats.Storage storage, TypedIdentifier<int> id)
+        public static IntProxy GetProxy(this Stats.Storage storage, TypedIdentifier<int> id)
         {
             return new IntProxy
             {
-                Proxy = GetStatProxy(storage, id.Id),
+                Proxy = GetProxy(storage, id.Id),
             };
         }
-        public static int Get(this Stats.Storage storage, TypedIdentifier<int> id) => GetStatProxy(storage, id).Value;
-        public static int Set(this Stats.Storage storage, TypedIdentifier<int> id, int value) => GetStatProxy(storage, id).Value = value;
-        public static float Get(this Stats.Storage storage, TypedIdentifier<float> id) => GetStatProxy(storage, id).Value;
-        public static float Set(this Stats.Storage storage, TypedIdentifier<float> id, float value) => GetStatProxy(storage, id).Value = value;
+        public static int Get(this Stats.Storage storage, TypedIdentifier<int> id) => GetProxy(storage, id).Value;
+        public static int Set(this Stats.Storage storage, TypedIdentifier<int> id, int value) => GetProxy(storage, id).Value = value;
+        public static float Get(this Stats.Storage storage, TypedIdentifier<float> id) => GetProxy(storage, id).Value;
+        public static float Set(this Stats.Storage storage, TypedIdentifier<float> id, float value) => GetProxy(storage, id).Value = value;
 
         public static readonly TypedIdentifier<int> RollAdditiveBonus = new(0);
         public const int Count = 1;

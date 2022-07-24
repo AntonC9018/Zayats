@@ -12,7 +12,7 @@ namespace Zayats.Unity.View.Generated
     {
         public /*readonly*/ T[] Values;
         private GameplayButtonArray(T[] values) => Values = values;
-        public static GameplayButtonArray<T> Create() => new GameplayButtonArray<T>(new T[3]);
+        public static GameplayButtonArray<T> Create() => new GameplayButtonArray<T>(new T[4]);
         public readonly ref T GetRef(Zayats.Unity.View.GameplayButtonKind key)
         {
             return ref Values[(int) key];
@@ -43,18 +43,24 @@ namespace Zayats.Unity.View.Generated
             readonly get => Values[(int) Zayats.Unity.View.GameplayButtonKind.Settings];
             set => Values[(int) Zayats.Unity.View.GameplayButtonKind.Settings] = value;
         }
+        public readonly ref T RestartRef => ref Values[(int) Zayats.Unity.View.GameplayButtonKind.Restart];
+        public T Restart
+        {
+            readonly get => Values[(int) Zayats.Unity.View.GameplayButtonKind.Restart];
+            set => Values[(int) Zayats.Unity.View.GameplayButtonKind.Restart] = value;
+        }
         public static implicit operator T[](GameplayButtonArray<T> a) => a.Values;
         public readonly T[] Array => Values;
         public readonly ref T this[Zayats.Unity.View.GameplayButtonKind key] => ref GetRef(key);
         public readonly ref T this[int index] => ref Values[index];
-        public readonly int Length => 3;
+        public readonly int Length => 4;
     }
     [Serializable]
     public partial struct GameplayTextArray<T>
     {
         public /*readonly*/ T[] Values;
         private GameplayTextArray(T[] values) => Values = values;
-        public static GameplayTextArray<T> Create() => new GameplayTextArray<T>(new T[1]);
+        public static GameplayTextArray<T> Create() => new GameplayTextArray<T>(new T[3]);
         public readonly ref T GetRef(Zayats.Unity.View.GameplayTextKind key)
         {
             return ref Values[(int) key];
@@ -73,18 +79,30 @@ namespace Zayats.Unity.View.Generated
             readonly get => Values[(int) Zayats.Unity.View.GameplayTextKind.Win];
             set => Values[(int) Zayats.Unity.View.GameplayTextKind.Win] = value;
         }
+        public readonly ref T SeedRef => ref Values[(int) Zayats.Unity.View.GameplayTextKind.Seed];
+        public T Seed
+        {
+            readonly get => Values[(int) Zayats.Unity.View.GameplayTextKind.Seed];
+            set => Values[(int) Zayats.Unity.View.GameplayTextKind.Seed] = value;
+        }
+        public readonly ref T CoinCounterRef => ref Values[(int) Zayats.Unity.View.GameplayTextKind.CoinCounter];
+        public T CoinCounter
+        {
+            readonly get => Values[(int) Zayats.Unity.View.GameplayTextKind.CoinCounter];
+            set => Values[(int) Zayats.Unity.View.GameplayTextKind.CoinCounter] = value;
+        }
         public static implicit operator T[](GameplayTextArray<T> a) => a.Values;
         public readonly T[] Array => Values;
         public readonly ref T this[Zayats.Unity.View.GameplayTextKind key] => ref GetRef(key);
         public readonly ref T this[int index] => ref Values[index];
-        public readonly int Length => 1;
+        public readonly int Length => 3;
     }
     [Serializable]
     public partial struct ThingArray<T>
     {
         public /*readonly*/ T[] Values;
         private ThingArray(T[] values) => Values = values;
-        public static ThingArray<T> Create() => new ThingArray<T>(new T[4]);
+        public static ThingArray<T> Create() => new ThingArray<T>(new T[8]);
         public readonly ref T GetRef(Zayats.Unity.View.ThingKind key)
         {
             return ref Values[(int) key];
@@ -121,11 +139,35 @@ namespace Zayats.Unity.View.Generated
             readonly get => Values[(int) Zayats.Unity.View.ThingKind.Coin];
             set => Values[(int) Zayats.Unity.View.ThingKind.Coin] = value;
         }
+        public readonly ref T RespawnPointRef => ref Values[(int) Zayats.Unity.View.ThingKind.RespawnPoint];
+        public T RespawnPoint
+        {
+            readonly get => Values[(int) Zayats.Unity.View.ThingKind.RespawnPoint];
+            set => Values[(int) Zayats.Unity.View.ThingKind.RespawnPoint] = value;
+        }
+        public readonly ref T TotemRef => ref Values[(int) Zayats.Unity.View.ThingKind.Totem];
+        public T Totem
+        {
+            readonly get => Values[(int) Zayats.Unity.View.ThingKind.Totem];
+            set => Values[(int) Zayats.Unity.View.ThingKind.Totem] = value;
+        }
+        public readonly ref T RabbitRef => ref Values[(int) Zayats.Unity.View.ThingKind.Rabbit];
+        public T Rabbit
+        {
+            readonly get => Values[(int) Zayats.Unity.View.ThingKind.Rabbit];
+            set => Values[(int) Zayats.Unity.View.ThingKind.Rabbit] = value;
+        }
+        public readonly ref T TowerRef => ref Values[(int) Zayats.Unity.View.ThingKind.Tower];
+        public T Tower
+        {
+            readonly get => Values[(int) Zayats.Unity.View.ThingKind.Tower];
+            set => Values[(int) Zayats.Unity.View.ThingKind.Tower] = value;
+        }
         public static implicit operator T[](ThingArray<T> a) => a.Values;
         public readonly T[] Array => Values;
         public readonly ref T this[Zayats.Unity.View.ThingKind key] => ref GetRef(key);
         public readonly ref T this[int index] => ref Values[index];
-        public readonly int Length => 4;
+        public readonly int Length => 8;
     }
 }
 

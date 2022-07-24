@@ -10,7 +10,7 @@ namespace Zayats.Unity.View.Editor.Generated
     [CustomPropertyDrawer(typeof(Zayats.Unity.View.Generated.ThingArray<>))]
     public class ThingKindPropertyDrawer : Kari.Plugins.AdvancedEnum.Editor.EnumArrayDrawer
     {
-        private static readonly string[] _Names = new[] {"Player", "EternalMine", "RegularMine", "Coin"};
+        private static readonly string[] _Names = new[] {"Player", "EternalMine", "RegularMine", "Coin", "RespawnPoint", "Totem", "Rabbit", "Tower"};
         protected override string[] Names => _Names;
     }
 }
