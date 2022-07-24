@@ -679,9 +679,9 @@ MonoBehaviour:
     - {fileID: 7881211866911066594, guid: b6f6c5935ad87ac4a84c2b37924304f4, type: 3}
     - {fileID: 8453468697743504471, guid: a0201f2d090ac4b449b8b66a882ace2c, type: 3}
     - {fileID: 8453468697743504471, guid: a0201f2d090ac4b449b8b66a882ace2c, type: 3}
-    - {fileID: 8453468697743504471, guid: a0201f2d090ac4b449b8b66a882ace2c, type: 3}
-    - {fileID: 8453468697743504471, guid: a0201f2d090ac4b449b8b66a882ace2c, type: 3}
-    - {fileID: 8453468697743504471, guid: a0201f2d090ac4b449b8b66a882ace2c, type: 3}
+    - {fileID: 8516213763366042117, guid: bd489cd99ae680e4c83f9d7c2bd911fb, type: 3}
+    - {fileID: 5002550212693235779, guid: da12648425fff2e4e8f1dd5b885d417b, type: 3}
+    - {fileID: 455958833997145204, guid: 46846f3c52a234f47a30e57db5a1884b, type: 3}
   ItemCosts:
     Values: 0000000000000000000000000000000000000000020000000200000000000000
   GameplayButtons:
@@ -708,7 +708,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 488741825}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 355.82, y: 172.04431, z: 2.0181308}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

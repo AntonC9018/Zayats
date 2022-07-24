@@ -415,6 +415,7 @@ namespace Zayats.Core
         }
     }
 
+    [Serializable]
     public class GameContext
     {
         public Data.Game State;
@@ -894,6 +895,7 @@ namespace Zayats.Core
 
     public static class Data
     {
+        [Serializable]
         public struct Player
         {
             public List<int> Items;
@@ -904,16 +906,19 @@ namespace Zayats.Core
             public Events.Storage Events;
         }
 
+        [Serializable]
         public struct Cell
         {
             public List<int> Things;
         }
 
+        [Serializable]
         public struct Board
         {
             public Cell[] Cells;
         }
 
+        [Serializable]
         public struct Game
         {
             public bool IsOver; 
@@ -924,12 +929,14 @@ namespace Zayats.Core
             public Shop Shop;
         }
 
+        [Serializable]
         public struct Shop
         {
             public int[] CellsWhereAccessible;
             public List<int> Items;
         }
 
+        [Serializable]
         public struct Reason
         {
             public int Id;
@@ -948,6 +955,7 @@ namespace Zayats.Core
         public static Data.Reason Magic(int spellOrItemId) => new Data.Reason { Id = MagicId, Payload = spellOrItemId };
     }
 
+    [Serializable]
     public class ComponentStorage<T>
     {
         public T[] Data;
@@ -989,6 +997,7 @@ namespace Zayats.Core
 
     public static class Components
     {
+        [Serializable]
         public struct Mine
         {
             public bool RemoveOnDetonation;
@@ -997,6 +1006,7 @@ namespace Zayats.Core
         }
         public static readonly TypedIdentifier<int> CurrencyCostId = new(0);
 
+        [Serializable]
         public struct Player
         {
             public int PlayerIndex;
@@ -1028,6 +1038,7 @@ namespace Zayats.Core
             return t;
         }
 
+        [Serializable]
         public struct RollValue
         {
             public int AddedValue;
@@ -1036,6 +1047,7 @@ namespace Zayats.Core
 
     public static class Stats
     {
+        [Serializable]
         public struct Storage
         {
             public float[] StatValues;
