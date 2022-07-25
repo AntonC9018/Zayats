@@ -65,12 +65,12 @@ namespace Zayats.Core
         {
             Events.Handler<TEventData> wrappedDelegate = (GameContext game, ref TEventData eventData) => DoEffect(info, ref eventData);
             info.Game.GetPlayerEventProxy<TEventData>(info.PlayerIndex, EventId).Add(wrappedDelegate);
-            info.Game.GetComponent(Components.AttachedPickupDelegateId, info.ThingId).Value = wrappedDelegate;
+            info.Game.GetComponent(Components.AttachedPickupDelegateId, info.ThingId) = wrappedDelegate;
         }
 
         protected void DoDetach(ItemInteractionInfo info)
         {
-            ref object obj = ref info.Game.GetComponent(Components.AttachedPickupDelegateId, info.ThingId).Value;
+            ref object obj = ref info.Game.GetComponent(Components.AttachedPickupDelegateId, info.ThingId);
             var wrappedDelegate = (Events.Handler<TEventData>) obj;
             obj = null;
             info.Game.GetPlayerEventProxy<TEventData>(info.PlayerIndex, EventId).Remove(wrappedDelegate);
@@ -200,15 +200,15 @@ namespace Zayats.Core
 
         public void DoDropEffect(ItemInteractionInfo info)
         {
-            int respawnPointId = info.Game.GetComponent(Components.RespawnPointIdId, info.ThingId).Value;
-            int respawnPosition = info.Game.GetComponent(Components.RespawnPositionId, respawnPointId).Value;
+            int respawnPointId = info.Game.GetComponent(Components.RespawnPointIdId, info.ThingId);
+            int respawnPosition = info.Game.GetComponent(Components.RespawnPositionId, respawnPointId);
             // How do we handle dropping back on cell?
             info.Game.State.Board.Cells[respawnPosition].Things.Add(info.ThingId);
         }
 
         public void DoPickupEffect(ItemInteractionInfo info)
         {
-            int respawnPointId = info.Game.GetComponent(Components.RespawnPointIdId, info.ThingId).Value;
+            int respawnPointId = info.Game.GetComponent(Components.RespawnPointIdId, info.ThingId);
             info.Game.PushRespawnPoint(info.PlayerIndex, respawnPointId);
         }
 

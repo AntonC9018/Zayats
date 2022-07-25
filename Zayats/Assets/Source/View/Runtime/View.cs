@@ -123,7 +123,7 @@ namespace Zayats.Unity.View
 
         private GameContext InitializeGame()
         {
-            _game = Initialization.CreateGameContext(cellCountNotIncludingFirstAndLast: VisualCells.Length - 2);
+            _game = Initialization.CreateGame(cellCountNotIncludingStartAndFinish: VisualCells.Length - 2, CountsToSpawn.Player);
 
             int seed = Seed;
             UnityEngine.Random.InitState(seed);
@@ -132,13 +132,6 @@ namespace Zayats.Unity.View
 
             _game.Logger = new UnityLogger();
 
-            var initializationContext = new Initialization.GameInitializationContext
-            {
-                Game = _game,
-                CurrentId = 0,
-            };
-
-            Initialization.InitializePlayers(ref initializationContext, CountsToSpawn.Player);
             UnityEngine.Random.InitState(seed + 1);
             var spawnRandom = new Random(UnityEngine.Random.state);
             
@@ -213,20 +206,20 @@ namespace Zayats.Unity.View
                 return randomPos;
             }
 
-
+            int currentId = 0;
             for (int kindIndex = 0; kindIndex < CountsToSpawn.Length; kindIndex++)
             for (int instanceIndex = 0; instanceIndex < CountsToSpawn[kindIndex]; instanceIndex++)
             {
-                ref int id = ref initializationContext.CurrentId;
+                ref int id = ref currentId;
                 var obj = GameObject.Instantiate(PrefabsToSpawn[kindIndex]);
                 _thingGameObjects[id] = obj;
 
-                if (ItemCosts[kindIndex] > 0 && kindIndex != (int) ThingKind.Player)
+                if (ItemCosts[kindIndex] > 0)
                     costStorage.Add(id).Value = ItemCosts[kindIndex];
 
                 switch ((ThingKind) kindIndex)
                 {
-                    default: assert(false, $"Unhandled thing kind {(ThingKind) kindIndex}"); break;
+                    default: panic($"Unhandled thing kind {(ThingKind) kindIndex}"); break;
 
                     case ThingKind.Player:
                     {

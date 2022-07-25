@@ -3,7 +3,8 @@
     "rootNamespace": "Zayats.Core.Tests",
     "references": [
         "Common",
-        "Zayats.Core"
+        "Zayats.Core",
+        "Zayats.Unity.View"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

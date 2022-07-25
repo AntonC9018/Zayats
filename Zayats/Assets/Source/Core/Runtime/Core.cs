@@ -57,7 +57,7 @@ namespace Zayats.Core
 
     public static partial class Initialization
     {
-        public static GameContext CreateGameContext(int cellCountNotIncludingFirstAndLast)
+        public static GameContext CreateGame(int cellCountNotIncludingStartAndFinish, int playerCount)
         {
             GameContext game = new();
             game.EventHandlers = Events.CreateStorage();
@@ -75,25 +75,14 @@ namespace Zayats.Core
             }
 
             {
-                var cells = new Data.Cell[cellCountNotIncludingFirstAndLast + 2];
+                var cells = new Data.Cell[cellCountNotIncludingStartAndFinish + 2];
                 game.State.Board.Cells = cells;
                 foreach (ref var cell in cells.AsSpan())
                     cell.Things = new();
             }
-
-            return game;
-        }
-
-        public struct GameInitializationContext
-        {
-            public GameContext Game;
-            public int CurrentId;
-        }
-
-        public static void InitializePlayers(this ref GameInitializationContext initContext, int playerCount)
-        {
+            
             var players = new Data.Player[playerCount];
-            initContext.Game.State.Players = players;
+            game.State.Players = players;
 
             for (int i = 0; i < playerCount; i++)
             {
@@ -104,9 +93,16 @@ namespace Zayats.Core
                     Position = 0,
                     Stats = Stats.CreateStorage(),
                     Events = Events.CreateStorage(),
+                    MoveCount = 0,
+
+                    // Set later on.
+                    ThingId = -1,
                 };
             }
+
+            return game;
         }
+
 
         public static void InitializePlayer(this GameContext game, int index, int thingId, ComponentStorage<Components.Player> playerStorage)
         {
@@ -115,14 +111,15 @@ namespace Zayats.Core
             playerStorage.Add(thingId).Value.PlayerIndex = index;
         }
     }
+    public enum MovementDetails
+    {
+        Normal = 0,
+        HopOverThing = 1,
+        ToppleOverPlayer = 2,
+    }
 
     public static class Logic
     {
-        public enum MovementDetails
-        {
-            Normal = 0,
-            HopOverThing = 1,
-        }
         public struct MovementContext
         {
             public int PlayerIndex;
@@ -179,6 +176,8 @@ namespace Zayats.Core
 
             if (DoPlayerMove(game, context))
                 return;
+
+            assert(!game.State.IsOver);
             
             int moveCountAfterMove = player.MoveCount;
 
@@ -207,7 +206,7 @@ namespace Zayats.Core
                 var contextCopy = new MovementContext
                 {
                     PlayerIndex = playerIndex,
-                    Details = MovementDetails.HopOverThing,
+                    Details = MovementDetails.ToppleOverPlayer,
                     Amount = 1,
                 };
                 MovePlayer(game, contextCopy);
@@ -408,7 +407,7 @@ namespace Zayats.Core
                     return defaultPosition;
 
                 int respawnPointId = respawnStack.Pop();
-                int respawnPosition = game.GetComponent(Components.RespawnPositionId, respawnPointId).Value;
+                int respawnPosition = game.GetComponent(Components.RespawnPositionId, respawnPointId);
 
                 game.HandlePlayerEvent(Events.OnRespawnPositionPopped, playerId, new()
                 {
@@ -435,7 +434,7 @@ namespace Zayats.Core
                 PlayerIndex = playerIndex,
                 RespawnPointId = respawnPointId,
                 RespawnPointIds = stack,
-                RespawnPosition = game.GetComponent(Components.RespawnPositionId, respawnPointId).Value,
+                RespawnPosition = game.GetComponent(Components.RespawnPositionId, respawnPointId),
             });
         }
 
@@ -486,7 +485,7 @@ namespace Zayats.Core
             {
                 PlayerIndex = playerId,
                 Amount = roll,
-                Details = Logic.MovementDetails.Normal,
+                Details = MovementDetails.Normal,
             });
             if (!game.State.IsOver)
                 game.EndCurrentPlayersTurn();
@@ -556,6 +555,7 @@ namespace Zayats.Core
         {
             var things = game.State.Board.Cells[cellIndex].Things;
             var componentStorage = game.GetComponentStorage<T>(componentId);
+            assert(componentStorage is not null, $"Component storage {componentId} has not been found.");
             return GetItemInList(things, componentStorage);
         }
 
@@ -563,6 +563,7 @@ namespace Zayats.Core
         {
             var things = game.State.Players[playerIndex].Items;
             var componentStorage = game.GetComponentStorage<T>(componentId);
+            assert(componentStorage is not null, $"Component storage {componentId} has not been found.");
             return GetItemInList(things, componentStorage);
         }
 
@@ -591,10 +592,26 @@ namespace Zayats.Core
             return GetComponentStorage(game, componentId).TryGetProxy(thingId, out proxy);
         }
 
-        public static ComponentProxy<T> GetComponent<T>(this GameContext game, TypedIdentifier<T> componentId, int thingId)
+        public static ComponentProxy<T> GetComponentProxy<T>(this GameContext game, TypedIdentifier<T> componentId, int thingId)
         {
             TryGetComponent(game, componentId, thingId, out var result);
             return result;
+        }
+
+        public static ref T GetComponent<T>(this GameContext game, TypedIdentifier<T> componentId, int thingId)
+        {
+            TryGetComponent(game, componentId, thingId, out var result);
+            return ref result.Value;
+        }
+
+        public static ref T AddComponent<T>(this GameContext game, TypedIdentifier<T> componentId, int thingId)
+        {
+            return ref GetComponentStorage(game, componentId).Add(thingId).Value;
+        }
+
+        public static ComponentProxy<T> AddComponent_Proxy<T>(this GameContext game, TypedIdentifier<T> componentId, int thingId)
+        {
+            return GetComponentStorage(game, componentId).Add(thingId);
         }
 
         public static ref Data.Cell GetCell(this ref Data.Player player, GameContext game)
@@ -906,6 +923,7 @@ namespace Zayats.Core
         {
             public Logic.MovementContext Movement;
             public int StartingPosition;
+            public readonly int TargetPosition => StartingPosition + Movement.Amount;
         }
         public static readonly TypedIdentifier<PlayerMovedContext> OnMoved = new(0);
 
