@@ -10,7 +10,7 @@ namespace Zayats.Unity.View.Editor.Generated
     [CustomPropertyDrawer(typeof(Zayats.Unity.View.Generated.GameplayTextArray<>))]
     public class GameplayTextKindPropertyDrawer : Kari.Plugins.AdvancedEnum.Editor.EnumArrayDrawer
     {
-        private static readonly string[] _Names = new[] {"Win", "Seed", "CoinCounter"};
+        private static readonly string[] _Names = new[] {"Win", "Seed", "CoinCounter", "RollValue"};
         protected override string[] Names => _Names;
     }
 }

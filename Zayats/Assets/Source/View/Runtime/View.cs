@@ -3,6 +3,7 @@ using Zayats.Core;
 using Kari.Plugins.AdvancedEnum;
 using Zayats.Unity.View.Generated;
 using static Zayats.Core.Assert;
+using Zayats.Core.Generated;
 using System.Linq;
 using System;
 using UnityEngine.UI;
@@ -16,19 +17,6 @@ namespace Zayats.Unity.View
     public struct VisualCell
     {
         public Transform Transform;
-    }
-
-    [GenerateArrayWrapper("ThingArray")]
-    public enum ThingKind
-    {
-        Player,
-        EternalMine,
-        RegularMine,
-        Coin,
-        RespawnPoint,
-        Totem,
-        Rabbit,
-        Tower,
     }
 
     [GenerateArrayWrapper("GameplayButtonArray")]
@@ -46,6 +34,7 @@ namespace Zayats.Unity.View
         Win,
         Seed,
         CoinCounter,
+        RollValue,
     }
 
     public class View : MonoBehaviour
@@ -155,7 +144,8 @@ namespace Zayats.Unity.View
             
             _thingGameObjects = new GameObject[CountsToSpawn.Array.Sum()];
 
-            var costStorage = Components.InitializeStorage(_game, Components.CurrencyCostId, CountsToSpawn.EternalMine + CountsToSpawn.RegularMine);
+            int mineCount = CountsToSpawn.EternalMine + CountsToSpawn.RegularMine;
+            var costStorage = Components.InitializeStorage(_game, Components.CurrencyCostId, mineCount);
             var playerStorage = Components.InitializeStorage(_game, Components.PlayerId, CountsToSpawn.Player);
             var coinStorage = Components.InitializeStorage(_game, Components.CurrencyId, CountsToSpawn.Coin);
             Components.InitializeStorage(_game, Components.ThingSpecificEventsId);
@@ -164,6 +154,7 @@ namespace Zayats.Unity.View
             var pickupStorage = Components.InitializeStorage(_game, Components.PickupActionId);
             var pickupDelegateStorage = Components.InitializeStorage(_game, Components.AttachedPickupDelegateId);
             var respawnPointIdStorage = Components.InitializeStorage(_game, Components.RespawnPointIdId, CountsToSpawn.Tower);
+            var flagsStorage = Components.InitializeStorage(_game, Components.FlagsId, mineCount);
             assertNoneNull(_game.State.ComponentsByType);
 
             var regularMinePickup = new MinePickup(new()
@@ -181,6 +172,7 @@ namespace Zayats.Unity.View
             });
 
             var rabbitPickup = new AddStatPickup(Stats.RollAdditiveBonus, 1);
+            var horsePickup = new AddStatPickup(Stats.JumpAfterMoveCapacity, 1);
 
 
             void ArrangeThings(int position)
@@ -244,6 +236,7 @@ namespace Zayats.Unity.View
                         {
                             var stats = _game.State.Players[instanceIndex].Stats; 
                             stats.Set(Stats.RollAdditiveBonus, 0);
+                            stats.Set(Stats.JumpAfterMoveCapacity, 0);
                         }
 
                         obj.GetComponent<SpriteRenderer>().color = PlayerCharacterColors[instanceIndex];
@@ -254,12 +247,14 @@ namespace Zayats.Unity.View
                     case ThingKind.EternalMine:
                     {
                         pickupStorage.Add(id).Value = eternalMinePickup;
+                        flagsStorage.Add(id).Value = ThingFlags.Solid;
                         SpawnRandomly(spawnRandom, id, obj);
                         break;
                     }
                     case ThingKind.RegularMine:
                     {
                         pickupStorage.Add(id).Value = regularMinePickup;
+                        flagsStorage.Add(id).Value = ThingFlags.Solid;
                         SpawnRandomly(spawnRandom, id, obj);
                         break;
                     }
@@ -294,6 +289,12 @@ namespace Zayats.Unity.View
                     {
                         pickupStorage.Add(id).Value = TowerPickup.Instance;
                         respawnPointIdStorage.Add(id);
+                        break;
+                    }
+                    case ThingKind.Horse:
+                    {
+                        pickupStorage.Add(id).Value = horsePickup;
+                        SpawnRandomly(spawnRandom, id, obj);
                         break;
                     }
                 }
@@ -340,11 +341,35 @@ namespace Zayats.Unity.View
                     GameplayText.Win.gameObject.SetActive(true);
                 });
 
+            void AlignItemsInInventory(Transform holder)
+            {
+                if (holder.childCount == 0)
+                    return;
+                var oneThingSize = holder.GetChild(0).GetComponent<SpriteRenderer>().bounds.size;
+                // float offsetSize = Mathf.Min(oneThingSize, holder.transform
+                for (int i = 0; i < holder.childCount; i++)
+                {
+                    var v = holder.transform.position;
+                    v.x += oneThingSize.x * i;
+                    // v.y += oneThingSize.y / 2;
+                    holder.GetChild(i).transform.position = v;
+                }
+            }
+
             _game.GetEventProxy(Events.OnItemAddedToInventory).Add(
                 (GameContext game, ref ItemInteractionInfo context) =>
                 {
                     var holder = _itemHolders[context.PlayerIndex];
                     _thingGameObjects[context.ThingId].transform.SetParent(holder, worldPositionStays: false);
+                    AlignItemsInInventory(holder);
+                });
+
+            _game.GetEventProxy(Events.OnItemRemovedFromInventory).Add(
+                (GameContext game, ref ItemInteractionInfo context) =>
+                {
+                    var holder = _itemHolders[context.PlayerIndex];
+                    _thingGameObjects[context.ThingId].transform.SetParent(null);
+                    AlignItemsInInventory(holder);
                 });
 
             _game.GetEventProxy(Events.OnNextTurn).Add(
@@ -359,7 +384,7 @@ namespace Zayats.Unity.View
                         foreach (var currency in game.GetDataInItems(Components.CurrencyId, context.CurrentPlayerIndex))
                         {
                             // The component contains the amount that the coin represents.
-                            totalAmount += currency.Component;
+                            totalAmount += currency.Value;
                         }
                         GameplayText.CoinCounter.text = totalAmount.ToString();
                     }
@@ -370,6 +395,15 @@ namespace Zayats.Unity.View
                 {
                     // This is ok, because it will be eventually animated.
                     ArrangeThings(context.CellPosition);
+                });
+
+            _game.GetEventProxy(Events.OnAmountRolled).Add(
+                (GameContext game, ref AmountRolledContext context) =>
+                {
+                    string val = context.RolledAmount.ToString();
+                    if (context.BonusAmount > 0)
+                        val += " (+" + context.BonusAmount.ToString() + ")";
+                    GameplayText.RollValue.text = val;
                 });
 
             _itemHolders[0].gameObject.SetActive(true);

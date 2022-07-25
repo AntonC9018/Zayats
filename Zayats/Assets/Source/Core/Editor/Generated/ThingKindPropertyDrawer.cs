@@ -4,13 +4,13 @@
 
 #pragma warning disable
 
-namespace Zayats.Unity.View.Editor.Generated
+namespace Zayats.Core.Editor.Generated
 {
     using UnityEditor;
-    [CustomPropertyDrawer(typeof(Zayats.Unity.View.Generated.ThingArray<>))]
+    [CustomPropertyDrawer(typeof(Zayats.Core.Generated.ThingArray<>))]
     public class ThingKindPropertyDrawer : Kari.Plugins.AdvancedEnum.Editor.EnumArrayDrawer
     {
-        private static readonly string[] _Names = new[] {"Player", "EternalMine", "RegularMine", "Coin", "RespawnPoint", "Totem", "Rabbit", "Tower"};
+        private static readonly string[] _Names = new[] {"Player", "EternalMine", "RegularMine", "Coin", "RespawnPoint", "Totem", "Rabbit", "Tower", "Horse"};
         protected override string[] Names => _Names;
     }
 }
