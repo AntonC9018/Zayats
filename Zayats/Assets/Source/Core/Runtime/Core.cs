@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using Kari.Plugins.AdvancedEnum;
 using Zayats.Core.Generated;
 
 namespace Zayats.Core
@@ -75,10 +76,10 @@ namespace Zayats.Core
             }
 
             {
-                var cells = new Data.Cell[cellCountNotIncludingStartAndFinish + 2];
+                var cells = new List<int>[cellCountNotIncludingStartAndFinish + 2];
                 game.State.Board.Cells = cells;
                 foreach (ref var cell in cells.AsSpan())
-                    cell.Things = new();
+                    cell = new();
             }
             
             var players = new Data.Player[playerCount];
@@ -93,7 +94,7 @@ namespace Zayats.Core
                     Position = 0,
                     Stats = Stats.CreateStorage(),
                     Events = Events.CreateStorage(),
-                    MoveCount = 0,
+                    Counters = Counters.CreateStorage(),
 
                     // Set later on.
                     ThingId = -1,
@@ -111,11 +112,12 @@ namespace Zayats.Core
             playerStorage.Add(thingId).Value.PlayerIndex = index;
         }
     }
-    public enum MovementDetails
+    public enum MovementKind
     {
         Normal = 0,
         HopOverThing = 1,
         ToppleOverPlayer = 2,
+        Death = 3,
     }
 
     public static class Logic
@@ -123,16 +125,24 @@ namespace Zayats.Core
         public struct MovementContext
         {
             public int PlayerIndex;
+            public MovementKind Kind;
+            public int TargetPosition;
+        }
+
+        public struct MovementStartContext
+        {
+            public int PlayerIndex;
+            public MovementKind Details;
             public int Amount;
-            public MovementDetails Details;
         }
 
         public static void MovePlayerInBetweenCells(this GameContext game, ref Data.Player player, int toPosition)
         {
-            player.GetCell(game).Things.Remove(player.ThingId);
+            player.GetCell(game).Remove(player.ThingId);
+            int prevPosition = player.Position;
             player.Position = toPosition;
-            game.TriggerSingleThingRemovedFromCellEvent(player.ThingId, player.Position);
-            player.GetCell(game).Things.Add(player.ThingId);
+            game.TriggerSingleThingRemovedFromCellEvent(player.ThingId, prevPosition);
+            player.GetCell(game).Add(player.ThingId);
             game.TriggerSingleThingAddedToCellEvent(player.ThingId, toPosition);
         }
 
@@ -147,44 +157,58 @@ namespace Zayats.Core
             return false;
         }
 
-        // Returns true if the game ends as a result of the move.
-        public static bool DoPlayerMove(this GameContext game, MovementContext context)
+        public static void MovePlayerToPosition(this GameContext game, Events.PlayerPositionChangedContext context)
         {
             ref var player = ref game.State.Players[context.PlayerIndex];
-            player.MoveCount++;
-            
-            int startingPosition = player.Position;
-            var toPosition = Math.Min(player.Position + context.Amount, game.State.Board.Cells.Length - 1);
-            MovePlayerInBetweenCells(game, ref player, toPosition);
-
-            game.HandlePlayerEvent(Events.OnMoved, context.PlayerIndex, new()
-            {
-                Movement = context,
-                StartingPosition = startingPosition,
-            });
-            game.HandlePlayerEvent(Events.OnPositionChanged, context.PlayerIndex, new()
-            {
-                PlayerIndex = context.PlayerIndex,
-                StartingPosition = startingPosition,
-            });
-            return game.MaybeEndGame(context.PlayerIndex);
+            MovePlayerInBetweenCells(game, ref player, context.TargetPosition);
+            game.HandlePlayerEvent(Events.OnPositionChanged, context.PlayerIndex, ref context);
+            game.MaybeEndGame(context.PlayerIndex);
         }
 
-        public static void MovePlayer(this GameContext game, MovementContext context)
+        public static MoveStartInfo StartMove(this GameContext game, int playerIndex)
+        {
+            ref var player = ref game.State.Players[playerIndex];
+            ref int moveCount = ref player.Counters.Get(Counters.Move);
+            MoveStartInfo moveStart;
+            moveStart.InitialMoveCount = moveCount;
+            moveCount++;
+            moveStart.InitialPosition = player.Position;
+            return moveStart;
+        }
+
+        public static void MovePlayer(this GameContext game, MovementStartContext context, out MovementContext outContext)
         {
             ref var player = ref game.State.Players[context.PlayerIndex];
+            var moveStart = StartMove(game, context.PlayerIndex);
+            var toPosition = Math.Min(player.Position + context.Amount, game.State.Cells.Length - 1);
+            outContext = new()
+            {
+                Kind = context.Details,
+                PlayerIndex = context.PlayerIndex,
+                TargetPosition = toPosition,
+            };
+            MovePlayerToPosition(game, new()
+            {
+                MoveStart = moveStart,
+                Movement = outContext,
+            });
+        }
 
-            if (DoPlayerMove(game, context))
+        public static void MovePlayer_DoPostMovementMechanics(this GameContext game, MovementStartContext startContext)
+        {
+            ref var player = ref game.State.Players[startContext.PlayerIndex];
+
+            MovePlayer(game, startContext, out var context);
+            if (game.State.IsOver)
                 return;
 
-            assert(!game.State.IsOver);
-            
-            int moveCountAfterMove = player.MoveCount;
+            ref int moveCount = ref player.Counters.Get(Counters.Move);
+            int moveCountAfterMove = moveCount;
 
             foreach (var mechanic in game.PostMovementMechanics)
             {
                 mechanic(game, context);
-                if (player.MoveCount != moveCountAfterMove)
+                if (moveCount != moveCountAfterMove)
                     return;
             }
         }
@@ -203,13 +227,13 @@ namespace Zayats.Core
                 
                 ref var otherPlayer = ref game.State.Players[otherPlayerIndex];
 
-                var contextCopy = new MovementContext
+                var contextCopy = new MovementStartContext
                 {
                     PlayerIndex = playerIndex,
-                    Details = MovementDetails.ToppleOverPlayer,
+                    Details = MovementKind.ToppleOverPlayer,
                     Amount = 1,
                 };
-                MovePlayer(game, contextCopy);
+                MovePlayer_DoPostMovementMechanics(game, contextCopy);
                 break;
             }
         }
@@ -232,7 +256,7 @@ namespace Zayats.Core
 
         public static void JumpOverSolidThings(this GameContext game, MovementContext context)
         {
-            if (context.Details == MovementDetails.HopOverThing)
+            if (context.Kind == MovementKind.HopOverThing)
                 return;
 
             int playerIndex = context.PlayerIndex;
@@ -249,7 +273,7 @@ namespace Zayats.Core
             {
                 int position = player.Position + i;
 
-                assert(position < game.State.Board.Cells.Length, "Should not need to check this.");
+                assert(position < game.State.Cells.Length, "Should not need to check this.");
 
                 bool hasSolidThings = game.GetDataInCell(Components.FlagsId, position)
                     .Any(f => f.Value.HasEither(ThingFlags.Solid));
@@ -268,10 +292,10 @@ namespace Zayats.Core
             if (distance == jump + 1)
                 return;
 
-            game.MovePlayer(new()
+            game.MovePlayer_DoPostMovementMechanics(new()
             {
-                Amount = distance,
-                Details = MovementDetails.HopOverThing,
+                Amount = distance + 1,
+                Details = MovementKind.HopOverThing,
                 PlayerIndex = playerIndex,
             });
         }
@@ -291,7 +315,7 @@ namespace Zayats.Core
             info.PlayerIndex = playerIndex;
             info.Position = position;
             
-            var things = game.State.Board.Cells[position].Things;
+            var things = game.State.Cells[position];
             
             // They have to be removed before their effect is executed,
             // because the effect may mess with the cell's content.
@@ -380,18 +404,24 @@ namespace Zayats.Core
                 }
             }
 
-            int startingPosition = player.Position;
-            int respawnPosition = GetRespawnPositionByPoppingRespawnPoint(game, context.PlayerIndex);
-            
-            MovePlayerInBetweenCells(game, ref player, respawnPosition);
+            player.Counters.Get(Counters.Death)++;
 
             game.HandlePlayerEvent(Events.OnPlayerDied, context.PlayerIndex, context);
-            game.HandlePlayerEvent(Events.OnPositionChanged, context.PlayerIndex, new()
+
             {
-                PlayerIndex = context.PlayerIndex,
-                StartingPosition = startingPosition,
-                Reason = context.Reason,
-            });
+                var moveStart = StartMove(game, context.PlayerIndex);
+                int respawnPosition = GetRespawnPositionByPoppingRespawnPoint(game, context.PlayerIndex);
+                MovePlayerToPosition(game, new()
+                {
+                    MoveStart = moveStart,
+                    Movement = new()
+                    {
+                        Kind = MovementKind.Death,
+                        PlayerIndex = context.PlayerIndex,
+                        TargetPosition = respawnPosition,
+                    }
+                });
+            }
 
             return true;
         }
@@ -481,11 +511,11 @@ namespace Zayats.Core
         {
             int playerId = game.State.CurrentPlayerId;
             int roll = game.RollAmount(playerId);
-            game.MovePlayer(new()
+            game.MovePlayer_DoPostMovementMechanics(new()
             {
                 PlayerIndex = playerId,
                 Amount = roll,
-                Details = MovementDetails.Normal,
+                Details = MovementKind.Normal,
             });
             if (!game.State.IsOver)
                 game.EndCurrentPlayersTurn();
@@ -553,7 +583,7 @@ namespace Zayats.Core
         }
         public static IEnumerable<ListItemComponentProxy<T>> GetDataInCell<T>(this GameContext game, int componentId, int cellIndex)
         {
-            var things = game.State.Board.Cells[cellIndex].Things;
+            var things = game.State.Cells[cellIndex];
             var componentStorage = game.GetComponentStorage<T>(componentId);
             assert(componentStorage is not null, $"Component storage {componentId} has not been found.");
             return GetItemInList(things, componentStorage);
@@ -614,9 +644,9 @@ namespace Zayats.Core
             return GetComponentStorage(game, componentId).Add(thingId);
         }
 
-        public static ref Data.Cell GetCell(this ref Data.Player player, GameContext game)
+        public static List<int> GetCell(this ref Data.Player player, GameContext game)
         {
-            return ref game.State.Board.Cells[player.Position];
+            return game.State.Cells[player.Position];
         }
 
         public static bool ValidateMine(this in Components.Mine mine)
@@ -649,7 +679,7 @@ namespace Zayats.Core
         public static int GetUnoccupiedCellIndex(this IRandom random, GameContext game)
         {
             int lower = 1;
-            var cells = game.State.Board.Cells;
+            var cells = game.State.Cells;
             int upperInclusive = cells.Length - 2;
             int attemptCounter = 0;
             const int maxAttempts = 10;
@@ -660,14 +690,14 @@ namespace Zayats.Core
                 t = random.GetInt(lower, upperInclusive);
                 attemptCounter++;
             }
-            while (cells[t].Things.Count != 0
+            while (cells[t].Count != 0
                 || (maxAttemptsReached = attemptCounter >= maxAttempts));
 
             if (maxAttemptsReached)
             {
                 for (int i = 0; i < cells.Length; i++)
                 {
-                    if (cells[i].Things.Count == 0)
+                    if (cells[i].Count == 0)
                         return i;
                 }
                 return -1;
@@ -830,6 +860,12 @@ namespace Zayats.Core
         public TypedIdentifier(int id) => Id = id;
     }
 
+    public struct MoveStartInfo
+    {
+        public int InitialMoveCount;
+        public int InitialPosition;
+    }
+
     public static class Events
     {
         public struct Storage
@@ -922,16 +958,20 @@ namespace Zayats.Core
         public struct PlayerMovedContext
         {
             public Logic.MovementContext Movement;
-            public int StartingPosition;
-            public readonly int TargetPosition => StartingPosition + Movement.Amount;
+            public MoveStartInfo MoveStart;
         }
         public static readonly TypedIdentifier<PlayerMovedContext> OnMoved = new(0);
 
         public struct PlayerPositionChangedContext
         {
-            public int PlayerIndex;
-            public int StartingPosition;
-            public Data.Reason Reason;
+            public Logic.MovementContext Movement;
+            public MoveStartInfo MoveStart;
+
+            public readonly int TargetPosition => Movement.TargetPosition;
+            public readonly MovementKind Reason => Movement.Kind;
+            public readonly int PlayerIndex => Movement.PlayerIndex;
+            public readonly int InitialPosition => MoveStart.InitialPosition;
+            public readonly int InitialMoveCount => MoveStart.InitialMoveCount;
         }
         public static readonly TypedIdentifier<PlayerPositionChangedContext> OnPositionChanged = new(1);
         public static readonly TypedIdentifier<int> OnPlayerWon = new(2);
@@ -998,25 +1038,19 @@ namespace Zayats.Core
         [Serializable]
         public struct Player
         {
-            public int MoveCount;
             public List<int> Items;
             public List<int> Bonuses;
             public int Position;
             public int ThingId;
             public Stats.Storage Stats;
             public Events.Storage Events;
-        }
-
-        [Serializable]
-        public struct Cell
-        {
-            public List<int> Things;
+            public Counters.Storage Counters;
         }
 
         [Serializable]
         public struct Board
         {
-            public Cell[] Cells;
+            public List<int>[] Cells;
         }
 
         [Serializable]
@@ -1029,6 +1063,8 @@ namespace Zayats.Core
             public int CurrentPlayerId;
             public object[] ComponentsByType;
             public Shop Shop;
+
+            public readonly List<int>[] Cells => Board.Cells;
         }
 
         [Serializable]
@@ -1206,6 +1242,45 @@ namespace Zayats.Core
 
         public static readonly TypedIdentifier<int> RollAdditiveBonus = new(0);
         public static readonly TypedIdentifier<int> JumpAfterMoveCapacity = new(1);
+        public const int Count = 2;
+    }
+
+    public static class Counters
+    {
+        [Serializable]
+        public struct Storage
+        {
+            public int[] CounterValues;
+        }
+        public static Storage CreateStorage()
+        {
+            return new Storage
+            {
+                CounterValues = new int[Count],
+            };
+        }
+
+        public struct Proxy
+        {
+            public Storage Counters;
+            public int Index;
+            public ref int Value => ref Counters.CounterValues[Index];
+        }
+
+        public static Proxy GetProxy(this Storage storage, int id)
+        {
+            return new Proxy
+            {
+                Counters = storage,
+                Index = id,
+            };
+        }
+
+        public static ref int Get(this Storage storage, int id) => ref GetProxy(storage, id).Value;
+        public static int Set(this Storage storage, int id, int value) => GetProxy(storage, id).Value = value;
+
+        public const int Move = 0;
+        public const int Death = 1;
         public const int Count = 2;
     }
 }

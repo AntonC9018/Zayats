@@ -137,6 +137,19 @@ namespace Zayats.Core
     public class MinePickup : IPickup
     {
         public Components.Mine _mine;
+        
+        public static readonly MinePickup Regular = new(new()
+        {
+            DestroyOnDetonation = false,
+            PutInInventoryOnDetonation = true,
+            RemoveOnDetonation = true,
+        });
+        public static readonly MinePickup Eternal = new(new()
+        {
+            DestroyOnDetonation = false,
+            PutInInventoryOnDetonation = false,
+            RemoveOnDetonation = false,
+        });
 
         public MinePickup(Components.Mine mine)
         {
@@ -203,7 +216,7 @@ namespace Zayats.Core
             int respawnPointId = info.Game.GetComponent(Components.RespawnPointIdId, info.ThingId);
             int respawnPosition = info.Game.GetComponent(Components.RespawnPositionId, respawnPointId);
             // How do we handle dropping back on cell?
-            info.Game.State.Board.Cells[respawnPosition].Things.Add(info.ThingId);
+            info.Game.State.Cells[respawnPosition].Add(info.ThingId);
         }
 
         public void DoPickupEffect(ItemInteractionInfo info)

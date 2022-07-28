@@ -56,7 +56,7 @@ namespace Zayats.Core.Tests
         {
             ref var player = ref game.State.Players[playerIndex];
             game.AddComponent(Components.PlayerId, playerId).PlayerIndex = playerId;
-            game.State.Board.Cells[initialPosition].Things.Add(playerId);
+            game.State.Cells[initialPosition].Add(playerId);
 
             return ref player;
         }
@@ -68,10 +68,23 @@ namespace Zayats.Core.Tests
             return (game, rand);
         }
 
-        public static void AddItem(GameContext game, int itemId, IPickup pickup, int position = 1)
+        public static void AddPickup(GameContext game, int itemId, IPickup pickup, int position = 1)
         {
             game.AddComponent(Components.PickupActionId, itemId) = pickup;
-            game.State.Board.Cells[position].Things.Add(itemId);
+            game.State.Cells[position].Add(itemId);
+        }
+
+        [Test]
+        public void RollTheIndicatedAmount()
+        {
+            var (game, rand) = BasicSinglePlayer(cellCount: 6);
+            int playerIndex = 0;
+
+            rand.NextAmount = 1;
+            Assert.AreEqual(1, game.RollAmount(playerIndex));
+
+            rand.NextAmount = 5;
+            Assert.AreEqual(5, game.RollAmount(playerIndex));
         }
         
         [Test]
@@ -96,7 +109,7 @@ namespace Zayats.Core.Tests
             var (game, rand) = BasicSinglePlayer(cellCount: 3);
 
             int itemId = 1;
-            AddItem(game, itemId, PlayerInventoryPickup.Instance);
+            AddPickup(game, itemId, PlayerInventoryPickup.Instance);
 
             rand.NextAmount = 1;
             game.ExecuteCurrentPlayersTurn();
@@ -115,7 +128,7 @@ namespace Zayats.Core.Tests
             // Choose a stat that doesn't affect movement here.
             var statId = Stats.JumpAfterMoveCapacity;
             var pickup = new AddStatPickup(statId, addedStatValue);
-            AddItem(game, itemId, pickup);
+            AddPickup(game, itemId, pickup);
 
             rand.NextAmount = 1;
             game.ExecuteCurrentPlayersTurn();
@@ -126,36 +139,183 @@ namespace Zayats.Core.Tests
         }
 
         [Test]
+        public void MovementCounter()
+        {
+            var (game, rand) = BasicSinglePlayer(cellCount: 3);
+            
+            game.GetEventProxy(OnPositionChanged).Add(
+                (GameContext game, ref PlayerPositionChangedContext context) => 
+                {
+                    Assert.AreEqual(0, context.InitialMoveCount);
+                    Assert.AreEqual(1, game.State.Players[0].Counters.Get(Counters.Move));
+                });
+            
+            ref int moveCount = ref game.State.Players[0].Counters.Get(Counters.Move);
+            Assert.AreEqual(0, moveCount);
+            rand.NextAmount = 1;
+            game.ExecuteCurrentPlayersTurn();
+            Assert.AreEqual(1, moveCount);
+        }
+
+        [Test]
         public void ToppleOverPlayers()
         {
             var (game, rand) = Basic(cellCount: 3, playerCount: 2);
             ref var player0 = ref InitializePlayer(game, playerIndex: 0);
             ref var player1 = ref InitializePlayer(game, playerIndex: 1, initialPosition: 1);
 
-            game.GetEventProxy(OnMoved).Add(
-                (GameContext game, ref PlayerMovedContext context) => 
+            game.GetEventProxy(OnPositionChanged).Add(
+                (GameContext game, ref PlayerPositionChangedContext context) => 
                 {
                     Assert.AreEqual(0, context.Movement.PlayerIndex);
 
-                    ref var player = ref game.State.Players[0];
                     // Thing is triggered after the move is done.
-                    if (player.MoveCount == 1)
+                    if (context.InitialMoveCount == 0)
                     {
-                        Assert.AreEqual(MovementDetails.Normal, context.Movement.Details);
-                        Assert.AreEqual(0, context.StartingPosition);
+                        Assert.AreEqual(MovementKind.Normal, context.Movement.Kind);
+                        Assert.AreEqual(0, context.InitialPosition);
                     }
                     else
                     {
-                        Assert.AreEqual(2, player.MoveCount, "Too many moves triggered??");
-                        Assert.AreEqual(MovementDetails.ToppleOverPlayer, context.Movement.Details);
-                        Assert.AreEqual(1, context.StartingPosition);
+                        Assert.AreEqual(1, context.InitialMoveCount, "Too many moves triggered??");
+                        Assert.AreEqual(MovementKind.ToppleOverPlayer, context.Movement.Kind);
+                        Assert.AreEqual(1, context.InitialPosition);
                     }
                 });
 
             rand.NextAmount = 1;
             game.ExecuteCurrentPlayersTurn();
-            Assert.AreEqual(2, player0.MoveCount);
+            Assert.AreEqual(2, player0.Counters.Get(Counters.Move));
             Assert.AreEqual(2, player0.Position);
+        }
+
+        class FlagReference
+        {
+            public bool Value = false;
+        }
+
+        private GameContext MineSetup(int mineId, MinePickup pickup)
+        {
+            var (game, rand) = BasicSinglePlayer(cellCount: 3);
+            rand.NextAmount = 1;
+            AddPickup(game, mineId, pickup, position: 1);
+
+            return game;
+        }
+
+        [Test]
+        public void RegularMine()
+        {
+            int mineId = 1;
+            var game = MineSetup(mineId, MinePickup.Regular);
+
+            game.ExecuteCurrentPlayersTurn();
+            
+            ref var player = ref game.State.Players[0];
+            Assert.AreEqual(1, player.Counters.Get(Counters.Death));
+            Assert.AreEqual(0, player.Position, "The player has been respawned at the initial position.");
+            Assert.AreEqual(2, player.Counters.Get(Counters.Move), "Both the moves counted.");
+            Assert.AreEqual(mineId, player.Items.Single(), "The mine has been picked up.");
+            Assert.AreEqual(0, game.State.Cells[1].Count, "No things on the second position.");
+        }
+
+        [Test]
+        public void EternalMine()
+        {
+            int mineId = 1;
+            var game = MineSetup(mineId, MinePickup.Eternal);
+
+            game.ExecuteCurrentPlayersTurn();
+
+            ref var player = ref game.State.Players[0];
+            Assert.AreEqual(1, player.Counters.Get(Counters.Death));
+            Assert.AreEqual(0, player.Position, "The player has been respawned at the initial position.");
+            Assert.AreEqual(2, player.Counters.Get(Counters.Move), "Both the moves counted.");
+            Assert.AreEqual(0, player.Items.Count, "Nothing picked up.");
+            Assert.AreEqual(mineId, game.State.Cells[1].Single(), "The mine stayed at its initial position.");
+        }
+
+        private static void AddSolidThing(GameContext game, ref int id, int position)
+        {
+            game.AddComponent(Components.FlagsId, id) = ThingFlags.Solid;
+            game.State.Cells[position].Add(id);
+            id++;
+        }
+
+        #pragma warning disable CS8509 // Non-exhaustive switch
+
+        [Test]
+        public void HoppingOverSolidThings()
+        {
+            var (game, rand) = BasicSinglePlayer(cellCount: 9);
+            ref var player = ref game.State.Players[0];
+
+            player.Stats.Set(Stats.JumpAfterMoveCapacity, 1);
+
+            var id = 1;
+            AddSolidThing(game, ref id, 2);
+            AddSolidThing(game, ref id, 4);
+            AddSolidThing(game, ref id, 7);
+
+            game.GetEventProxy(Events.OnPositionChanged).Add(
+                (GameContext game, ref PlayerPositionChangedContext context) =>
+                {
+                    var kind = context.InitialMoveCount switch
+                    {
+                        0 => MovementKind.Normal,
+                        1 => MovementKind.HopOverThing,
+                        2 => MovementKind.Normal,
+                    };
+                    Assert.AreEqual(kind, context.Movement.Kind);
+                });
+
+            rand.NextAmount = 1;
+            game.ExecuteCurrentPlayersTurn();
+            Assert.AreEqual(2, player.Counters.Get(Counters.Move), "A normal move, and 1 hop.");
+            Assert.AreEqual(3, player.Position);
+
+            rand.NextAmount = 2;
+            game.ExecuteCurrentPlayersTurn();
+            Assert.AreEqual(3, player.Counters.Get(Counters.Move));
+            Assert.AreEqual(5, player.Position);
+        }
+
+        [Test]
+        public void HoppingOverSolidThings_MultiStat()
+        {
+            var (game, rand) = BasicSinglePlayer(cellCount: 9);
+            ref var player = ref game.State.Players[0];
+
+            player.Stats.Set(Stats.JumpAfterMoveCapacity, 2);
+
+            var id = 1;
+            AddSolidThing(game, ref id, 2);
+            AddSolidThing(game, ref id, 3);
+            AddSolidThing(game, ref id, 5);
+
+            game.GetEventProxy(Events.OnPositionChanged).Add(
+                (GameContext game, ref PlayerPositionChangedContext context) =>
+                {
+                    var expectedKind = context.InitialMoveCount switch
+                    {
+                        0 => MovementKind.Normal,
+                        _ => MovementKind.HopOverThing,
+                    };
+                    Assert.AreEqual(expectedKind, context.Movement.Kind);
+
+                    var expectedTargetPosition = context.InitialMoveCount switch
+                    {
+                        0 => 1,
+                        1 => 4,
+                    };
+                    Assert.AreEqual(expectedTargetPosition, context.TargetPosition);
+                });
+
+            rand.NextAmount = 1;
+            game.ExecuteCurrentPlayersTurn();
+
+            Assert.AreEqual(2, player.Counters.Get(Counters.Move), "A normal move, and 1 hop.");
+            Assert.AreEqual(4, player.Position);
         }
     }
 }

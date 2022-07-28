@@ -170,7 +170,7 @@ namespace Zayats.Unity.View
 
             void ArrangeThings(int position)
             {
-                var things = _game.State.Board.Cells[position].Things;
+                var things = _game.State.Cells[position];
                 var spriteRenderer = VisualCells[position].gameObject.GetComponent<SpriteRenderer>();
                 var bounds = spriteRenderer.bounds;
                 float availableSpaceY = spriteRenderer.bounds.extents.y * 2;
@@ -193,7 +193,7 @@ namespace Zayats.Unity.View
 
             void SpawnOn(int position, int id, GameObject obj)
             {
-                var things = _game.State.Board.Cells[position].Things;
+                var things = _game.State.Cells[position];
                 things.Add(id);
                 obj.transform.parent = VisualCells[position];
             }
@@ -320,10 +320,10 @@ namespace Zayats.Unity.View
                     playerTransform.parent = targetTransform;
 
                     int position = player.Position;
-                    int count = game.State.Board.Cells[position].Things.Count;
+                    int count = game.State.Cells[position].Count;
                     Debug.LogFormat("There are {0} things at {1}", count, position);
                     
-                    ArrangeThings(context.StartingPosition);
+                    ArrangeThings(context.InitialPosition);
                     ArrangeThings(position);
                 });
 
