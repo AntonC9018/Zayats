@@ -38,7 +38,7 @@ namespace Zayats.Core.Tests
             Components.InitializeStorage(game, Components.ThingSpecificEventsId);
             Components.InitializeStorage(game, Components.RespawnPointIdsId);
             Components.InitializeStorage(game, Components.RespawnPositionId);
-            Components.InitializeStorage(game, Components.PickupActionId);
+            Components.InitializeStorage(game, Components.PickupId);
             Components.InitializeStorage(game, Components.AttachedPickupDelegateId);
             Components.InitializeStorage(game, Components.RespawnPointIdId);
             Components.InitializeStorage(game, Components.FlagsId);
@@ -55,7 +55,7 @@ namespace Zayats.Core.Tests
         public static ref Data.Player InitializePlayer(GameContext game, int playerIndex, int playerId, int initialPosition = 0)
         {
             ref var player = ref game.State.Players[playerIndex];
-            game.AddComponent(Components.PlayerId, playerId).PlayerIndex = playerId;
+            game.AddComponent(Components.PlayerId, playerId).PlayerIndex = playerIndex;
             game.State.Cells[initialPosition].Add(playerId);
 
             return ref player;
@@ -70,7 +70,7 @@ namespace Zayats.Core.Tests
 
         public static void AddPickup(GameContext game, int itemId, IPickup pickup, int position = 1)
         {
-            game.AddComponent(Components.PickupActionId, itemId) = pickup;
+            game.AddComponent(Components.PickupId, itemId) = pickup;
             game.State.Cells[position].Add(itemId);
         }
 
@@ -316,6 +316,77 @@ namespace Zayats.Core.Tests
 
             Assert.AreEqual(2, player.Counters.Get(Counters.Move), "A normal move, and 1 hop.");
             Assert.AreEqual(4, player.Position);
+        }
+
+        [Test]
+        public void TotemSaves()
+        {
+            var (game, rand) = BasicSinglePlayer(cellCount: 3);
+            ref var player = ref game.State.Players[0];
+
+
+            // int itemId = 1;
+            // game.AddComponent(Components.PickupActionId, itemId) = TowerPickup.Instance;
+
+            // int respawnPointId = 2;
+            // int respawnPointPosition = 1;
+            // game.AddComponent(Components.RespawnPositionId, respawnPointId) = respawnPointPosition;
+
+            // game.AddComponent(Components.RespawnPointIdId, itemId) = respawnPointId;
+
+            int totemId = 1;
+            
+            game.AddComponent(Components.PickupId, totemId) = TotemPickup.Instance;
+            game.AddComponent(Components.AttachedPickupDelegateId, totemId);
+
+            game.AddItemToInventory_DoPickupEffect(TotemPickup.Instance, new()
+            {
+                PlayerIndex = 0,
+                Position = 0,
+                ThingId = totemId,
+            });
+
+            Assert.AreEqual(totemId, player.Items.Single());
+
+            int mineId = 2;
+            int minePosition = 1;
+            AddPickup(game, mineId, MinePickup.Eternal, minePosition);
+
+            rand.NextAmount = 1;
+            game.ExecuteCurrentPlayersTurn();
+
+            Assert.AreEqual(0, player.Items.Count);
+            Assert.AreEqual(totemId, game.State.Shop.Items.Single(), "Item returned to shop.");
+            Assert.AreEqual(minePosition, player.Position, "Player landed on top of the mine, but wasn't brought back.");
+            Assert.AreEqual(0, player.Counters.Get(Counters.Death));
+            
+            game.ExecuteCurrentPlayersTurn();
+
+            Assert.AreEqual(minePosition + 1, player.Position);
+        }
+
+        [Test]
+        public void RespawnPoints()
+        {
+            var (game, rand) = BasicSinglePlayer(cellCount: 4);
+            ref var player = ref game.State.Players[0];
+
+            int mineId = 1;
+            int minePosition = 2;
+            AddPickup(game, mineId, MinePickup.Eternal, minePosition);
+
+            int respawnPointId = 2;
+            int respawnPointPosition = 1;
+            game.AddComponent(Components.RespawnPositionId, respawnPointId) = respawnPointPosition;
+
+            game.PushRespawnPoint(playerIndex: 0, respawnPointId);
+            
+            rand.NextAmount = 2;
+            game.ExecuteCurrentPlayersTurn();
+
+            Assert.AreEqual(respawnPointPosition, player.Position);
+            Assert.AreEqual(0, game.GetComponent(Components.RespawnPointIdsId, player.ThingId).Count);
+            Assert.AreEqual(1, player.Counters.Get(Counters.Death));
         }
     }
 }

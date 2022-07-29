@@ -68,6 +68,7 @@ namespace Zayats.Core
                 (g, c) => Logic.ToppleOverPlayers(g, c.PlayerIndex),
                 Logic.JumpOverSolidThings,
             };
+            game.State.Shop.Items = new();
 
             {
                 var components = new object[Components.Count];
@@ -307,11 +308,10 @@ namespace Zayats.Core
 
         public static void CollectPickupsAtPosition(this GameContext game, int playerIndex, int position)
         {
-            var pickupsInCell = game.GetDataInCell(Components.PickupActionId, position);
+            var pickupsInCell = game.GetDataInCell(Components.PickupId, position);
             var pickupInfos = pickupsInCell.Select(a => (Pickup: a.Value, a.ListIndex, a.ThingId)).Reverse().ToArray();
 
             ItemInteractionInfo info;
-            info.Game = game;
             info.PlayerIndex = playerIndex;
             info.Position = position;
             
@@ -323,7 +323,7 @@ namespace Zayats.Core
             foreach (var pickupInfo in pickupInfos)
             {
                 info.ThingId = pickupInfo.ThingId;
-                if (pickupInfo.Pickup.ShouldRemoveFromCellOnPickup(info))
+                if (pickupInfo.Pickup.ShouldRemoveFromCellOnPickup(game, info))
                     things.RemoveAt(pickupInfo.ListIndex);
             }
 
@@ -332,16 +332,16 @@ namespace Zayats.Core
             foreach (var pickupInfo in pickupInfos)
             {
                 info.ThingId = pickupInfo.ThingId;
-                DoPickupEffectWithEvent(pickupInfo.Pickup, info);
-                if (pickupInfo.Pickup.IsInventoryItem(info))
-                    AddItemToInventory(info);
+                DoPickupEffectWithEvent(game, pickupInfo.Pickup, info);
+                if (pickupInfo.Pickup.IsInventoryItem(game, info))
+                    AddItemToInventory_WithoutPickupEffect(game, info);
             }
         }
 
-        public static void DoPickupEffectWithEvent(this IPickup pickup, ItemInteractionInfo info)
+        public static void DoPickupEffectWithEvent(this GameContext game, IPickup pickup, ItemInteractionInfo info)
         {
-            pickup.DoPickupEffect(info);
-            info.Game.HandlePlayerEvent(Events.OnThingPickedUp, info.PlayerIndex, ref info);
+            pickup.DoPickupEffect(game, info);
+            game.HandlePlayerEvent(Events.OnThingPickedUp, info.PlayerIndex, ref info);
         }
 
         public static void AddThingToShop(this GameContext game, int thingId)
@@ -352,23 +352,30 @@ namespace Zayats.Core
         // public static void DoDefaultPickupEffectWithEvent(ItemInteractionInfo info)
         // {
         //     PlayerInventoryPickup.DoDropEffect(info);
-        //     info.Game.HandlePlayerEvent(Events.OnThingPickedUp, info.PlayerIndex, new()
+        //     game.HandlePlayerEvent(Events.OnThingPickedUp, info.PlayerIndex, new()
         //     {
         //         PlayerIndex = info.PlayerIndex,
         //         ThingId = info.Position,
         //     });
         // }
 
-        public static void AddItemToInventory(ItemInteractionInfo info)
+        public static void AddItemToInventory_DoPickupEffect(this GameContext game, IPickup pickup, ItemInteractionInfo info)
         {
-            info.Game.State.Players[info.PlayerIndex].Items.Add(info.ThingId);
-            info.Game.HandlePlayerEvent(Events.OnItemAddedToInventory, info.PlayerIndex, ref info);
+            assert(pickup.IsInventoryItem(game, info));
+            pickup.DoPickupEffect(game, info);
+            AddItemToInventory_WithoutPickupEffect(game, info);
         }
 
-        public static void RemoveItemFromInventory(ItemInteractionInfo info)
+        public static void AddItemToInventory_WithoutPickupEffect(this GameContext game, ItemInteractionInfo info)
         {
-            info.Game.State.Players[info.PlayerIndex].Items.Remove(info.ThingId);
-            info.Game.HandlePlayerEvent(Events.OnItemRemovedFromInventory, info.PlayerIndex, ref info);
+            game.State.Players[info.PlayerIndex].Items.Add(info.ThingId);
+            game.HandlePlayerEvent(Events.OnItemAddedToInventory, info.PlayerIndex, ref info);
+        }
+
+        public static void RemoveItemFromInventory(this GameContext game, ItemInteractionInfo info)
+        {
+            game.State.Players[info.PlayerIndex].Items.Remove(info.ThingId);
+            game.HandlePlayerEvent(Events.OnItemRemovedFromInventory, info.PlayerIndex, ref info);
         }
 
         public static void DestroyThing(this GameContext game, int thingId)
@@ -459,7 +466,7 @@ namespace Zayats.Core
             var stack = respawnPointsStackProxy.Value ??= new();
             stack.Push(respawnPointId);
 
-            game.HandlePlayerEvent(Events.OnRespawnPositionPushed, playerId, new()
+            game.HandlePlayerEvent(Events.OnRespawnPositionPushed, playerIndex, new()
             {
                 PlayerIndex = playerIndex,
                 RespawnPointId = respawnPointId,
@@ -982,7 +989,7 @@ namespace Zayats.Core
             public Data.Reason SaveReason;
             public Logic.KillPlayerContext Kill;
 
-            bool IContinue.Continue => !WasSaved;
+            readonly bool IContinue.Continue => !WasSaved;
         }
         public static readonly TypedIdentifier<SavePlayerContext> OnTrySavePlayer = new(4);
 
@@ -1100,31 +1107,34 @@ namespace Zayats.Core
         public Dictionary<int, int> MapThingIdToIndex;
         public int Count;
 
-        public bool TryGetProxy(int thingIndex, out ComponentProxy<T> proxy)
+        public bool TryGetProxy(int thingId, out ComponentProxy<T> proxy)
         {
             proxy.Storage = Data;
-            if (MapThingIdToIndex.TryGetValue(thingIndex, out proxy.Index))
+            if (MapThingIdToIndex.TryGetValue(thingId, out proxy.Index))
                 return true;
             proxy.Index = -1;
             return false;
         }
 
-        public ComponentProxy<T> GetProxy(int thingIndex)
+        public ComponentProxy<T> GetProxy(int thingId)
         {
             return new()
             {
-                Index = MapThingIdToIndex[thingIndex],
+                Index = MapThingIdToIndex[thingId],
                 Storage = Data,
             };
         }
 
-        public ComponentProxy<T> Add(int thingIndex)
+        public ComponentProxy<T> Add(int thingId)
         {
+            if (MapThingIdToIndex.ContainsKey(thingId))
+                panic($"Component of type {typeof(T).Name} already exists for thing {thingId}.");
+
             int index = Count;
             Count++;
             if (Count > Data.Length)
                 Array.Resize(ref Data, Count * 2);
-            MapThingIdToIndex.Add(thingIndex, index);
+            MapThingIdToIndex.Add(thingId, index);
             return new()
             {
                 Index = index,
@@ -1155,7 +1165,13 @@ namespace Zayats.Core
         public static readonly TypedIdentifier<Events.Storage> ThingSpecificEventsId = new(3);
         public static readonly TypedIdentifier<Stack<int>> RespawnPointIdsId = new(4);
         public static readonly TypedIdentifier<int> RespawnPositionId = new(5);
-        public static readonly TypedIdentifier<IPickup> PickupActionId = new(6);
+        // public struct Pickup
+        // {
+        //     public IPickupEffect Effect;
+        //     public bool IsInventoryItem;
+        //     public bool ShouldRemoveFromCellOnPickup;
+        // }
+        public static readonly TypedIdentifier<IPickup> PickupId = new(6);
         public static readonly TypedIdentifier<object> AttachedPickupDelegateId = new(7);
         public static readonly TypedIdentifier<int> RespawnPointIdId = new(8);
         public static readonly TypedIdentifier<ThingFlags> FlagsId = new(9);

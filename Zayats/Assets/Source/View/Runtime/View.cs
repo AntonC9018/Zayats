@@ -144,7 +144,7 @@ namespace Zayats.Unity.View
             Components.InitializeStorage(_game, Components.ThingSpecificEventsId);
             var respawnPointIdsStorage = Components.InitializeStorage(_game, Components.RespawnPointIdsId, CountsToSpawn.Player);
             var respawnPositionStorage = Components.InitializeStorage(_game, Components.RespawnPositionId, CountsToSpawn.RespawnPoint);
-            var pickupStorage = Components.InitializeStorage(_game, Components.PickupActionId);
+            var pickupStorage = Components.InitializeStorage(_game, Components.PickupId);
             var pickupDelegateStorage = Components.InitializeStorage(_game, Components.AttachedPickupDelegateId);
             var respawnPointIdStorage = Components.InitializeStorage(_game, Components.RespawnPointIdId, CountsToSpawn.Tower);
             var flagsStorage = Components.InitializeStorage(_game, Components.FlagsId, mineCount);
