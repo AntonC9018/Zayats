@@ -147,6 +147,12 @@ namespace Zayats.Core
             game.TriggerSingleThingAddedToCellEvent(player.ThingId, toPosition);
         }
 
+        public static void AddNonPlayerThingToCell(this GameContext game, int thingId, int toPosition)
+        {
+            game.State.Cells[toPosition].Add(thingId);
+            game.TriggerSingleThingAddedToCellEvent(thingId, toPosition);
+        }
+
         public static bool MaybeEndGame(this GameContext game, int playerIndex)
         {
             if (CheckFinish(game.State.Board, game.State.Players[playerIndex].Position))
@@ -359,6 +365,16 @@ namespace Zayats.Core
         //     });
         // }
 
+        public static void AddItemToInventory_MaybeDoPickupEffect(this GameContext game,ItemInteractionInfo info)
+        {
+            if (game.TryGetComponentValue(Components.PickupId, info.ThingId, out var pickup))
+            {
+                assert(pickup.IsInventoryItem(game, info));
+                pickup.DoPickupEffect(game, info);
+            }
+            AddItemToInventory_WithoutPickupEffect(game, info);
+        }
+
         public static void AddItemToInventory_DoPickupEffect(this GameContext game, IPickup pickup, ItemInteractionInfo info)
         {
             assert(pickup.IsInventoryItem(game, info));
@@ -376,6 +392,19 @@ namespace Zayats.Core
         {
             game.State.Players[info.PlayerIndex].Items.Remove(info.ThingId);
             game.HandlePlayerEvent(Events.OnItemRemovedFromInventory, info.PlayerIndex, ref info);
+        }
+
+        public static void RemoveItemFromInventory_AtIndex(this GameContext game, int playerIndex, int itemIndex)
+        {
+            ref var player = ref game.State.Players[playerIndex];
+            int itemId = player.Items[itemIndex];
+            player.Items.RemoveAt(itemIndex);
+            game.HandlePlayerEvent(Events.OnItemRemovedFromInventory, playerIndex, new()
+            {
+                PlayerIndex = playerIndex,
+                Position = player.Position,
+                ThingId = itemId,
+            });
         }
 
         public static void DestroyThing(this GameContext game, int thingId)
@@ -500,7 +529,7 @@ namespace Zayats.Core
 
         public static void EndCurrentPlayersTurn(this GameContext game)
         {
-            ref int a = ref game.State.CurrentPlayerId;
+            ref int a = ref game.State.CurrentPlayerIndex;
             int previousPlayer = a;
             a = (a + 1) % game.State.Players.Length;
             int currentPlayer = a;
@@ -517,7 +546,7 @@ namespace Zayats.Core
 
         public static void ExecuteCurrentPlayersTurn(this GameContext game)
         {
-            int playerId = game.State.CurrentPlayerId;
+            int playerId = game.State.CurrentPlayerIndex;
             int roll = game.RollAmount(playerId);
             game.MovePlayer_DoPostMovementMechanics(new()
             {
@@ -527,6 +556,114 @@ namespace Zayats.Core
             });
             if (!game.State.IsOver)
                 game.EndCurrentPlayersTurn();
+        }
+
+        public static bool IsShoppingAvailable(this GameContext game, int playerIndex)
+        {
+            int position = game.State.Players[playerIndex].Position;
+            return game.State.Shop.CellsWhereAccessible.Any(p => p == position);
+        }
+
+        public struct StartPurchaseContext
+        {
+            public int PlayerIndex;
+            public int ThingShopIndex;
+            public readonly int GetThingId(GameContext game) => game.State.Shop.Items[ThingShopIndex];
+        }
+
+        public struct PurchaseContext
+        {
+            public IList<(int Index, int ThingId)> Coins;
+            public int TotalCost;
+            public StartPurchaseContext Start;
+
+            public void SetEmpty()
+            {
+                Coins = Array.Empty<(int Index, int ThingId)>();
+            }
+
+            public void SetNotEnoughCoins()
+            {
+                Coins = null;
+            }
+
+            public void SetIndices(IList<(int Index, int ThingId)> indices)
+            {
+                Coins = indices;
+            }
+
+            public readonly bool Empty => Coins.Count == 0;
+            public readonly bool NotEnoughCoins => Coins == null;
+            public readonly int PlayerIndex => Start.PlayerIndex;
+            public readonly int ThingShopIndex => Start.ThingShopIndex;
+        }
+
+        public static PurchaseContext StartBuyingThingFromShop(this GameContext game, StartPurchaseContext context)
+        {
+            ref var player = ref game.State.Players[context.PlayerIndex];
+            
+            if (!game.TryGetComponentValue(Components.CurrencyCostId, context.GetThingId(game), out int cost))
+                cost = 0;
+
+            PurchaseContext buying = new();
+            buying.Start = context;
+            buying.TotalCost = cost;
+
+            if (cost == 0)
+            {
+                buying.SetEmpty();
+                return buying;
+            }
+
+            var coins = game.GetDataInItems(Components.CurrencyId, context.PlayerIndex);
+            var removedCoins = new List<(int Index, int ThingId)>();
+
+            foreach (var coin in coins)
+            {
+                assert(coin.Value == 1, "We don't allow other values (at least for now)");
+                cost--;
+                removedCoins.Add((coin.ListIndex, coin.ThingId));
+                if (cost == 0)
+                    break;
+            }
+
+            if (cost != 0)
+            {
+                buying.SetNotEnoughCoins();
+                return buying;
+            }
+
+            buying.SetIndices(removedCoins);
+            return buying;
+        }
+
+        public static void EndBuyingThingFromShop(this GameContext game, in PurchaseContext context, List<int> selectedCoinPlacementPositions)
+        {
+            assert(context.Coins.Count == selectedCoinPlacementPositions.Count);
+
+            int coinCount = context.Coins.Count;
+            for (int i = coinCount - 1; i >= 0; i--)
+                game.RemoveItemFromInventory_AtIndex(context.PlayerIndex, context.Coins[i].Index);
+            for (int i = 0; i < coinCount; i++)
+                game.AddNonPlayerThingToCell(context.Coins[i].ThingId, selectedCoinPlacementPositions[i]);
+
+            game.AddThingFromShopToInventory(context.ThingShopIndex, context.PlayerIndex);
+        }
+
+        public static void AddThingFromShopToInventory(this GameContext game, int thingShopIndex, int playerIndex)
+        {
+            ref var player = ref game.State.Players[playerIndex];
+            var shopItems = game.State.Shop.Items;
+            int boughtIndex = thingShopIndex;
+            int boughtId = shopItems[boughtIndex];
+            shopItems.RemoveAt(boughtIndex);
+
+            AddItemToInventory_MaybeDoPickupEffect(game, new()
+            {
+                PlayerIndex = playerIndex,
+                ItemId = boughtId,
+                Position = player.Position,
+            });
         }
     }
 
@@ -628,6 +765,18 @@ namespace Zayats.Core
         public static bool TryGetComponent<T>(this GameContext game, TypedIdentifier<T> componentId, int thingId, out ComponentProxy<T> proxy)
         {
             return GetComponentStorage(game, componentId).TryGetProxy(thingId, out proxy);
+        }
+
+        public static bool TryGetComponentValue<T>(this GameContext game, TypedIdentifier<T> componentId, int thingId, out T value)
+        {
+            GetComponentStorage(game, componentId).TryGetProxy(thingId, out var proxy);
+            if (proxy.Exists)
+            {
+                value = proxy.Value;
+                return true;
+            }
+            value = default;
+            return false;
         }
 
         public static ComponentProxy<T> GetComponentProxy<T>(this GameContext game, TypedIdentifier<T> componentId, int thingId)
@@ -1068,11 +1217,12 @@ namespace Zayats.Core
             public bool IsOver; 
             public Board Board;
             public Player[] Players;
-            public int CurrentPlayerId;
+            public int CurrentPlayerIndex;
             public object[] ComponentsByType;
             public Shop Shop;
 
             public readonly List<int>[] Cells => Board.Cells;
+            public readonly ArraySegment<List<int>> IntermediateCells => Cells.AsArraySegment(1, Cells.Length - 2);
         }
 
         [Serializable]

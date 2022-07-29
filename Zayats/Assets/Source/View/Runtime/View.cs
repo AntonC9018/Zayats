@@ -10,6 +10,9 @@ using UnityEngine.UI;
 using TMPro;
 using System.Collections.Generic;
 using static Zayats.Core.Events;
+using UnityEngine.Pool;
+using System.Threading.Tasks;
+using Common;
 
 namespace Zayats.Unity.View
 {
@@ -26,6 +29,7 @@ namespace Zayats.Unity.View
         UseItem,
         Settings,
         Restart,
+        TempBuy,
     }
 
     [GenerateArrayWrapper("GameplayTextArray")]
@@ -48,9 +52,13 @@ namespace Zayats.Unity.View
         public Transform HolderPrefab;
         public Transform ItemHolderHolder;
         public Color[] PlayerCharacterColors;
+        public int[] ShopPositions;
+        public GameObject BuyButtonPrefab;
         private GameObject[] _thingGameObjects;
         private Transform[] _itemHolders;
         private GameContext _game;
+        private List<GameObject> _itemBuyButtons;
+        private ObjectPool<GameObject> _buyButtonsPool;
 
         private int _seed;
         private int Seed
@@ -131,6 +139,8 @@ namespace Zayats.Unity.View
             _game.Random = gameRandom;
 
             _game.Logger = new UnityLogger();
+
+            _game.State.Shop.CellsWhereAccessible = ShopPositions;
 
             UnityEngine.Random.InitState(seed + 1);
             var spawnRandom = new Random(UnityEngine.Random.state);
@@ -275,7 +285,8 @@ namespace Zayats.Unity.View
                     case ThingKind.Rabbit:
                     {
                         pickupStorage.Add(id).Value = rabbitPickup;
-                        SpawnRandomly(spawnRandom, id, obj);
+                        // SpawnRandomly(spawnRandom, id, obj);
+                        _game.AddThingToShop(id);
                         break;
                     }
                     case ThingKind.Tower:
@@ -429,6 +440,8 @@ namespace Zayats.Unity.View
             }
             _itemHolders[0].gameObject.SetActive(true);
 
+            _buyButtonsPool = new(() => GameObject.Instantiate(BuyButtonPrefab));
+
             InitializeGame();
 
             GameplayButtons.Roll.onClick.AddListener(() =>
@@ -453,6 +466,77 @@ namespace Zayats.Unity.View
                 Seed = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
                 InitializeGame();
             });
+
+            GameplayButtons.TempBuy.onClick.AddListener(async () =>
+            {
+                async Task DoBuying()
+                {
+                    assert(_game.State.Shop.Items.Count > 0);
+                    
+                    int itemIndex = 0;
+                    var context = _game.StartBuyingThingFromShop(new()
+                    {
+                        PlayerIndex = _game.State.CurrentPlayerIndex,
+                        ThingShopIndex = itemIndex,
+                    });
+                    
+                    if (context.NotEnoughCoins)
+                    {
+                        Debug.Log("Not enough money");
+                        return;
+                    }
+
+                    var cellsSlice = _game.State.IntermediateCells;
+                    int availableCellCount = cellsSlice.Count(c => c.Count == 0);
+                    List<int> positions = new();
+                    if (availableCellCount == context.Coins.Count)
+                    {
+                        cellsSlice.Indices(c => c.Count == 0, positions);
+                    }
+                    else if (availableCellCount < context.Coins.Count)
+                    {
+                        panic("Unimplemented");
+                    }
+                    else if (availableCellCount == 0)
+                    {
+                        panic("Unimplemented");
+                    }
+                    else
+                    {
+                        int coinCount = context.Coins.Count;
+                        Task<int> PromptForCellPlacement(GameContext game)
+                        {
+                            return Task.FromResult(game.Random.GetUnoccupiedCellIndex(game));
+                        }
+                        for (int i = 0; i < coinCount; i++)
+                        {
+                            int result = await PromptForCellPlacement(_game);
+                            if (result == -1)
+                                panic("Unimplemented");
+                            positions.Add(result);
+                        }
+                    }
+
+                    _game.EndBuyingThingFromShop(context, positions);
+                }
+                await DoBuying();
+            });
         }
+    }
+
+    public enum UIState
+    {
+        Normal,
+        SelectingCell,
+    }
+
+    public class UIContext
+    {
+        public MonoBehaviour WaitObject;
+    }
+
+    public static class UI
+    {
+        // public static Task<int> Select()
     }
 }

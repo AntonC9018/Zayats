@@ -10,7 +10,7 @@ namespace Zayats.Unity.View.Editor.Generated
     [CustomPropertyDrawer(typeof(Zayats.Unity.View.Generated.GameplayButtonArray<>))]
     public class GameplayButtonKindPropertyDrawer : Kari.Plugins.AdvancedEnum.Editor.EnumArrayDrawer
     {
-        private static readonly string[] _Names = new[] {"Roll", "UseItem", "Settings", "Restart"};
+        private static readonly string[] _Names = new[] {"Roll", "UseItem", "Settings", "Restart", "TempBuy"};
         protected override string[] Names => _Names;
     }
 }

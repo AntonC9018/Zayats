@@ -12,7 +12,7 @@ namespace Zayats.Unity.View.Generated
     {
         public /*readonly*/ T[] Values;
         private GameplayButtonArray(T[] values) => Values = values;
-        public static GameplayButtonArray<T> Create() => new GameplayButtonArray<T>(new T[4]);
+        public static GameplayButtonArray<T> Create() => new GameplayButtonArray<T>(new T[5]);
         public readonly ref T GetRef(Zayats.Unity.View.GameplayButtonKind key)
         {
             return ref Values[(int) key];
@@ -49,11 +49,17 @@ namespace Zayats.Unity.View.Generated
             readonly get => Values[(int) Zayats.Unity.View.GameplayButtonKind.Restart];
             set => Values[(int) Zayats.Unity.View.GameplayButtonKind.Restart] = value;
         }
+        public readonly ref T TempBuyRef => ref Values[(int) Zayats.Unity.View.GameplayButtonKind.TempBuy];
+        public T TempBuy
+        {
+            readonly get => Values[(int) Zayats.Unity.View.GameplayButtonKind.TempBuy];
+            set => Values[(int) Zayats.Unity.View.GameplayButtonKind.TempBuy] = value;
+        }
         public static implicit operator T[](GameplayButtonArray<T> a) => a.Values;
         public readonly T[] Array => Values;
         public readonly ref T this[Zayats.Unity.View.GameplayButtonKind key] => ref GetRef(key);
         public readonly ref T this[int index] => ref Values[index];
-        public readonly int Length => 4;
+        public readonly int Length => 5;
     }
     [Serializable]
     public partial struct GameplayTextArray<T>
