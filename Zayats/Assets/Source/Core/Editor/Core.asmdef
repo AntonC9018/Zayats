@@ -1,0 +1,14 @@
+{
+    "name": "Zayats.Core.Editor",
+    "rootNamespace": "Zayats.Core.Editor",
+    "references": ["Common", "Common.Editor", "Zayats.Core"],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

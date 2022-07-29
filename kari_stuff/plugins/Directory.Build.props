@@ -1,0 +1,10 @@
+<Project>
+  <ImportGroup>
+    <Import Project="$(MSBuildThisFileDirectory)..\Kari\Directory.Build.props" />
+  </ImportGroup>
+
+  <PropertyGroup>
+    <!-- Until I sort out the builds, just import the internal configuration. It's way easier to use. -->
+    <PluginConfigurationPath>$(KariRootPath)Kari.Plugins\InternalPlugin.props</PluginConfigurationPath>
+  </PropertyGroup>
+</Project>

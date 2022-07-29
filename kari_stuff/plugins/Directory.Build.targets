@@ -1,0 +1,5 @@
+<Project>
+  <ImportGroup>
+    <Import Project="$(MSBuildThisFileDirectory)..\Kari\Directory.Build.targets" />
+  </ImportGroup>
+</Project>
