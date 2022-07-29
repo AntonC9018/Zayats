@@ -436,25 +436,26 @@ namespace Zayats.Core
         public static int GetRespawnPositionByPoppingRespawnPoint(this GameContext game, int playerIndex)
         {
             const int defaultPosition = 0;
+            
             int playerId = game.State.Players[playerIndex].ThingId;
-            if (game.TryGetComponent(Components.RespawnPointIdsId, playerId, out var respawn))
+            if (!game.TryGetComponent(Components.RespawnPointIdsId, playerId, out var respawn))
+                return defaultPosition;
+
+            var respawnStack = respawn.Value;
+            if (respawnStack is null || respawnStack.Count == 0)
+                return defaultPosition;
+
+            int respawnPointId = respawnStack.Pop();
+            int respawnPosition = game.GetComponent(Components.RespawnPositionId, respawnPointId);
+
+            game.HandlePlayerEvent(Events.OnRespawnPositionPopped, playerId, new()
             {
-                var respawnStack = respawn.Value;
-                if (respawnStack is null || respawnStack.Count == 0)
-                    return defaultPosition;
-
-                int respawnPointId = respawnStack.Pop();
-                int respawnPosition = game.GetComponent(Components.RespawnPositionId, respawnPointId);
-
-                game.HandlePlayerEvent(Events.OnRespawnPositionPopped, playerId, new()
-                {
-                    RespawnPointId = respawnPointId,
-                    RespawnPosition = respawnPosition,
-                    RespawnPointIds = respawnStack,
-                    PlayerIndex = playerIndex,
-                });
-            }
-            return defaultPosition;
+                RespawnPointId = respawnPointId,
+                RespawnPosition = respawnPosition,
+                RespawnPointIds = respawnStack,
+                PlayerIndex = playerIndex,
+            });
+            return respawnPosition;
         }
 
         public static void PushRespawnPoint(this GameContext game, int playerIndex, int respawnPointId)

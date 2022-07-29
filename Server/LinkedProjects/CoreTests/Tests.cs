@@ -1,16 +1,11 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.Linq;
-using NUnit.Framework;
-using UnityEngine;
-using UnityEngine.TestTools;
-using Zayats.Unity.View;
+using Xunit;
 
-namespace Zayats.Core.Tests
+namespace Zayats.Core.Facts
 {
     using static Zayats.Core.Events;
-    using Assert = NUnit.Framework.Assert;
+    using Assert = Xunit.Assert;
     
     public class PredictableRandom : IRandom
     {
@@ -21,8 +16,34 @@ namespace Zayats.Core.Tests
         }
     }
 
+    public class Logger : ILogger
+    {
+        public void Debug(string message)
+        {
+            System.Console.WriteLine(message);
+        }
+
+        public void Debug(string format, object value)
+        {
+            System.Console.WriteLine(String.Format(format, value));
+        }
+    }
+
     public class Tests
     {
+        private static void AssertEqual<T>(T a, T b, string message = null)
+        {
+            try
+            {
+                Assert.Equal(a, b);
+            }
+            catch (Xunit.Sdk.EqualException)
+            {
+                Console.WriteLine(message);
+                throw;
+            }
+        }
+
         public static (GameContext, PredictableRandom) Basic(int cellCount, int playerCount)
         {
             var game = Initialization.CreateGame(cellCountNotIncludingStartAndFinish: cellCount - 2, playerCount);
@@ -30,7 +51,7 @@ namespace Zayats.Core.Tests
             var rand = new PredictableRandom();
             game.Random = rand;
             
-            game.Logger = new View.UnityLogger();
+            game.Logger = new Logger();
 
             Components.InitializeStorage(game, Components.PlayerId, playerCount);
             Components.InitializeStorage(game, Components.CurrencyCostId);
@@ -55,6 +76,7 @@ namespace Zayats.Core.Tests
         public static ref Data.Player InitializePlayer(GameContext game, int playerIndex, int playerId, int initialPosition = 0)
         {
             ref var player = ref game.State.Players[playerIndex];
+            player.ThingId = playerId;
             game.AddComponent(Components.PlayerId, playerId).PlayerIndex = playerIndex;
             game.State.Cells[initialPosition].Add(playerId);
 
@@ -64,7 +86,7 @@ namespace Zayats.Core.Tests
         public static (GameContext, PredictableRandom) BasicSinglePlayer(int cellCount)
         {
             var (game, rand) = Basic(cellCount, playerCount: 1);
-            ref var player = ref InitializePlayer(game, 0);
+            ref var player = ref InitializePlayer(game, playerIndex: 0);
             return (game, rand);
         }
 
@@ -74,20 +96,20 @@ namespace Zayats.Core.Tests
             game.State.Cells[position].Add(itemId);
         }
 
-        [Test]
+        [Fact]
         public void RollTheIndicatedAmount()
         {
             var (game, rand) = BasicSinglePlayer(cellCount: 6);
             int playerIndex = 0;
 
             rand.NextAmount = 1;
-            Assert.AreEqual(1, game.RollAmount(playerIndex));
+            AssertEqual(1, game.RollAmount(playerIndex));
 
             rand.NextAmount = 5;
-            Assert.AreEqual(5, game.RollAmount(playerIndex));
+            AssertEqual(5, game.RollAmount(playerIndex));
         }
         
-        [Test]
+        [Fact]
         public void PlayerCanMove()
         {
             var (game, rand) = BasicSinglePlayer(cellCount: 6);
@@ -95,15 +117,15 @@ namespace Zayats.Core.Tests
 
             rand.NextAmount = 1;
             game.ExecuteCurrentPlayersTurn();
-            Assert.AreEqual(1, player.Position, "Player moved by the amount indicated.");
+            AssertEqual(1, player.Position, "Player moved by the amount indicated.");
 
             rand.NextAmount = 5;
             game.ExecuteCurrentPlayersTurn();
-            Assert.AreEqual(5, player.Position, "Player is on last position.");
+            AssertEqual(5, player.Position, "Player is on last position.");
             Assert.True(game.State.IsOver, "The game ended as a result.");
         }
         
-        [Test]
+        [Fact]
         public void EquipSimple()
         {
             var (game, rand) = BasicSinglePlayer(cellCount: 3);
@@ -114,11 +136,11 @@ namespace Zayats.Core.Tests
             rand.NextAmount = 1;
             game.ExecuteCurrentPlayersTurn();
             ref var player = ref game.State.Players[0];
-            Assert.AreEqual(1, player.Position, "Player moved by the amount indicated.");
-            Assert.AreEqual(itemId, player.Items.Single(), "The item that was picked up was the item added above.");
+            AssertEqual(1, player.Position, "Player moved by the amount indicated.");
+            AssertEqual(itemId, player.Items.Single(), "The item that was picked up was the item added above.");
         }
 
-        [Test]
+        [Fact]
         public void EquipStatIncrease()
         {
             var (game, rand) = BasicSinglePlayer(cellCount: 3);
@@ -134,11 +156,11 @@ namespace Zayats.Core.Tests
             game.ExecuteCurrentPlayersTurn();
             ref var player = ref game.State.Players[0];
 
-            Assert.AreEqual(itemId, player.Items.Single(), "The item that was picked up was the item added above.");
-            Assert.AreEqual(addedStatValue, player.Stats.Get(statId), "The stats got added");
+            AssertEqual(itemId, player.Items.Single(), "The item that was picked up was the item added above.");
+            AssertEqual(addedStatValue, player.Stats.Get(statId), "The stats got added");
         }
 
-        [Test]
+        [Fact]
         public void MovementCounter()
         {
             var (game, rand) = BasicSinglePlayer(cellCount: 3);
@@ -146,18 +168,18 @@ namespace Zayats.Core.Tests
             game.GetEventProxy(OnPositionChanged).Add(
                 (GameContext game, ref PlayerPositionChangedContext context) => 
                 {
-                    Assert.AreEqual(0, context.InitialMoveCount);
-                    Assert.AreEqual(1, game.State.Players[0].Counters.Get(Counters.Move));
+                    AssertEqual(0, context.InitialMoveCount);
+                    AssertEqual(1, game.State.Players[0].Counters.Get(Counters.Move));
                 });
             
             ref int moveCount = ref game.State.Players[0].Counters.Get(Counters.Move);
-            Assert.AreEqual(0, moveCount);
+            AssertEqual(0, moveCount);
             rand.NextAmount = 1;
             game.ExecuteCurrentPlayersTurn();
-            Assert.AreEqual(1, moveCount);
+            AssertEqual(1, moveCount);
         }
 
-        [Test]
+        [Fact]
         public void ToppleOverPlayers()
         {
             var (game, rand) = Basic(cellCount: 3, playerCount: 2);
@@ -167,26 +189,26 @@ namespace Zayats.Core.Tests
             game.GetEventProxy(OnPositionChanged).Add(
                 (GameContext game, ref PlayerPositionChangedContext context) => 
                 {
-                    Assert.AreEqual(0, context.Movement.PlayerIndex);
+                    AssertEqual(0, context.Movement.PlayerIndex);
 
                     // Thing is triggered after the move is done.
                     if (context.InitialMoveCount == 0)
                     {
-                        Assert.AreEqual(MovementKind.Normal, context.Movement.Kind);
-                        Assert.AreEqual(0, context.InitialPosition);
+                        AssertEqual(MovementKind.Normal, context.Movement.Kind);
+                        AssertEqual(0, context.InitialPosition);
                     }
                     else
                     {
-                        Assert.AreEqual(1, context.InitialMoveCount, "Too many moves triggered??");
-                        Assert.AreEqual(MovementKind.ToppleOverPlayer, context.Movement.Kind);
-                        Assert.AreEqual(1, context.InitialPosition);
+                        AssertEqual(1, context.InitialMoveCount, "Too many moves triggered??");
+                        AssertEqual(MovementKind.ToppleOverPlayer, context.Movement.Kind);
+                        AssertEqual(1, context.InitialPosition);
                     }
                 });
 
             rand.NextAmount = 1;
             game.ExecuteCurrentPlayersTurn();
-            Assert.AreEqual(2, player0.Counters.Get(Counters.Move));
-            Assert.AreEqual(2, player0.Position);
+            AssertEqual(2, player0.Counters.Get(Counters.Move));
+            AssertEqual(2, player0.Position);
         }
 
         class FlagReference
@@ -203,7 +225,7 @@ namespace Zayats.Core.Tests
             return game;
         }
 
-        [Test]
+        [Fact]
         public void RegularMine()
         {
             int mineId = 1;
@@ -212,14 +234,14 @@ namespace Zayats.Core.Tests
             game.ExecuteCurrentPlayersTurn();
             
             ref var player = ref game.State.Players[0];
-            Assert.AreEqual(1, player.Counters.Get(Counters.Death));
-            Assert.AreEqual(0, player.Position, "The player has been respawned at the initial position.");
-            Assert.AreEqual(2, player.Counters.Get(Counters.Move), "Both the moves counted.");
-            Assert.AreEqual(mineId, player.Items.Single(), "The mine has been picked up.");
-            Assert.AreEqual(0, game.State.Cells[1].Count, "No things on the second position.");
+            AssertEqual(1, player.Counters.Get(Counters.Death));
+            AssertEqual(0, player.Position, "The player has been respawned at the initial position.");
+            AssertEqual(2, player.Counters.Get(Counters.Move), "Both the moves counted.");
+            AssertEqual(mineId, player.Items.Single(), "The mine has been picked up.");
+            AssertEqual(0, game.State.Cells[1].Count, "No things on the second position.");
         }
 
-        [Test]
+        [Fact]
         public void EternalMine()
         {
             int mineId = 1;
@@ -228,11 +250,11 @@ namespace Zayats.Core.Tests
             game.ExecuteCurrentPlayersTurn();
 
             ref var player = ref game.State.Players[0];
-            Assert.AreEqual(1, player.Counters.Get(Counters.Death));
-            Assert.AreEqual(0, player.Position, "The player has been respawned at the initial position.");
-            Assert.AreEqual(2, player.Counters.Get(Counters.Move), "Both the moves counted.");
-            Assert.AreEqual(0, player.Items.Count, "Nothing picked up.");
-            Assert.AreEqual(mineId, game.State.Cells[1].Single(), "The mine stayed at its initial position.");
+            AssertEqual(1, player.Counters.Get(Counters.Death));
+            AssertEqual(0, player.Position, "The player has been respawned at the initial position.");
+            AssertEqual(2, player.Counters.Get(Counters.Move), "Both the moves counted.");
+            AssertEqual(0, player.Items.Count, "Nothing picked up.");
+            AssertEqual(mineId, game.State.Cells[1].Single(), "The mine stayed at its initial position.");
         }
 
         private static void AddSolidThing(GameContext game, ref int id, int position)
@@ -244,7 +266,7 @@ namespace Zayats.Core.Tests
 
         #pragma warning disable CS8509 // Non-exhaustive switch
 
-        [Test]
+        [Fact]
         public void HoppingOverSolidThings()
         {
             var (game, rand) = BasicSinglePlayer(cellCount: 9);
@@ -266,21 +288,21 @@ namespace Zayats.Core.Tests
                         1 => MovementKind.HopOverThing,
                         2 => MovementKind.Normal,
                     };
-                    Assert.AreEqual(kind, context.Movement.Kind);
+                    AssertEqual(kind, context.Movement.Kind);
                 });
 
             rand.NextAmount = 1;
             game.ExecuteCurrentPlayersTurn();
-            Assert.AreEqual(2, player.Counters.Get(Counters.Move), "A normal move, and 1 hop.");
-            Assert.AreEqual(3, player.Position);
+            AssertEqual(2, player.Counters.Get(Counters.Move), "A normal move, and 1 hop.");
+            AssertEqual(3, player.Position);
 
             rand.NextAmount = 2;
             game.ExecuteCurrentPlayersTurn();
-            Assert.AreEqual(3, player.Counters.Get(Counters.Move));
-            Assert.AreEqual(5, player.Position);
+            AssertEqual(3, player.Counters.Get(Counters.Move));
+            AssertEqual(5, player.Position);
         }
 
-        [Test]
+        [Fact]
         public void HoppingOverSolidThings_MultiStat()
         {
             var (game, rand) = BasicSinglePlayer(cellCount: 9);
@@ -301,24 +323,24 @@ namespace Zayats.Core.Tests
                         0 => MovementKind.Normal,
                         _ => MovementKind.HopOverThing,
                     };
-                    Assert.AreEqual(expectedKind, context.Movement.Kind);
+                    AssertEqual(expectedKind, context.Movement.Kind);
 
                     var expectedTargetPosition = context.InitialMoveCount switch
                     {
                         0 => 1,
                         1 => 4,
                     };
-                    Assert.AreEqual(expectedTargetPosition, context.TargetPosition);
+                    AssertEqual(expectedTargetPosition, context.TargetPosition);
                 });
 
             rand.NextAmount = 1;
             game.ExecuteCurrentPlayersTurn();
 
-            Assert.AreEqual(2, player.Counters.Get(Counters.Move), "A normal move, and 1 hop.");
-            Assert.AreEqual(4, player.Position);
+            AssertEqual(2, player.Counters.Get(Counters.Move), "A normal move, and 1 hop.");
+            AssertEqual(4, player.Position);
         }
 
-        [Test]
+        [Fact]
         public void TotemSaves()
         {
             var (game, rand) = BasicSinglePlayer(cellCount: 3);
@@ -346,7 +368,7 @@ namespace Zayats.Core.Tests
                 ThingId = totemId,
             });
 
-            Assert.AreEqual(totemId, player.Items.Single());
+            AssertEqual(totemId, player.Items.Single());
 
             int mineId = 2;
             int minePosition = 1;
@@ -355,17 +377,17 @@ namespace Zayats.Core.Tests
             rand.NextAmount = 1;
             game.ExecuteCurrentPlayersTurn();
 
-            Assert.AreEqual(0, player.Items.Count);
-            Assert.AreEqual(totemId, game.State.Shop.Items.Single(), "Item returned to shop.");
-            Assert.AreEqual(minePosition, player.Position, "Player landed on top of the mine, but wasn't brought back.");
-            Assert.AreEqual(0, player.Counters.Get(Counters.Death));
+            AssertEqual(0, player.Items.Count);
+            AssertEqual(totemId, game.State.Shop.Items.Single(), "Item returned to shop.");
+            AssertEqual(minePosition, player.Position, "Player landed on top of the mine, but wasn't brought back.");
+            AssertEqual(0, player.Counters.Get(Counters.Death));
             
             game.ExecuteCurrentPlayersTurn();
 
-            Assert.AreEqual(minePosition + 1, player.Position);
+            AssertEqual(minePosition + 1, player.Position);
         }
 
-        [Test]
+        [Fact]
         public void RespawnPoints()
         {
             var (game, rand) = BasicSinglePlayer(cellCount: 4);
@@ -384,9 +406,9 @@ namespace Zayats.Core.Tests
             rand.NextAmount = 2;
             game.ExecuteCurrentPlayersTurn();
 
-            Assert.AreEqual(respawnPointPosition, player.Position);
-            Assert.AreEqual(0, game.GetComponent(Components.RespawnPointIdsId, player.ThingId).Count);
-            Assert.AreEqual(1, player.Counters.Get(Counters.Death));
+            AssertEqual(respawnPointPosition, player.Position);
+            AssertEqual(0, game.GetComponent(Components.RespawnPointIdsId, player.ThingId).Count);
+            AssertEqual(1, player.Counters.Get(Counters.Death));
         }
     }
 }

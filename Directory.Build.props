@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
+    
+    <MainBuildPath Condition="'$(MainBuildPath)' == ''">$(MSBuildThisFileDirectory)build_folder\</MainBuildPath>
+    <MainOutputPath Condition="'$(MainOutputPath)' == ''">$(MainBuildPath)bin\</MainOutputPath>
+
+    <ZayatsRootFolder>$(MSBuildThisFileDirectory)</ZayatsRootFolder>
+    <ZayatsUnitySourceFolder>$(MSBuildThisFileDirectory)Zayats\Assets\Source\</ZayatsUnitySourceFolder>
+  </PropertyGroup>
+</Project>
