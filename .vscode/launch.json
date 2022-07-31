@@ -1,0 +1,28 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Kari run",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/build_folder/bin/Kari.Generator/Debug/net6.0/Kari.Generator.exe",
+            "args": ["-configurationFile","${workspaceFolder}\\Zayats\\kari.json","-pluginPaths","${workspaceFolder}\\build_folder\\bin\\Flags\\Debug\\net6.0\\Kari.Plugins.Flags.dll,${workspaceFolder}\\build_folder\\bin\\AdvancedEnum\\Debug\\net6.0\\AdvancedEnum.dll,${workspaceFolder}\\build_folder\\bin\\Forward\\Debug\\net6.0\\Forward.dll","-gitignoreTemplate","# Code generation is optional for now, so we don't ignore the generated files"],
+            "cwd": "${workspaceFolder}/Zayats",
+            "stopAtEntry": false,
+            "console": "internalConsole"
+        },
+        {
+            "name": "Annotator run",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/kari_stuff/Kari/build_folder/bin/Kari.Annotator/Debug/net6.0/Kari.Annotator.exe",
+            "args": ["--targetedFolder", "${workspaceFolder}/kari_stuff/plugins/Forward", "--force"],
+            "cwd": "${workspaceFolder}/kari_stuff/plugins/Forward",
+            "stopAtEntry": false,
+            "console": "internalConsole"
+        }
+    ]
+}

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using Kari.Plugins.AdvancedEnum;
+using Kari.Plugins.Forward;
 using Zayats.Core.Generated;
 
 namespace Zayats.Core
@@ -1023,7 +1024,7 @@ namespace Zayats.Core
         public int InitialPosition;
     }
 
-    public static class Events
+    public static partial class Events
     {
         public struct Storage
         {
@@ -1118,17 +1119,16 @@ namespace Zayats.Core
             public MoveStartInfo MoveStart;
         }
         public static readonly TypedIdentifier<PlayerMovedContext> OnMoved = new(0);
-
-        public struct PlayerPositionChangedContext
+        
+        [Forward]
+        public partial struct PlayerPositionChangedContext
         {
+            [Forward(RejectPattern = "Kind")]
             public Logic.MovementContext Movement;
+            [Forward]
             public MoveStartInfo MoveStart;
 
-            public readonly int TargetPosition => Movement.TargetPosition;
             public readonly MovementKind Reason => Movement.Kind;
-            public readonly int PlayerIndex => Movement.PlayerIndex;
-            public readonly int InitialPosition => MoveStart.InitialPosition;
-            public readonly int InitialMoveCount => MoveStart.InitialMoveCount;
         }
         public static readonly TypedIdentifier<PlayerPositionChangedContext> OnPositionChanged = new(1);
         public static readonly TypedIdentifier<int> OnPlayerWon = new(2);

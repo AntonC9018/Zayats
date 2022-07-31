@@ -76,7 +76,7 @@ struct Plugins
 {
     @disable this();
     static immutable(string[]) kariInternal = ["Flags"];
-    static immutable(string[]) custom = ["AdvancedEnum"];
+    static immutable(string[]) custom = ["AdvancedEnum", "Forward"];
 }
 
 
