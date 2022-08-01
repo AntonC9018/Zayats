@@ -19,7 +19,6 @@ namespace Kari.Plugins.Forward
         {
             AdministratorHelpers.Initialize(ref _analyzers);
             var logger = new NamedLogger("Forward");
-            ForwardSymbols.Initialize(logger);
         }
         
         public Task Collect()
