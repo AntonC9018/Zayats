@@ -17,7 +17,7 @@ namespace Kari.Plugins.AdvancedEnum
 
             foreach (var type in environment.TypesWithAttributes)
             {
-                if (type.TryGetAttribute(AdvancedEnumSymbols.GenerateArrayWrapperAttribute, new(type.Name), out var attribute))
+                if (type.TryGetGenerateArrayWrapperAttribute(environment.Compilation, out var attribute))
                 {
                     var enumMembers = type.GetFields().Where(m => m.Name != "Count").ToArray();
                     if (enumMembers.Length == 0)

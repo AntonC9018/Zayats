@@ -19,8 +19,16 @@
             "type": "coreclr",
             "request": "launch",
             "program": "${workspaceFolder}/kari_stuff/Kari/build_folder/bin/Kari.Annotator/Debug/net6.0/Kari.Annotator.exe",
-            "args": ["--targetedFolder", "${workspaceFolder}/kari_stuff/plugins/Forward", "--force"],
-            "cwd": "${workspaceFolder}/kari_stuff/plugins/Forward",
+            "args": ["--targetedFolder", "${workspaceFolder}/kari_stuff/plugins/CrazyStuff", "--force"],
+            "stopAtEntry": false,
+            "console": "internalConsole"
+        },
+        {
+            "name": "Convert run",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/kari_stuff/Kari/build_folder/bin/Stuff/Debug/net6.0/Stuff.exe",
+            "args": [],
             "stopAtEntry": false,
             "console": "internalConsole"
         }

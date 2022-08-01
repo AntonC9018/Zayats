@@ -34,7 +34,7 @@ namespace Kari.Plugins.Forward
                     ref var config = ref result.Config;
                     config.Symbol = type;
 
-                    if (type.TryGetAttribute(ForwardSymbols.ForwardAttribute, new("Forward"), out var a))
+                    if (type.TryGetForwardAttribute(environment.Compilation, out var a))
                     {
                         TryParseRegex(a.AcceptPattern, type, out config.AcceptRegex);
                         TryParseRegex(a.RejectPattern, type, out config.RejectRegex);
@@ -94,7 +94,7 @@ namespace Kari.Plugins.Forward
                     ForwardSingleInfo f;
                     f.Symbol = m;
 
-                    if (!m.TryGetAttribute(ForwardSymbols.ForwardAttribute, logger, out f.Attribute))
+                    if (!m.TryGetForwardAttribute(environment.Compilation, out f.Attribute))
                         continue;
 
                     bool accept = TryParseRegex(f.Attribute.AcceptPattern, m, out f.AcceptRegex);
