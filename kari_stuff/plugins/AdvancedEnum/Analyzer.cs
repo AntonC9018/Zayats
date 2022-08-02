@@ -14,10 +14,11 @@ namespace Kari.Plugins.AdvancedEnum
         public void CollectSymbols(ProjectEnvironment environment)
         {
             HashSet<int> enumValues = new();
+            var logger = environment.Logger;
 
             foreach (var type in environment.TypesWithAttributes)
             {
-                if (type.TryGetGenerateArrayWrapperAttribute(environment.Compilation, out var attribute))
+                if (type.TryGetGenerateArrayWrapperAttribute(environment.Compilation, logger, out var attribute))
                 {
                     var enumMembers = type.GetFields().Where(m => m.Name != "Count").ToArray();
                     if (enumMembers.Length == 0)

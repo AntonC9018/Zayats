@@ -13,6 +13,7 @@ using static Zayats.Core.Events;
 using UnityEngine.Pool;
 using System.Threading.Tasks;
 using Common;
+using UnityEngine.EventSystems;
 
 namespace Zayats.Unity.View
 {
@@ -39,6 +40,153 @@ namespace Zayats.Unity.View
         Seed,
         CoinCounter,
         RollValue,
+    }
+
+    public class UIHolderInfo : MonoBehaviour
+    {
+        public RectTransform OuterTransform => (RectTransform) transform;
+        public GameObject OuterObject => gameObject;
+        public RectTransform ItemFrameTransform;
+        public GameObject ItemFrameObject => ItemFrameTransform.gameObject;
+        public PointerEnterExit<MyHorizontalScrollRect> Handler;
+        public Transform StoredItem => ItemFrameTransform.GetChild(0);
+    }
+
+    [Serializable]
+    public struct ButtonOverlay
+    {
+        public GameObject OuterObject;
+        public RectTransform OuterTransform => (RectTransform) OuterObject.transform;
+        public Button Button;
+    }
+
+    public interface IItemActionHandler
+    {
+        bool IsOperationInProgress { get; }
+        int ItemIndexInOperation { get; }
+        void StartHandling(int itemIndex, IItemHandlingProgressHandler progressHandler);
+    }
+
+    public interface IItemHandlingProgressHandler
+    {
+        void OnProgress(int stage);
+        void OnCancelled();
+    }
+
+    public class MyHorizontalScrollRect : 
+        IPointerEnterIndex, IPointerExitIndex, IPointerClickHandler,
+        IItemHandlingProgressHandler
+    {
+        private List<UIHolderInfo> _uiHolderInfos;
+        private UIHolderInfo _prefab;
+        private int _itemCount;
+        private int _currentlyHoveredItem;
+        private IItemActionHandler _itemActionHandler;
+        private IItemHandlingProgressHandler _itemHandlingProgressHandler;
+
+        // private GameObject _buttonOverlay;
+        // private Action<int> _overlayButtonClickedAction;
+
+        public void Initialize(UIHolderInfo holderPrefab
+                // , ButtonOverlay buttonOverlay, Action<int> overlayButtonClickedAction
+        )
+        {
+            _prefab = holderPrefab;
+            _uiHolderInfos = new();
+
+            // _buttonOverlay = buttonOverlay.OuterObject;
+            // buttonOverlay.Button.onClick.AddListener(() => _overlayButtonClickedAction(_currentlyHoveredItem));
+        }
+
+        private UIHolderInfo MaybeInitializeAt(int i)
+        {
+            UIHolderInfo holder;
+            if (_uiHolderInfos.Count <= i)
+            {
+                holder = GameObject.Instantiate(_prefab);
+                var handler = holder.ItemFrameObject.AddComponent<PointerEnterExit<MyHorizontalScrollRect>>();
+                handler.Initialize(i, this);
+                _uiHolderInfos.Add(holder);
+            }
+            else
+            {
+                holder = _uiHolderInfos[i];
+            }
+            return holder;
+        }
+
+        public void ChangeItems(
+            IEnumerable<MeshRenderer> itemsToStore,
+            Transform newParentForOldItems)
+        {
+            {
+                for (int i = 0; i < _itemCount; i++)
+                    _uiHolderInfos[i].StoredItem.SetParent(newParentForOldItems, worldPositionStays: false);
+            }
+            {
+                int i = 0;
+                foreach (var item in itemsToStore)
+                {
+                    var holder = MaybeInitializeAt(i);
+                    holder.OuterObject.SetActive(true);
+                    
+                    // TODO:
+                    // measuring stuff, perhaps actually putting items in a completely different hierarchy and just
+                    // make their positions follow.
+                    {
+                        var t = item.transform;
+                        t.SetParent(holder.ItemFrameTransform, worldPositionStays: false);
+                        t.localPosition = holder.ItemFrameTransform.rect.center;
+                    }
+                    i++;
+                }
+
+                for (int j = i; j < _itemCount; j++)
+                    _uiHolderInfos[j].OuterObject.SetActive(false);
+                
+                _itemCount = i;
+            }
+        }
+
+        public void OnPointerEnter(int index, PointerEventData eventData)
+        {
+            _currentlyHoveredItem = index;
+
+            // if (_itemActionHandler.IsOperationInProgress)
+            //     return;
+            // {
+            //     var t = _buttonOverlay.transform;
+            //     t.SetParent(_uiHolderInfos[index].OuterTransform, worldPositionStays: false);
+            //     t.localPosition = Vector2.zero;
+            // }
+            // _buttonOverlay.SetActive(true);
+        }
+        public void OnPointerExit(int index, PointerEventData eventData)
+        {
+            _currentlyHoveredItem = -1;
+            
+            // if (_itemActionHandler.IsOperationInProgress)
+            //     return;
+            // _buttonOverlay.SetActive(false);
+        }
+
+        public void OnProgress(int stage)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void OnCancelled()
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    public class ViewContext
+    {
+        public GameContext Game;
+        public GameObject[] ThingGameObjects;
+        public MyHorizontalScrollRect ItemHolder;
+        public List<GameObject> ItemBuyButtons;
     }
 
     public class View : MonoBehaviour
@@ -160,19 +308,8 @@ namespace Zayats.Unity.View
             var flagsStorage = Components.InitializeStorage(_game, Components.FlagsId, mineCount);
             assertNoneNull(_game.State.ComponentsByType);
 
-            var regularMinePickup = new MinePickup(new()
-            {
-                DestroyOnDetonation = false,
-                PutInInventoryOnDetonation = true,
-                RemoveOnDetonation = true,
-            });
-
-            var eternalMinePickup = new MinePickup(new()
-            {
-                DestroyOnDetonation = false,
-                PutInInventoryOnDetonation = false,
-                RemoveOnDetonation = false,
-            });
+            var regularMinePickup = new MinePickup.Regular;
+            var eternalMinePickup = new MinePickup.Eternal;
 
             var rabbitPickup = new AddStatPickup(Stats.RollAdditiveBonus, 1);
             var horsePickup = new AddStatPickup(Stats.JumpAfterMoveCapacity, 1);

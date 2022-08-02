@@ -5,10 +5,11 @@ import jcli.core;
 import std.stdio;
 
 import commands.setup : SetupCommand, KariContext;
+import commands.models : ModelsContext;
 import common;
 
 @CommandDefault("The context common to all subcommands.")
-@(Subcommands!(SetupCommand, KariContext))
+@(Subcommands!(SetupCommand, KariContext, ModelsContext))
 struct Context
 {
     @(ArgConfig.optional)
@@ -25,6 +26,9 @@ struct Context
         @("Unity project directoy")
         string unityProjectDirectoryName = "Zayats";
     }
+
+    string unityProjectDirectory;
+
 
     int onExecute()
     {
@@ -50,7 +54,8 @@ struct Context
         }
 
 
-        if (!exists(projectDirectory.chainPath(unityProjectDirectoryName)))
+        unityProjectDirectory = projectDirectory.buildPath(unityProjectDirectoryName);
+        if (!exists(unityProjectDirectory))
         {
             writeln("Please run the tool in the root directory of the project, or specify it as an argument.");
             errorCount++;

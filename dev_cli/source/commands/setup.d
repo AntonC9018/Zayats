@@ -21,6 +21,21 @@ struct SetupCommand
 
     int onExecute()
     {
+        {
+            import commands.models : Package, ModelsContext;
+            ModelsContext modelsContext;
+            modelsContext.context = context;
+            modelsContext.onIntermediateExecute();
+
+            Package pack;
+            pack.context = &modelsContext;
+            pack.copyToUnity = true;
+            pack.force = false;
+            int status = pack.onExecute();
+            if (status != 0)
+                return status;
+        }
+
         KariContext kariContext;
         kariContext.context = context;
         kariContext.configuration = kariConfiguration;
@@ -49,7 +64,6 @@ struct SetupCommand
     }
 }
 
-// TODO: Maybe should build too?
 @Command("kari", "Deals with the code generator.")
 @(Subcommands!(KariRun, KariBuild))
 struct KariContext
