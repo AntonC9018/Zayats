@@ -13,7 +13,8 @@ using static Zayats.Core.Events;
 using UnityEngine.Pool;
 using System.Threading.Tasks;
 using Common;
-using UnityEngine.EventSystems;
+using static Zayats.Core.GameEvents;
+using Kari.Plugins.Forward;
 
 namespace Zayats.Unity.View
 {
@@ -27,7 +28,6 @@ namespace Zayats.Unity.View
     public enum GameplayButtonKind
     {
         Roll,
-        UseItem,
         Settings,
         Restart,
         TempBuy,
@@ -42,171 +42,224 @@ namespace Zayats.Unity.View
         RollValue,
     }
 
-    public class UIHolderInfo : MonoBehaviour
+    public struct ActivatedItemHandling
     {
-        public RectTransform OuterTransform => (RectTransform) transform;
-        public GameObject OuterObject => gameObject;
-        public RectTransform ItemFrameTransform;
-        public GameObject ItemFrameObject => ItemFrameTransform.gameObject;
-        public PointerEnterExit<MyHorizontalScrollRect> Handler;
-        public Transform StoredItem => ItemFrameTransform.GetChild(0);
+        public readonly bool InProgress => Progress != 0;
+        public int Progress;
+        public int Index;
+        public int ThingId;
+        public Components.ActivatedItem ActivatedItem; 
+    }
+
+    public struct ViewState
+    {
+        public ActivatedItemHandling ItemHandling;
+        // public List<GameObject> HighlightedGameObjects;
+        // public List<GameObject> HighlightedUIObjects;
     }
 
     [Serializable]
-    public struct ButtonOverlay
+    public class ViewContext : IGetEvents
     {
-        public GameObject OuterObject;
-        public RectTransform OuterTransform => (RectTransform) OuterObject.transform;
-        public Button Button;
-    }
-
-    public interface IItemActionHandler
-    {
-        bool IsOperationInProgress { get; }
-        int ItemIndexInOperation { get; }
-        void StartHandling(int itemIndex, IItemHandlingProgressHandler progressHandler);
-    }
-
-    public interface IItemHandlingProgressHandler
-    {
-        void OnProgress(int stage);
-        void OnCancelled();
-    }
-
-    public class MyHorizontalScrollRect : 
-        IPointerEnterIndex, IPointerExitIndex, IPointerClickHandler,
-        IItemHandlingProgressHandler
-    {
-        private List<UIHolderInfo> _uiHolderInfos;
-        private UIHolderInfo _prefab;
-        private int _itemCount;
-        private int _currentlyHoveredItem;
-        private IItemActionHandler _itemActionHandler;
-        private IItemHandlingProgressHandler _itemHandlingProgressHandler;
-
-        // private GameObject _buttonOverlay;
-        // private Action<int> _overlayButtonClickedAction;
-
-        public void Initialize(UIHolderInfo holderPrefab
-                // , ButtonOverlay buttonOverlay, Action<int> overlayButtonClickedAction
-        )
-        {
-            _prefab = holderPrefab;
-            _uiHolderInfos = new();
-
-            // _buttonOverlay = buttonOverlay.OuterObject;
-            // buttonOverlay.Button.onClick.AddListener(() => _overlayButtonClickedAction(_currentlyHoveredItem));
-        }
-
-        private UIHolderInfo MaybeInitializeAt(int i)
-        {
-            UIHolderInfo holder;
-            if (_uiHolderInfos.Count <= i)
-            {
-                holder = GameObject.Instantiate(_prefab);
-                var handler = holder.ItemFrameObject.AddComponent<PointerEnterExit<MyHorizontalScrollRect>>();
-                handler.Initialize(i, this);
-                _uiHolderInfos.Add(holder);
-            }
-            else
-            {
-                holder = _uiHolderInfos[i];
-            }
-            return holder;
-        }
-
-        public void ChangeItems(
-            IEnumerable<MeshRenderer> itemsToStore,
-            Transform newParentForOldItems)
-        {
-            {
-                for (int i = 0; i < _itemCount; i++)
-                    _uiHolderInfos[i].StoredItem.SetParent(newParentForOldItems, worldPositionStays: false);
-            }
-            {
-                int i = 0;
-                foreach (var item in itemsToStore)
-                {
-                    var holder = MaybeInitializeAt(i);
-                    holder.OuterObject.SetActive(true);
-                    
-                    // TODO:
-                    // measuring stuff, perhaps actually putting items in a completely different hierarchy and just
-                    // make their positions follow.
-                    {
-                        var t = item.transform;
-                        t.SetParent(holder.ItemFrameTransform, worldPositionStays: false);
-                        t.localPosition = holder.ItemFrameTransform.rect.center;
-                    }
-                    i++;
-                }
-
-                for (int j = i; j < _itemCount; j++)
-                    _uiHolderInfos[j].OuterObject.SetActive(false);
-                
-                _itemCount = i;
-            }
-        }
-
-        public void OnPointerEnter(int index, PointerEventData eventData)
-        {
-            _currentlyHoveredItem = index;
-
-            // if (_itemActionHandler.IsOperationInProgress)
-            //     return;
-            // {
-            //     var t = _buttonOverlay.transform;
-            //     t.SetParent(_uiHolderInfos[index].OuterTransform, worldPositionStays: false);
-            //     t.localPosition = Vector2.zero;
-            // }
-            // _buttonOverlay.SetActive(true);
-        }
-        public void OnPointerExit(int index, PointerEventData eventData)
-        {
-            _currentlyHoveredItem = -1;
-            
-            // if (_itemActionHandler.IsOperationInProgress)
-            //     return;
-            // _buttonOverlay.SetActive(false);
-        }
-
-        public void OnProgress(int stage)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void OnCancelled()
-        {
-            throw new NotImplementedException();
-        }
-    }
-
-    public class ViewContext
-    {
+        public ViewState State;
         public GameContext Game;
+        public UIContext UI;
+        public Events.Storage Events { get; set; }
+    }
+
+    [Serializable]
+    public struct DynamicUI
+    {
         public GameObject[] ThingGameObjects;
-        public MyHorizontalScrollRect ItemHolder;
         public List<GameObject> ItemBuyButtons;
+        public ItemContainers ItemContainers;
+    }
+
+    [Serializable]
+    public struct UIReferences
+    {
+        public Transform[] VisualCells;
+        public GameplayButtonArray<Button> GameplayButtons;
+        public GameplayTextArray<TMP_Text> GameplayText;
+        public ScrollRect ItemScrollRect;
+        public GameObject BuyButtonPrefab;
+        public Transform ParentForOldItems;
+    }
+
+    [Serializable]
+    public partial struct UIContext
+    {
+        public DynamicUI Dynamic;
+        public UIReferences Static;
+
+        // Since the forward plugin doesn't work with unity references yet, and with generated code,
+        // I'm doing this manually here.
+        public ItemContainers ItemContainers { readonly get => Dynamic.ItemContainers; set => Dynamic.ItemContainers = value; }
+        public GameObject[] ThingGameObjects { readonly get => Dynamic.ThingGameObjects; set => Dynamic.ThingGameObjects = value; }
+        public List<GameObject> ItemBuyButtons { readonly get => Dynamic.ItemBuyButtons; set => Dynamic.ItemBuyButtons = value; }
+        public readonly Transform[] VisualCells { get => Static.VisualCells; }
+        public readonly GameplayButtonArray<Button> GameplayButtons { get => Static.GameplayButtons; }
+        public readonly GameplayTextArray<TMP_Text> GameplayText { get => Static.GameplayText; }
+        public readonly ScrollRect ItemScrollRect { get => Static.ItemScrollRect; }
+        public readonly GameObject BuyButtonPrefab { get => Static.BuyButtonPrefab; }
+        public readonly Transform ParentForOldItems { get => Static.ParentForOldItems; }
+    }
+
+    public static class ViewLogic
+    {
+        public static void SetItemsForPlayer(this ViewContext context, int playerIndex)
+        {
+            context.UI.ItemContainers.ChangeItems(
+                context.Game.State.CurrentPlayer.Items.Select(
+                    id => context.UI.ThingGameObjects[id].GetComponent<MeshRenderer>()),
+                context.UI.ParentForOldItems);
+        }
+        public static void DisplayTip(this ViewContext context, string text)
+        {
+            // TODO
+        }
+
+        public static void HighlightCells(this ViewContext context, IEnumerable<Transform> cells)
+        {
+            // TODO
+        }
+
+        public static bool TryStartHandlingItemInteraction(this ViewContext context, int itemIndex)
+        {
+            ref var itemH = ref context.State.ItemHandling;
+            assert(itemH.Progress == 0);
+
+            int thingItemId = context.Game.State.CurrentPlayer.Items[itemIndex];
+            if (context.Game.TryGetComponentValue(Components.ActivatedItemId, thingItemId, out var activatedItem))
+            {
+                switch (activatedItem.Kind)
+                {
+                    case ActivatedItemKind.None:
+                    {
+                        break;
+                    }
+                    case ActivatedItemKind.SelectCell:
+                    {
+                        var cells = context.UI.VisualCells;
+                        context.HighlightCells(cells);
+                        break;
+                    }
+                    case ActivatedItemKind.SelectEmptyCell:
+                    {
+                        var emptyCells = context.UI.VisualCells
+                            .Where((a, i) => context.Game.State.Cells[i].Count == 0)
+                            // .Select((a, i) => (a, i))
+                            .ToArray();
+
+                        // Payload in this case means cell count
+                        if (emptyCells.Length < activatedItem.Payload)
+                        {
+                            context.DisplayTip($"Not enough empty cells (required {activatedItem.Payload}).");
+                            return false;
+                        }
+                        context.HighlightCells(emptyCells);
+                        break;
+                    }
+                    case ActivatedItemKind.SelectPlayer:
+                    {
+                        break;
+                    }
+                    case ActivatedItemKind.SelectPlayerOtherThanSelf:
+                    {
+                        break;
+                    }
+                }
+                
+                itemH.ThingId = thingItemId;
+                itemH.Progress = 1;
+                itemH.Index = itemIndex;
+                itemH.ActivatedItem = activatedItem;
+
+                context.HandleEvent(ViewEvents.OnItemInteractionStarted, ref itemH);
+                return true;
+            }
+
+            return false;
+        }
+
+        public static void CancelHandlingCurrentItemInteraction(this ViewContext context)
+        {
+            ref var itemH = ref context.State.ItemHandling;
+            assert(itemH.Progress != 0);
+            context.HandleEvent(ViewEvents.OnItemInteractionCancelled, ref itemH);
+            itemH.Progress = 0;
+        }
+    }
+    
+    public static partial class ViewEvents
+    {
+        public static Events.Storage CreateStorage() => new(Count);
+
+        public static readonly TypedIdentifier<ActivatedItemHandling> OnItemInteractionStarted = new(0);
+        public static readonly TypedIdentifier<ActivatedItemHandling> OnItemInteractionProgress = new(1);
+        public static readonly TypedIdentifier<ActivatedItemHandling> OnItemInteractionCancelled = new(2);
+        public const int Count = 3;
+    }
+
+    [Serializable]
+    public struct GameConfiguration
+    {
+        public ThingArray<GameObject> PrefabsToSpawn;
+        public ThingArray<int> CountsToSpawn;
+        public ThingArray<int> ItemCosts;
+        public Color[] PlayerCharacterColors;
+        public int[] ShopPositions;
+    }
+
+    [Serializable]
+    public struct SetupConfiguration
+    {
+        public UIReferences UI;
+        public GameConfiguration Game;
+    }
+
+    public class UnityRandom : IRandom
+    {
+        private UnityEngine.Random.State _randomState;
+
+        public UnityRandom(UnityEngine.Random.State state)
+        {
+            _randomState = state;
+        }
+
+        private int GetIntInternal(int lower, int upperInclusive)
+        {
+            return Mathf.FloorToInt(UnityEngine.Random.Range(lower, upperInclusive + 1));
+        }
+
+        public int GetInt(int lower, int upperInclusive)
+        {
+            UnityEngine.Random.state = _randomState;
+            var t = GetIntInternal(lower, upperInclusive);
+            _randomState = UnityEngine.Random.state;
+            return t;
+        }
+    }
+
+    public class UnityLogger : Core.ILogger
+    {
+        public void Debug(string message)
+        {
+            UnityEngine.Debug.Log(message);
+        }
+
+        public void Debug(string format, object value)
+        {
+            UnityEngine.Debug.LogFormat(format, value);
+        }
     }
 
     public class View : MonoBehaviour
     {
-        public Transform[] VisualCells;
-        public ThingArray<int> CountsToSpawn;
-        public ThingArray<GameObject> PrefabsToSpawn;
-        public ThingArray<int> ItemCosts;
-        public GameplayButtonArray<Button> GameplayButtons;
-        public GameplayTextArray<TMP_Text> GameplayText;
-        public Transform HolderPrefab;
-        public Transform ItemHolderHolder;
-        public Color[] PlayerCharacterColors;
-        public int[] ShopPositions;
-        public GameObject BuyButtonPrefab;
-        private GameObject[] _thingGameObjects;
-        private Transform[] _itemHolders;
-        private GameContext _game;
-        private List<GameObject> _itemBuyButtons;
-        private ObjectPool<GameObject> _buyButtonsPool;
+        [SerializeField] private SetupConfiguration _config;
+        private ViewContext _view;
+        private GameContext Game => _view.Game;
+        private ref UIContext UI => ref _view.UI;
 
         private int _seed;
         private int Seed
@@ -215,7 +268,7 @@ namespace Zayats.Unity.View
             set
             {
                 _seed = value;
-                GameplayText.Seed.text = value.ToString();
+                UI.GameplayText.Seed.text = value.ToString();
             }
         }
 
@@ -226,90 +279,55 @@ namespace Zayats.Unity.View
                 return arr is null || arr.Length == 0;
             }
 
-            if (IsNullOrEmpty(CountsToSpawn.Array))
-                CountsToSpawn = ThingArray<int>.Create();
-            if (IsNullOrEmpty(ItemCosts.Array))
-                ItemCosts = ThingArray<int>.Create();
-            if (IsNullOrEmpty(PrefabsToSpawn.Array))
-                PrefabsToSpawn = ThingArray<GameObject>.Create();
-            if (IsNullOrEmpty(GameplayButtons.Array))
-                GameplayButtons = GameplayButtonArray<Button>.Create();
-            if (IsNullOrEmpty(GameplayText.Array))
-                GameplayText = GameplayTextArray<TMP_Text>.Create();
-            if (PlayerCharacterColors is null || PlayerCharacterColors.Length < CountsToSpawn.Player)
-                Array.Resize(ref PlayerCharacterColors, CountsToSpawn.Player);
-            CountsToSpawn.RespawnPoint = CountsToSpawn.Tower;
+            ref var gameConfig = ref _config.Game;
+
+            if (gameConfig.PlayerCharacterColors is null
+                || gameConfig.PlayerCharacterColors.Length < gameConfig.CountsToSpawn.Player)
+            {
+                Array.Resize(ref gameConfig.PlayerCharacterColors, gameConfig.CountsToSpawn.Player);
+            }
+            gameConfig.CountsToSpawn.RespawnPoint = gameConfig.CountsToSpawn.Tower;
         }
 
-        public class Random : IRandom
-        {
-            private UnityEngine.Random.State _randomState;
-
-            public Random(UnityEngine.Random.State state)
-            {
-                _randomState = state;
-            }
-
-            private int GetIntInternal(int lower, int upperInclusive)
-            {
-                return Mathf.FloorToInt(UnityEngine.Random.Range(lower, upperInclusive + 1));
-            }
-
-            public int GetInt(int lower, int upperInclusive)
-            {
-                UnityEngine.Random.state = _randomState;
-                var t = GetIntInternal(lower, upperInclusive);
-                _randomState = UnityEngine.Random.state;
-                return t;
-            }
-        }
-
-        public class UnityLogger : Core.ILogger
-        {
-            public void Debug(string message)
-            {
-                UnityEngine.Debug.Log(message);
-            }
-
-            public void Debug(string format, object value)
-            {
-                UnityEngine.Debug.LogFormat(format, value);
-            }
-        }
+        
 
         private GameContext InitializeGame()
         {
-            _game = Initialization.CreateGame(cellCountNotIncludingStartAndFinish: VisualCells.Length - 2, CountsToSpawn.Player);
+            ref var gameConfig = ref _config.Game;
+            ref var uiConfig = ref _config.UI;
+            var countsToSpawn = gameConfig.CountsToSpawn;
+
+            _view.Game = Initialization.CreateGame(cellCountNotIncludingStartAndFinish: uiConfig.VisualCells.Length - 2, countsToSpawn.Player);
 
             int seed = Seed;
             UnityEngine.Random.InitState(seed);
-            var gameRandom = new Random(UnityEngine.Random.state);
-            _game.Random = gameRandom;
+            var gameRandom = new UnityRandom(UnityEngine.Random.state);
+            Game.Random = gameRandom;
 
-            _game.Logger = new UnityLogger();
+            Game.Logger = new UnityLogger();
 
-            _game.State.Shop.CellsWhereAccessible = ShopPositions;
+            Game.State.Shop.CellsWhereAccessible = gameConfig.ShopPositions.ToArray();
 
             UnityEngine.Random.InitState(seed + 1);
-            var spawnRandom = new Random(UnityEngine.Random.state);
+            var spawnRandom = new UnityRandom(UnityEngine.Random.state);
             
-            _thingGameObjects = new GameObject[CountsToSpawn.Array.Sum()];
+            UI.ThingGameObjects = new GameObject[countsToSpawn.Array.Sum()];
 
-            int mineCount = CountsToSpawn.EternalMine + CountsToSpawn.RegularMine;
-            var costStorage = Components.InitializeStorage(_game, Components.CurrencyCostId, mineCount);
-            var playerStorage = Components.InitializeStorage(_game, Components.PlayerId, CountsToSpawn.Player);
-            var coinStorage = Components.InitializeStorage(_game, Components.CurrencyId, CountsToSpawn.Coin);
-            Components.InitializeStorage(_game, Components.ThingSpecificEventsId);
-            var respawnPointIdsStorage = Components.InitializeStorage(_game, Components.RespawnPointIdsId, CountsToSpawn.Player);
-            var respawnPositionStorage = Components.InitializeStorage(_game, Components.RespawnPositionId, CountsToSpawn.RespawnPoint);
-            var pickupStorage = Components.InitializeStorage(_game, Components.PickupId);
-            var pickupDelegateStorage = Components.InitializeStorage(_game, Components.AttachedPickupDelegateId);
-            var respawnPointIdStorage = Components.InitializeStorage(_game, Components.RespawnPointIdId, CountsToSpawn.Tower);
-            var flagsStorage = Components.InitializeStorage(_game, Components.FlagsId, mineCount);
-            assertNoneNull(_game.State.ComponentsByType);
+            int mineCount = countsToSpawn.EternalMine + countsToSpawn.RegularMine;
+            var costStorage = Components.InitializeStorage(Game, Components.CurrencyCostId, mineCount);
+            var playerStorage = Components.InitializeStorage(Game, Components.PlayerId, countsToSpawn.Player);
+            var coinStorage = Components.InitializeStorage(Game, Components.CurrencyId, countsToSpawn.Coin);
+            Components.InitializeStorage(Game, Components.ThingSpecificEventsId);
+            var respawnPointIdsStorage = Components.InitializeStorage(Game, Components.RespawnPointIdsId, countsToSpawn.Player);
+            var respawnPositionStorage = Components.InitializeStorage(Game, Components.RespawnPositionId, countsToSpawn.RespawnPoint);
+            var pickupStorage = Components.InitializeStorage(Game, Components.PickupId);
+            var pickupDelegateStorage = Components.InitializeStorage(Game, Components.AttachedPickupDelegateId);
+            var respawnPointIdStorage = Components.InitializeStorage(Game, Components.RespawnPointIdId, countsToSpawn.Tower);
+            var flagsStorage = Components.InitializeStorage(Game, Components.FlagsId, mineCount);
+            assertNoneNull(Game.State.ComponentsByType);
 
-            var regularMinePickup = new MinePickup.Regular;
-            var eternalMinePickup = new MinePickup.Eternal;
+            var regularMinePickup = MinePickup.Regular;
+            var eternalMinePickup = MinePickup.Eternal;
 
             var rabbitPickup = new AddStatPickup(Stats.RollAdditiveBonus, 1);
             var horsePickup = new AddStatPickup(Stats.JumpAfterMoveCapacity, 1);
@@ -317,8 +335,8 @@ namespace Zayats.Unity.View
 
             void ArrangeThings(int position)
             {
-                var things = _game.State.Cells[position];
-                var spriteRenderer = VisualCells[position].gameObject.GetComponent<SpriteRenderer>();
+                var things = Game.State.Cells[position];
+                var spriteRenderer = UI.VisualCells[position].gameObject.GetComponent<SpriteRenderer>();
                 var bounds = spriteRenderer.bounds;
                 float availableSpaceY = spriteRenderer.bounds.extents.y * 2;
                 float offsetIncrement = -availableSpaceY / (things.Count + 1);
@@ -326,8 +344,8 @@ namespace Zayats.Unity.View
 
                 for (int i = 0; i < things.Count; i++)
                 {
-                    var transform = _thingGameObjects[things[i]].transform;
-                    Vector3 cellPosition = VisualCells[position].position;
+                    var transform = UI.ThingGameObjects[things[i]].transform;
+                    Vector3 cellPosition = UI.VisualCells[position].position;
                     
                     Vector3 thingPosition;
                     thingPosition.x = cellPosition.x;
@@ -340,29 +358,32 @@ namespace Zayats.Unity.View
 
             void SpawnOn(int position, int id, GameObject obj)
             {
-                var things = _game.State.Cells[position];
+                var things = Game.State.Cells[position];
                 things.Add(id);
-                obj.transform.parent = VisualCells[position];
+                obj.transform.parent = UI.VisualCells[position];
             }
 
             int SpawnRandomly(IRandom random, int id, GameObject obj)
             {
-                int randomPos = spawnRandom.GetUnoccupiedCellIndex(_game);
+                int randomPos = spawnRandom.GetUnoccupiedCellIndex(Game);
                 if (randomPos != -1)
                     SpawnOn(randomPos, id, obj);
                 return randomPos;
             }
 
             int currentId = 0;
-            for (int kindIndex = 0; kindIndex < CountsToSpawn.Length; kindIndex++)
-            for (int instanceIndex = 0; instanceIndex < CountsToSpawn[kindIndex]; instanceIndex++)
+            for (int kindIndex = 0; kindIndex < countsToSpawn.Length; kindIndex++)
+            for (int instanceIndex = 0; instanceIndex < countsToSpawn[kindIndex]; instanceIndex++)
             {
                 ref int id = ref currentId;
-                var obj = GameObject.Instantiate(PrefabsToSpawn[kindIndex]);
-                _thingGameObjects[id] = obj;
+                var obj = GameObject.Instantiate(gameConfig.PrefabsToSpawn[kindIndex]);
+                UI.ThingGameObjects[id] = obj;
 
-                if (ItemCosts[kindIndex] > 0)
-                    costStorage.Add(id).Value = ItemCosts[kindIndex];
+                {
+                    var c = gameConfig.ItemCosts[kindIndex];
+                    if (c > 0)
+                        costStorage.Add(id).Value = c;
+                }
 
                 switch ((ThingKind) kindIndex)
                 {
@@ -370,16 +391,16 @@ namespace Zayats.Unity.View
 
                     case ThingKind.Player:
                     {
-                        _game.InitializePlayer(index: instanceIndex, thingId: id, playerStorage);
+                        Game.InitializePlayer(index: instanceIndex, thingId: id, playerStorage);
                         respawnPointIdsStorage.Add(id).Value = new Stack<int>();
                         
                         {
-                            var stats = _game.State.Players[instanceIndex].Stats; 
+                            var stats = Game.State.Players[instanceIndex].Stats; 
                             stats.Set(Stats.RollAdditiveBonus, 0);
                             stats.Set(Stats.JumpAfterMoveCapacity, 0);
                         }
 
-                        obj.GetComponent<SpriteRenderer>().color = PlayerCharacterColors[instanceIndex];
+                        obj.GetComponent<SpriteRenderer>().color = gameConfig.PlayerCharacterColors[instanceIndex];
 
                         SpawnOn(position: 0, id, obj);
                         break;
@@ -423,7 +444,7 @@ namespace Zayats.Unity.View
                     {
                         pickupStorage.Add(id).Value = rabbitPickup;
                         // SpawnRandomly(spawnRandom, id, obj);
-                        _game.AddThingToShop(id);
+                        Game.AddThingToShop(id);
                         break;
                     }
                     case ThingKind.Tower:
@@ -451,20 +472,20 @@ namespace Zayats.Unity.View
                 {
                     int refereeId = idsOfPointStorage[i];
                     respawnPointIdStorage.GetProxy(refereeId).Value = idsOfPositions[i];
-                    SpawnOn(respawnPositionStorage.GetProxy(idsOfPositions[i]).Value, refereeId, _thingGameObjects[refereeId]);
+                    SpawnOn(respawnPositionStorage.GetProxy(idsOfPositions[i]).Value, refereeId, UI.ThingGameObjects[refereeId]);
                 }
             }
 
-            for (int cellIndex = 0; cellIndex < VisualCells.Length; cellIndex++)
+            for (int cellIndex = 0; cellIndex < UI.VisualCells.Length; cellIndex++)
                 ArrangeThings(cellIndex);
 
-            _game.GetEventProxy(Events.OnPositionChanged).Add(
-                (GameContext game, ref Events.PlayerPositionChangedContext context) =>
+            Game.GetEventProxy(OnPositionChanged).Add(
+                (GameContext game, ref PlayerPositionChangedContext context) =>
                 {
                     var player = game.State.Players[context.PlayerIndex];
 
-                    var targetTransform = VisualCells[player.Position];
-                    var playerTransform = _thingGameObjects[player.ThingId].transform;
+                    var targetTransform = UI.VisualCells[player.Position];
+                    var playerTransform = UI.ThingGameObjects[player.ThingId].transform;
                     playerTransform.parent = targetTransform;
 
                     int position = player.Position;
@@ -475,49 +496,29 @@ namespace Zayats.Unity.View
                     ArrangeThings(position);
                 });
 
-            _game.GetEventProxy(Events.OnPlayerWon).Add(
+            Game.GetEventProxy(OnPlayerWon).Add(
                 (GameContext game, ref int playerId) =>
                 {
-                    GameplayText.Win.text = $"{playerId} wins.";
-                    GameplayText.Win.gameObject.SetActive(true);
+                    UI.GameplayText.Win.text = $"{playerId} wins.";
+                    UI.GameplayText.Win.gameObject.SetActive(true);
                 });
 
-            void AlignItemsInInventory(Transform holder)
-            {
-                if (holder.childCount == 0)
-                    return;
-                var oneThingSize = holder.GetChild(0).GetComponent<SpriteRenderer>().bounds.size;
-                // float offsetSize = Mathf.Min(oneThingSize, holder.transform
-                for (int i = 0; i < holder.childCount; i++)
+            Game.GetEventProxy(GameEvents.OnItemAddedToInventory).Add(
+                (GameContext game, ref ItemInterationContext context) =>
                 {
-                    var v = holder.transform.position;
-                    v.x += oneThingSize.x * i;
-                    // v.y += oneThingSize.y / 2;
-                    holder.GetChild(i).transform.position = v;
-                }
-            }
-
-            _game.GetEventProxy(Events.OnItemAddedToInventory).Add(
-                (GameContext game, ref ItemInteractionInfo context) =>
-                {
-                    var holder = _itemHolders[context.PlayerIndex];
-                    _thingGameObjects[context.ThingId].transform.SetParent(holder, worldPositionStays: false);
-                    AlignItemsInInventory(holder);
+                    _view.SetItemsForPlayer(game.State.CurrentPlayerIndex);
                 });
 
-            _game.GetEventProxy(Events.OnItemRemovedFromInventory).Add(
-                (GameContext game, ref ItemInteractionInfo context) =>
+            Game.GetEventProxy(GameEvents.OnItemRemovedFromInventory).Add(
+                (GameContext game, ref ItemRemovedContext context) =>
                 {
-                    var holder = _itemHolders[context.PlayerIndex];
-                    _thingGameObjects[context.ThingId].transform.SetParent(null);
-                    AlignItemsInInventory(holder);
+                    UI.ItemContainers.RemoveItemAt(context.ItemIndex);
                 });
 
-            _game.GetEventProxy(Events.OnNextTurn).Add(
+            Game.GetEventProxy(GameEvents.OnNextTurn).Add(
                 (GameContext game, ref NextTurnContext context) =>
                 {
-                    _itemHolders[context.PreviousPlayerIndex].gameObject.SetActive(false);
-                    _itemHolders[context.CurrentPlayerIndex].gameObject.SetActive(true);
+                    _view.SetItemsForPlayer(context.CurrentPlayerIndex);
 
                     {
                         var currencyStorage = game.GetComponentStorage(Components.CurrencyId);
@@ -527,93 +528,92 @@ namespace Zayats.Unity.View
                             // The component contains the amount that the coin represents.
                             totalAmount += currency.Value;
                         }
-                        GameplayText.CoinCounter.text = totalAmount.ToString();
+                        UI.GameplayText.CoinCounter.text = totalAmount.ToString();
                     }
                 });
 
-            _game.GetEventProxy(Events.OnCellContentChanged).Add(
+            Game.GetEventProxy(GameEvents.OnCellContentChanged).Add(
                 (GameContext game, ref CellContentChangedContext context) =>
                 {
                     // This is ok, because it will be eventually animated.
                     ArrangeThings(context.CellPosition);
                 });
 
-            _game.GetEventProxy(Events.OnAmountRolled).Add(
+            Game.GetEventProxy(GameEvents.OnAmountRolled).Add(
                 (GameContext game, ref AmountRolledContext context) =>
                 {
                     string val = context.RolledAmount.ToString();
                     if (context.BonusAmount > 0)
                         val += " (+" + context.BonusAmount.ToString() + ")";
-                    GameplayText.RollValue.text = val;
+                    UI.GameplayText.RollValue.text = val;
                 });
 
-            _itemHolders[0].gameObject.SetActive(true);
-            GameplayText.Win.gameObject.SetActive(false);
-            GameplayText.CoinCounter.text = "0";
+            _view.GetEventProxy(ViewEvents.OnItemInteractionStarted).Add(
+                (ViewContext view, ref ActivatedItemHandling itemH) =>
+                {
+                    Debug.Log("Started");
+                });
 
-            // _game.GetEventProxy(Events.OnItemRemovedFromInventory).Add(
+            _view.GetEventProxy(ViewEvents.OnItemInteractionCancelled).Add(
+                (ViewContext view, ref ActivatedItemHandling itemH) =>
+                {
+                    Debug.Log("Cancelled");
+                });
+
+            UI.GameplayText.Win.gameObject.SetActive(false);
+            UI.GameplayText.CoinCounter.text = "0";
+            _view.SetItemsForPlayer(0);
+
+            // _game.GetEventProxy(GameEvents.OnItemRemovedFromInventory).Add(
             //     (GameContext game, ref ItemInteractionInfo context) =>
             //     {
             //         var holder = _itemHolders[context.PlayerIndex];
             //         _things[context.ThingId].transform.SetParent(holder, worldPositionStays: false);
             //     });
 
-            return _game;
+            return Game;
         }
 
         public void Start()
         {
+            UI.ItemBuyButtons = new();
+
             const int initialSeed = 5;
             Seed = initialSeed;
 
-            GameplayText.Win.gameObject.SetActive(false);
-
-            _itemHolders = new Transform[CountsToSpawn.Player];
-            foreach (ref var holder in _itemHolders.AsSpan())
-            {
-                holder = GameObject.Instantiate(HolderPrefab);
-                holder.SetParent(ItemHolderHolder, worldPositionStays: false);
-                holder.gameObject.SetActive(false);
-            }
-            _itemHolders[0].gameObject.SetActive(true);
-
-            _buyButtonsPool = new(() => GameObject.Instantiate(BuyButtonPrefab));
+            UI.GameplayText.Win.gameObject.SetActive(false);
 
             InitializeGame();
 
-            GameplayButtons.Roll.onClick.AddListener(() =>
+            var buttons = UI.GameplayButtons;
+            buttons.Roll.onClick.AddListener(() =>
             {
-                _game.ExecuteCurrentPlayersTurn();
+                Game.ExecuteCurrentPlayersTurn();
             });
 
-            GameplayButtons.Settings.onClick.AddListener(() =>
+            buttons.Settings.onClick.AddListener(() =>
             {
                 Debug.Log("Open Settings");
             });
 
-            GameplayButtons.UseItem.onClick.AddListener(() =>
+            buttons.Restart.onClick.AddListener(() =>
             {
-                Debug.Log("Use Item Clicked");
-            });
-
-            GameplayButtons.Restart.onClick.AddListener(() =>
-            {
-                foreach (var thing in _thingGameObjects)
+                foreach (var thing in UI.ThingGameObjects)
                     Destroy(thing);
                 Seed = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
                 InitializeGame();
             });
 
-            GameplayButtons.TempBuy.onClick.AddListener(async () =>
+            buttons.TempBuy.onClick.AddListener(async () =>
             {
                 async Task DoBuying()
                 {
-                    assert(_game.State.Shop.Items.Count > 0);
+                    assert(Game.State.Shop.Items.Count > 0);
                     
                     int itemIndex = 0;
-                    var context = _game.StartBuyingThingFromShop(new()
+                    var context = Game.StartBuyingThingFromShop(new()
                     {
-                        PlayerIndex = _game.State.CurrentPlayerIndex,
+                        PlayerIndex = Game.State.CurrentPlayerIndex,
                         ThingShopIndex = itemIndex,
                     });
                     
@@ -623,7 +623,7 @@ namespace Zayats.Unity.View
                         return;
                     }
 
-                    var cellsSlice = _game.State.IntermediateCells;
+                    var cellsSlice = Game.State.IntermediateCells;
                     int availableCellCount = cellsSlice.Count(c => c.Count == 0);
                     List<int> positions = new();
                     if (availableCellCount == context.Coins.Count)
@@ -647,33 +647,17 @@ namespace Zayats.Unity.View
                         }
                         for (int i = 0; i < coinCount; i++)
                         {
-                            int result = await PromptForCellPlacement(_game);
+                            int result = await PromptForCellPlacement(Game);
                             if (result == -1)
                                 panic("Unimplemented");
                             positions.Add(result);
                         }
                     }
 
-                    _game.EndBuyingThingFromShop(context, positions);
+                    Game.EndBuyingThingFromShop(context, positions);
                 }
                 await DoBuying();
             });
         }
-    }
-
-    public enum UIState
-    {
-        Normal,
-        SelectingCell,
-    }
-
-    public class UIContext
-    {
-        public MonoBehaviour WaitObject;
-    }
-
-    public static class UI
-    {
-        // public static Task<int> Select()
     }
 }

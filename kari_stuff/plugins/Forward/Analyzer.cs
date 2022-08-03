@@ -24,39 +24,11 @@ namespace Kari.Plugins.Forward
             HashSet<int> enumValues = new();
             NamedLogger logger = new("Forward");
 
-            foreach (var type in environment.TypesWithAttributes)
+            foreach (var type in environment.Types)
             {
                 ForwardInfo result;
                 
                 result.Config = new();
-                
-                {
-                    ref var config = ref result.Config;
-                    config.Symbol = type;
-
-                    if (type.TryGetForwardAttribute(environment.Compilation, logger, out var a))
-                    {
-                        TryParseRegex(a.AcceptPattern, type, out config.AcceptRegex);
-                        TryParseRegex(a.RejectPattern, type, out config.RejectRegex);
-                    }
-                    else
-                    {
-                        a = new();
-                    }
-
-                    config.Attribute = a;
-
-                    a.Options = ForwardOptions.ForwardFieldsAsGetters
-                        | ForwardOptions.ForwardFieldsAsSetters
-                        | ForwardOptions.ForwardMethods
-                        | ForwardOptions.ForwardProperties;
-                    a.MethodPrefix ??= "";
-                    a.MethodSuffix ??= "";
-                    a.PropertyPrefix ??= "";
-                    a.PropertySuffix ??= "";
-                    a.RefPropertyPrefix ??= "";
-                    a.RefPropertySuffix ??= "Ref";
-                }
 
                 bool TryParseRegex(string str, ISymbol member, out Regex regex)
                 {
@@ -108,6 +80,34 @@ namespace Kari.Plugins.Forward
 
                 if (result.DecoratedFieldsOrProperties.Count == 0)
                     continue;
+
+                {
+                    ref var config = ref result.Config;
+                    config.Symbol = type;
+
+                    if (type.TryGetForwardAttribute(environment.Compilation, logger, out var a))
+                    {
+                        TryParseRegex(a.AcceptPattern, type, out config.AcceptRegex);
+                        TryParseRegex(a.RejectPattern, type, out config.RejectRegex);
+                    }
+                    else
+                    {
+                        a = new();
+                    }
+
+                    config.Attribute = a;
+
+                    a.Options = ForwardOptions.FieldsAsGetters
+                        | ForwardOptions.FieldsAsSetters
+                        | ForwardOptions.Methods
+                        | ForwardOptions.Properties;
+                    a.MethodPrefix ??= "";
+                    a.MethodSuffix ??= "";
+                    a.PropertyPrefix ??= "";
+                    a.PropertySuffix ??= "";
+                    a.RefPropertyPrefix ??= "";
+                    a.RefPropertySuffix ??= "Ref";
+                }
 
 
                 _infos.Add(result);
@@ -258,16 +258,17 @@ namespace Kari.Plugins.Forward
 
                         if (m is IMethodSymbol method)
                         {
-                            if (!HasEitherFlag(ForwardOptions.ForwardMethods))
+                            if (!HasEitherFlag(ForwardOptions.Methods))
                                 continue;
                             var (syntaxReference, semanticModel) = Basic();
+
+                            if (syntaxReference.GetSyntax() is not MethodDeclarationSyntax methodDeclaration)
+                                continue;
                             
                             if (!CheckAccessibility(m, semanticModel))
                                 continue;
                             if (!ShouldRegardName_WithParentCheck(m.Name))
                                 continue;
-                            
-                            var methodDeclaration = (MethodDeclarationSyntax) syntaxReference.GetSyntax();
                             
                             var argumentList = SeparatedList(
                                 methodDeclaration.ParameterList.Parameters.Select(p => 
@@ -417,7 +418,12 @@ namespace Kari.Plugins.Forward
                             bool shouldForwardSet = !field.IsReadOnly
                                 && HasEitherFlag(ForwardOptions._ForwardFieldsAsSetters)
                                 && !(info.Symbol.IsValueType && field.IsReadOnly);
-                            bool shouldForwardRef = HasEitherFlag(ForwardOptions._ForwardFieldsAsRefProperties);
+
+                            bool shouldForwardRef;
+                            if (field.Type.IsValueType && info.Symbol.IsValueType)
+                                shouldForwardRef = false;
+                            else
+                                shouldForwardRef = HasEitherFlag(ForwardOptions._ForwardFieldsAsRefProperties);
 
                             bool shouldForwardSomething = shouldForwardGet || shouldForwardSet || shouldForwardRef;
 

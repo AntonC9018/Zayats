@@ -6,7 +6,7 @@ namespace Kari.Plugins.Forward
     public enum ForwardOptions
     {
         // Structs will inherit the readonly modifier.
-        ForwardMethods = 1 << 0,
+        Methods = 1 << 0,
 
         _ForwardFields = 1 << 1,
         _ForwardFieldsAsRefProperties = 1 << 2,
@@ -14,20 +14,20 @@ namespace Kari.Plugins.Forward
         _ForwardFieldsAsSetters = 1 << 4,
 
         // Won't work for struct types.
-        ForwardFieldsAsRefProperties = _ForwardFields | _ForwardFieldsAsRefProperties,
+        FieldsAsRefProperties = _ForwardFields | _ForwardFieldsAsRefProperties,
         
         // Structs get the readonly modifier for the getter.
-        ForwardFieldsAsGetters = _ForwardFields | _ForwardFieldsAsGetters,
-        ForwardFieldsAsSetters = _ForwardFields | _ForwardFieldsAsSetters,
+        FieldsAsGetters = _ForwardFields | _ForwardFieldsAsGetters,
+        FieldsAsSetters = _ForwardFields | _ForwardFieldsAsSetters,
 
         _ForwardProperties = 1 << 5,
         _ForwardGetterProperties = 1 << 6,
         _ForwardSetterProperties = 1 << 7,
 
         // Structs will inherit the readonly modifier of the getter.
-        ForwardProperties = _ForwardProperties | _ForwardGetterProperties | _ForwardSetterProperties,
-        ForwardGetterProperties = _ForwardProperties | _ForwardGetterProperties,
-        ForwardSetterProperties = _ForwardProperties | _ForwardSetterProperties,
+        Properties = _ForwardProperties | _ForwardGetterProperties | _ForwardSetterProperties,
+        GetterProperties = _ForwardProperties | _ForwardGetterProperties,
+        SetterProperties = _ForwardProperties | _ForwardSetterProperties,
     }
 
     [AttributeUsage(AttributeTargets.Field
@@ -37,6 +37,15 @@ namespace Kari.Plugins.Forward
     [Conditional("CodeGeneration")]
     public class ForwardAttribute : Attribute
     {
+        public ForwardAttribute(ForwardOptions options)
+        {
+            Options = new ForwardOptions?(options);
+        }
+
+        public ForwardAttribute()
+        {
+        }
+
         public ForwardOptions? Options { get; set; }
         //  =
             // ForwardOptions.ForwardFieldsAsGetters

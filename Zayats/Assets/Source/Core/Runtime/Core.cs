@@ -62,7 +62,7 @@ namespace Zayats.Core
         public static GameContext CreateGame(int cellCountNotIncludingStartAndFinish, int playerCount)
         {
             GameContext game = new();
-            game.EventHandlers = Events.CreateStorage();
+            game.EventHandlers = GameEvents.CreateStorage();
             game.PostMovementMechanics = new()
             {
                 (g, c) => Logic.CollectPickupsAtCurrentPosition(g, c.PlayerIndex),
@@ -95,7 +95,7 @@ namespace Zayats.Core
                     Items = new(),
                     Position = 0,
                     Stats = Stats.CreateStorage(),
-                    Events = Events.CreateStorage(),
+                    Events = GameEvents.CreateStorage(),
                     Counters = Counters.CreateStorage(),
 
                     // Set later on.
@@ -159,17 +159,17 @@ namespace Zayats.Core
             if (CheckFinish(game.State.Board, game.State.Players[playerIndex].Position))
             {
                 game.State.IsOver = true;
-                game.HandlePlayerEvent(Events.OnPlayerWon, playerIndex, playerIndex);
+                game.HandlePlayerEvent(GameEvents.OnPlayerWon, playerIndex, playerIndex);
                 return true;
             }
             return false;
         }
 
-        public static void MovePlayerToPosition(this GameContext game, Events.PlayerPositionChangedContext context)
+        public static void MovePlayerToPosition(this GameContext game, GameEvents.PlayerPositionChangedContext context)
         {
             ref var player = ref game.State.Players[context.PlayerIndex];
             MovePlayerInBetweenCells(game, ref player, context.TargetPosition);
-            game.HandlePlayerEvent(Events.OnPositionChanged, context.PlayerIndex, ref context);
+            game.HandlePlayerEvent(GameEvents.OnPositionChanged, context.PlayerIndex, ref context);
             game.MaybeEndGame(context.PlayerIndex);
         }
 
@@ -195,7 +195,7 @@ namespace Zayats.Core
                 PlayerIndex = context.PlayerIndex,
                 TargetPosition = toPosition,
             };
-            MovePlayerToPosition(game, new()
+            game.MovePlayerToPosition(new()
             {
                 MoveStart = moveStart,
                 Movement = outContext,
@@ -318,7 +318,7 @@ namespace Zayats.Core
             var pickupsInCell = game.GetDataInCell(Components.PickupId, position);
             var pickupInfos = pickupsInCell.Select(a => (Pickup: a.Value, a.ListIndex, a.ThingId)).Reverse().ToArray();
 
-            ItemInteractionInfo info;
+            ItemInterationContext info;
             info.PlayerIndex = playerIndex;
             info.Position = position;
             
@@ -345,10 +345,10 @@ namespace Zayats.Core
             }
         }
 
-        public static void DoPickupEffectWithEvent(this GameContext game, IPickup pickup, ItemInteractionInfo info)
+        public static void DoPickupEffectWithEvent(this GameContext game, IPickup pickup, ItemInterationContext info)
         {
             pickup.DoPickupEffect(game, info);
-            game.HandlePlayerEvent(Events.OnThingPickedUp, info.PlayerIndex, ref info);
+            game.HandlePlayerEvent(GameEvents.OnThingPickedUp, info.PlayerIndex, ref info);
         }
 
         public static void AddThingToShop(this GameContext game, int thingId)
@@ -359,40 +359,49 @@ namespace Zayats.Core
         // public static void DoDefaultPickupEffectWithEvent(ItemInteractionInfo info)
         // {
         //     PlayerInventoryPickup.DoDropEffect(info);
-        //     game.HandlePlayerEvent(Events.OnThingPickedUp, info.PlayerIndex, new()
+        //     game.HandlePlayerEvent(GameEvents.OnThingPickedUp, info.PlayerIndex, new()
         //     {
         //         PlayerIndex = info.PlayerIndex,
         //         ThingId = info.Position,
         //     });
         // }
 
-        public static void AddItemToInventory_MaybeDoPickupEffect(this GameContext game,ItemInteractionInfo info)
+        public static void AddItemToInventory_MaybeDoPickupEffect(this GameContext game, ItemInterationContext context)
         {
-            if (game.TryGetComponentValue(Components.PickupId, info.ThingId, out var pickup))
+            if (game.TryGetComponentValue(Components.PickupId, context.ThingId, out var pickup))
             {
-                assert(pickup.IsInventoryItem(game, info));
-                pickup.DoPickupEffect(game, info);
+                assert(pickup.IsInventoryItem(game, context));
+                pickup.DoPickupEffect(game, context);
             }
-            AddItemToInventory_WithoutPickupEffect(game, info);
+            AddItemToInventory_WithoutPickupEffect(game, context);
         }
 
-        public static void AddItemToInventory_DoPickupEffect(this GameContext game, IPickup pickup, ItemInteractionInfo info)
+        public static void AddItemToInventory_DoPickupEffect(this GameContext game, IPickup pickup, ItemInterationContext context)
         {
-            assert(pickup.IsInventoryItem(game, info));
-            pickup.DoPickupEffect(game, info);
-            AddItemToInventory_WithoutPickupEffect(game, info);
+            assert(pickup.IsInventoryItem(game, context));
+            pickup.DoPickupEffect(game, context);
+            AddItemToInventory_WithoutPickupEffect(game, context);
         }
 
-        public static void AddItemToInventory_WithoutPickupEffect(this GameContext game, ItemInteractionInfo info)
+        public static void AddItemToInventory_WithoutPickupEffect(this GameContext game, ItemInterationContext context)
         {
-            game.State.Players[info.PlayerIndex].Items.Add(info.ThingId);
-            game.HandlePlayerEvent(Events.OnItemAddedToInventory, info.PlayerIndex, ref info);
+            var items = game.State.Players[context.PlayerIndex].Items;
+            items.Add(context.ThingId);
+
+            game.HandlePlayerEvent(GameEvents.OnItemAddedToInventory, context.PlayerIndex, ref context);
         }
 
-        public static void RemoveItemFromInventory(this GameContext game, ItemInteractionInfo info)
+        public static void RemoveItemFromInventory(this GameContext game, ItemInterationContext context)
         {
-            game.State.Players[info.PlayerIndex].Items.Remove(info.ThingId);
-            game.HandlePlayerEvent(Events.OnItemRemovedFromInventory, info.PlayerIndex, ref info);
+            var items = game.State.Players[context.PlayerIndex].Items;
+            var index = items.IndexOf(context.ThingId);
+            items.RemoveAt(index);
+
+            game.HandlePlayerEvent(GameEvents.OnItemRemovedFromInventory, context.PlayerIndex, new()
+            {
+                ItemIndex = index,
+                PlayerInteration = context,
+            });
         }
 
         public static void RemoveItemFromInventory_AtIndex(this GameContext game, int playerIndex, int itemIndex)
@@ -400,8 +409,9 @@ namespace Zayats.Core
             ref var player = ref game.State.Players[playerIndex];
             int itemId = player.Items[itemIndex];
             player.Items.RemoveAt(itemIndex);
-            game.HandlePlayerEvent(Events.OnItemRemovedFromInventory, playerIndex, new()
+            game.HandlePlayerEvent(GameEvents.OnItemRemovedFromInventory, playerIndex, new()
             {
+                ItemIndex = itemIndex,
                 PlayerIndex = playerIndex,
                 Position = player.Position,
                 ThingId = itemId,
@@ -423,16 +433,16 @@ namespace Zayats.Core
             ref var player = ref game.State.Players[context.PlayerIndex];
 
             {
-                var saveContext = new Events.SavePlayerContext
+                var saveContext = new GameEvents.SavePlayerContext
                 {
                     Kill = context,
                     WasSaved = false,
                 };
-                game.HandlePlayerEvent(Events.OnTrySavePlayer, context.PlayerIndex, ref saveContext);
+                game.HandlePlayerEvent(GameEvents.OnTrySavePlayer, context.PlayerIndex, ref saveContext);
 
                 if (saveContext.WasSaved)
                 {
-                    game.HandlePlayerEvent(Events.OnPlayerSaved, context.PlayerIndex, new()
+                    game.HandlePlayerEvent(GameEvents.OnPlayerSaved, context.PlayerIndex, new()
                     {
                         Kill = context,
                         SaveReason = saveContext.SaveReason,
@@ -443,7 +453,7 @@ namespace Zayats.Core
 
             player.Counters.Get(Counters.Death)++;
 
-            game.HandlePlayerEvent(Events.OnPlayerDied, context.PlayerIndex, context);
+            game.HandlePlayerEvent(GameEvents.OnPlayerDied, context.PlayerIndex, context);
 
             {
                 var moveStart = StartMove(game, context.PlayerIndex);
@@ -478,7 +488,7 @@ namespace Zayats.Core
             int respawnPointId = respawnStack.Pop();
             int respawnPosition = game.GetComponent(Components.RespawnPositionId, respawnPointId);
 
-            game.HandlePlayerEvent(Events.OnRespawnPositionPopped, playerId, new()
+            game.HandlePlayerEvent(GameEvents.OnRespawnPositionPopped, playerId, new()
             {
                 RespawnPointId = respawnPointId,
                 RespawnPosition = respawnPosition,
@@ -497,7 +507,7 @@ namespace Zayats.Core
             var stack = respawnPointsStackProxy.Value ??= new();
             stack.Push(respawnPointId);
 
-            game.HandlePlayerEvent(Events.OnRespawnPositionPushed, playerIndex, new()
+            game.HandlePlayerEvent(GameEvents.OnRespawnPositionPushed, playerIndex, new()
             {
                 PlayerIndex = playerIndex,
                 RespawnPointId = respawnPointId,
@@ -513,7 +523,7 @@ namespace Zayats.Core
             int rollBonus = player.Stats.Get(Stats.RollAdditiveBonus);
 
             // Questionable
-            game.HandlePlayerEvent(Events.OnAmountRolled, playerIndex, new()
+            game.HandlePlayerEvent(GameEvents.OnAmountRolled, playerIndex, new()
             {
                 PlayerIndex = playerIndex,
                 BonusAmount = rollBonus,
@@ -535,7 +545,7 @@ namespace Zayats.Core
             a = (a + 1) % game.State.Players.Length;
             int currentPlayer = a;
 
-            game.HandleEvent(Events.OnNextTurn, new()
+            game.HandleEvent(GameEvents.OnNextTurn, new()
             {
                 PreviousPlayerIndex = previousPlayer,
                 CurrentPlayerIndex = currentPlayer,
@@ -669,7 +679,7 @@ namespace Zayats.Core
     }
 
     [Serializable]
-    public class GameContext
+    public class GameContext : IGetEvents
     {
         public Data.Game State;
         public Events.Storage EventHandlers;
@@ -678,6 +688,8 @@ namespace Zayats.Core
 
         public delegate void PostMovementMechanic(GameContext game, Logic.MovementContext context);
         public List<PostMovementMechanic> PostMovementMechanics;
+
+        Events.Storage IGetEvents.Events => EventHandlers;
     }
 
     public interface ILogger
@@ -708,6 +720,11 @@ namespace Zayats.Core
         public List<int> List;
         public readonly int ThingId => List[ListIndex];
         public readonly ref T Value => ref Proxy.Value;
+    }
+
+    public interface IGetEvents
+    {
+        Events.Storage Events { get; }
     }
 
     public static class Helper
@@ -816,20 +833,24 @@ namespace Zayats.Core
             return true;
         }
 
-        public static Events.Proxy<T> GetEventProxy<T>(this GameContext game, int eventId) where T : struct
+        public static Events.Proxy<G, T> GetEventProxy<G, T>(this G game, int eventId)
+            where G : IGetEvents
+            where T : struct
         {
-            return new Events.Proxy<T>
+            return new Events.Proxy<G, T>
             {
-                EventHandlers = game.EventHandlers,
+                EventHandlers = game.Events,
                 EventIndex = eventId,
             };
         }
 
-        public static Events.Proxy<T> GetEventProxy<T>(this GameContext game, TypedIdentifier<T> eventId) where T : struct
+        public static Events.Proxy<G, T> GetEventProxy<G, T>(this G game, TypedIdentifier<T> eventId)
+            where G : IGetEvents
+            where T : struct
         {
-            return new Events.Proxy<T>
+            return new Events.Proxy<G, T>
             {
-                EventHandlers = game.EventHandlers,
+                EventHandlers = game.Events,
                 EventIndex = eventId.Id,
             };
         }
@@ -864,56 +885,31 @@ namespace Zayats.Core
             return t;
         }
 
-        public static void HandleEvent<T>(this GameContext game, int eventId, ref T eventData) where T : struct
+        public static void HandleEvent<G, T>(this G game, int eventId, ref T eventData)
+            where G : IGetEvents
+            where T : struct
         {
-            game.GetEventProxy<T>(eventId).Handle(game, ref eventData);
+            game.GetEventProxy<G, T>(eventId).Handle(game, ref eventData);
         }
 
-        public static void HandleEvent<T>(this GameContext game, TypedIdentifier<T> eventId, ref T eventData) where T : struct
+        public static void HandleEvent<G, T>(this G game, TypedIdentifier<T> eventId, ref T eventData)
+            where G : IGetEvents
+            where T : struct
         {
             HandleEvent(game, eventId.Id, ref eventData);
         }
 
-        public static void HandleEvent<T>(this GameContext game, TypedIdentifier<T> eventId, T eventData) where T : struct
+        public static void HandleEvent<G, T>(this G game, TypedIdentifier<T> eventId, T eventData)
+            where G : IGetEvents
+            where T : struct
         {
             HandleEvent(game, eventId.Id, ref eventData);
         }
-
-
-        // public static void HandleEvent<T>(this GameContext game, int eventId, ComponentProxy<Events.Storage> perThingEvents, ref T eventData) where T : struct
-        // {
-        //     game.GetEventProxy<T>(eventId).Handle(game, ref eventData);
-        //     if (perThingEvents.HasComponent)
-        //         perThingEvents.Component.GetEventProxy<T>(eventId).Handle(game, ref eventData);
-        // }
-
-        // public static void HandleEvent<T>(this GameContext game, TypedIdentifier<T> eventId, ComponentProxy<Events.Storage> perThingEvents, ref T eventData) where T : struct
-        // {
-        //     HandleEvent(game, eventId.Id, perThingEvents, ref eventData);
-        // }
-
-        // public static void HandleEvent<T>(this GameContext game, TypedIdentifier<T> eventId, ComponentProxy<Events.Storage> perThingEvents, T eventData) where T : struct
-        // {
-        //     HandleEvent(game, eventId.Id, perThingEvents, ref eventData);
-        // }
-
-        // public static void HandleEventWithContinueCheck<T>(this GameContext game, int eventId, ComponentProxy<Events.Storage> perThingEvents, ref T eventData) where T : struct, Events.IContinue
-        // {
-        //     game.GetEventProxy<T>(eventId).HandleWithContinueCheck(game, ref eventData);
-        //     if (perThingEvents.HasComponent && eventData.Continue)
-        //         perThingEvents.Component.GetEventProxy<T>(eventId).HandleWithContinueCheck(game, ref eventData);
-        // }
-
-        // public static void HandleEventWithContinueCheck<T>(this GameContext game, TypedIdentifier<T> eventId, ComponentProxy<Events.Storage> perThingEvents, ref T eventData) where T : struct, Events.IContinue
-        // {
-        //     HandleEventWithContinueCheck(game, eventId.Id, perThingEvents, ref eventData);
-        // }
-        
 
         public static void HandlePlayerEvent<T>(this GameContext game, int eventId, int playerIndex, ref T eventData) where T : struct
         {
-            game.GetEventProxy<T>(eventId).Handle(game, ref eventData);
-            game.State.Players[playerIndex].Events.GetEventProxy<T>(eventId).Handle(game, ref eventData);
+            game.GetEventProxy<GameContext, T>(eventId).Handle(game, ref eventData);
+            game.State.Players[playerIndex].Events.GetEventProxy<GameContext, T>(eventId).Handle(game, ref eventData);
         }
 
         public static void HandlePlayerEvent<T>(this GameContext game, TypedIdentifier<T> eventId, int playerIndex, ref T eventData) where T : struct
@@ -928,9 +924,9 @@ namespace Zayats.Core
 
         public static void HandlePlayerEventWithContinueCheck<T>(this GameContext game, int eventId, int playerIndex, ref T eventData) where T : struct, Events.IContinue
         {
-            game.GetEventProxy<T>(eventId).HandleWithContinueCheck(game, ref eventData);
+            game.GetEventProxy<GameContext, T>(eventId).HandleWithContinueCheck(game, ref eventData);
             if (eventData.Continue)
-                game.State.Players[playerIndex].Events.GetEventProxy<T>(eventId).HandleWithContinueCheck(game, ref eventData);
+                game.State.Players[playerIndex].Events.GetEventProxy<GameContext, T>(eventId).HandleWithContinueCheck(game, ref eventData);
         }
 
         public static void HandlePlayerEventWithContinueCheck<T>(this GameContext game, TypedIdentifier<T> eventId, int playerIndex, ref T eventData) where T : struct, Events.IContinue
@@ -938,8 +934,8 @@ namespace Zayats.Core
             HandlePlayerEventWithContinueCheck(game, eventId.Id, playerIndex, ref eventData);
         }
 
-        public static Events.Proxy<TEventData> GetPlayerEventProxy<TEventData>(this GameContext game, int playerIndex, int eventId) where TEventData : struct
-            => game.State.Players[playerIndex].Events.GetEventProxy<TEventData>(eventId);
+        public static Events.Proxy<GameContext, TEventData> GetPlayerEventProxy<TEventData>(this GameContext game, int playerIndex, int eventId) where TEventData : struct
+            => game.State.Players[playerIndex].Events.GetEventProxy<GameContext, TEventData>(eventId);
 
         public static ArraySegment<T> AsArraySegment<T>(this T[] from, int offset, int count)
         {
@@ -950,7 +946,7 @@ namespace Zayats.Core
         {
             var a = ArrayPool<int>.Shared.Rent(1);
             a[0] = thingId;
-            game.HandleEvent(Events.OnCellContentChanged, new()
+            game.HandleEvent(GameEvents.OnCellContentChanged, new()
             {
                 AddedThings = a.AsArraySegment(0, 1),
                 CellPosition = cellPosition,
@@ -963,7 +959,7 @@ namespace Zayats.Core
         {
             var a = ArrayPool<int>.Shared.Rent(1);
             a[0] = thingId;
-            game.HandleEvent(Events.OnCellContentChanged, new()
+            game.HandleEvent(GameEvents.OnCellContentChanged, new()
             {
                 AddedThings = Array.Empty<int>(),
                 CellPosition = cellPosition,
@@ -985,7 +981,7 @@ namespace Zayats.Core
         public static void TriggerThingsAddedToCellEvent(this GameContext game, IEnumerable<int> thingIds, int numElementsAdded, int cellPosition)
         {
             var a = Rented(thingIds, numElementsAdded);
-            game.HandleEvent(Events.OnCellContentChanged, new()
+            game.HandleEvent(GameEvents.OnCellContentChanged, new()
             {
                 AddedThings = a.AsArraySegment(0, numElementsAdded),
                 CellPosition = cellPosition,
@@ -997,7 +993,7 @@ namespace Zayats.Core
         public static void TriggerThingsRemovedFromCellEvent(this GameContext game, IEnumerable<int> thingIds, int numElementsRemoved, int cellPosition)
         {
             var a = Rented(thingIds, numElementsRemoved);
-            game.HandleEvent(Events.OnCellContentChanged, new()
+            game.HandleEvent(GameEvents.OnCellContentChanged, new()
             {
                 AddedThings = Array.Empty<int>(),
                 CellPosition = cellPosition,
@@ -1029,62 +1025,60 @@ namespace Zayats.Core
         public struct Storage
         {
             public object[] Handlers;
-        }
-        public static Storage CreateStorage()
-        {
-            return new Storage
+
+            public Storage(int count)
             {
-                Handlers = new object[Count],
-            };
+                Handlers = new object[count];
+            }
         }
 
-        public delegate void Handler<T>(GameContext game, ref T eventData) where T : struct;
+        public delegate void Handler<G, T>(G game, ref T eventData) where T : struct;
 
-        public static Proxy<T> GetEventProxy<T>(this Storage eventHandlers, int eventId) where T : struct
+        public static Proxy<G, T> GetEventProxy<G, T>(this Storage eventHandlers, int eventId) where T : struct
         {
-            return new Proxy<T>
+            return new Proxy<G, T>
             {
                 EventHandlers = eventHandlers,
                 EventIndex = eventId,
             };
         }
 
-        public static Proxy<T> GetEventProxy<T>(this Storage eventHandlers, TypedIdentifier<T> eventId) where T : struct
+        public static Proxy<G, T> GetEventProxy<G, T>(this Storage eventHandlers, TypedIdentifier<T> eventId) where T : struct
         {
-            return new Proxy<T>
+            return new Proxy<G, T>
             {
                 EventHandlers = eventHandlers,
                 EventIndex = eventId.Id,
             };
         }
 
-        public struct Proxy<T> where T : struct
+        public struct Proxy<G, T> where T : struct
         {
             public Storage EventHandlers;
             public int EventIndex;
 
-            public readonly void Add(Handler<T> handler)
+            public readonly void Add(Handler<G, T> handler)
             {
                 ref var h = ref EventHandlers.Handlers[EventIndex];
-                h = ((Handler<T>) h) + handler;
+                h = ((Handler<G, T>) h) + handler;
             }
 
-            public readonly void Remove(Handler<T> handler)
+            public readonly void Remove(Handler<G, T> handler)
             {
                 ref var h = ref EventHandlers.Handlers[EventIndex];
-                h = ((Handler<T>) h) - handler;
+                h = ((Handler<G, T>) h) - handler;
             }
 
-            public readonly Handler<T> Get() => (Handler<T>) EventHandlers.Handlers[EventIndex];
-            public readonly void Set(Handler<T> handler) => EventHandlers.Handlers[EventIndex] = handler;
-            public readonly void Handle(GameContext game, ref T eventData)
+            public readonly Handler<G, T> Get() => (Handler<G, T>) EventHandlers.Handlers[EventIndex];
+            public readonly void Set(Handler<G, T> handler) => EventHandlers.Handlers[EventIndex] = handler;
+            public readonly void Handle(G game, ref T eventData)
             {
                 Get()?.Invoke(game, ref eventData);
             }
-            public readonly void Handle(GameContext game, T eventData) => Handle(game, ref eventData);
+            public readonly void Handle(G game, T eventData) => Handle(game, ref eventData);
         }
         
-        public static void HandleWithContinueCheck<T>(this Proxy<T> proxy, GameContext game, ref T eventData)
+        public static void HandleWithContinueCheck<G, T>(this Proxy<G, T> proxy, G game, ref T eventData)
             where T : struct, IContinue
         {
             assert(eventData.Continue);
@@ -1101,7 +1095,7 @@ namespace Zayats.Core
             int index = 0;
             do
             {
-                var handler = (Handler<T>) invocationList[index];
+                var handler = (Handler<G, T>) invocationList[index];
                 handler(game, ref eventData);
                 index++;
             }
@@ -1111,6 +1105,18 @@ namespace Zayats.Core
         public interface IContinue
         {
             bool Continue { get; }
+        }
+    }
+
+
+    public static partial class GameEvents
+    {
+        public static Events.Storage CreateStorage()
+        {
+            return new Events.Storage
+            {
+                Handlers = new object[Count],
+            };
         }
 
         public struct PlayerMovedContext
@@ -1132,14 +1138,14 @@ namespace Zayats.Core
         }
         public static readonly TypedIdentifier<PlayerPositionChangedContext> OnPositionChanged = new(1);
         public static readonly TypedIdentifier<int> OnPlayerWon = new(2);
-        public static readonly TypedIdentifier<ItemInteractionInfo> OnThingPickedUp = new(3);
-        public struct SavePlayerContext : IContinue
+        public static readonly TypedIdentifier<ItemInterationContext> OnThingPickedUp = new(3);
+        public struct SavePlayerContext : Events.IContinue
         {
             public bool WasSaved;
             public Data.Reason SaveReason;
             public Logic.KillPlayerContext Kill;
 
-            readonly bool IContinue.Continue => !WasSaved;
+            readonly bool Events.IContinue.Continue => !WasSaved;
         }
         public static readonly TypedIdentifier<SavePlayerContext> OnTrySavePlayer = new(4);
 
@@ -1160,8 +1166,8 @@ namespace Zayats.Core
         public static readonly TypedIdentifier<RespawnPositionChanged> OnRespawnPositionPopped = new(6);
         public static readonly TypedIdentifier<RespawnPositionChanged> OnRespawnPositionPushed = new(7);
         public static readonly TypedIdentifier<Logic.KillPlayerContext> OnPlayerDied = new(8);
-        public static readonly TypedIdentifier<ItemInteractionInfo> OnItemAddedToInventory = new(9);
-        public static readonly TypedIdentifier<ItemInteractionInfo> OnItemRemovedFromInventory = new(10);
+        public static readonly TypedIdentifier<ItemInterationContext> OnItemAddedToInventory = new(9);
+        public static readonly TypedIdentifier<ItemRemovedContext> OnItemRemovedFromInventory = new(10);
         public struct NextTurnContext
         {
             public int PreviousPlayerIndex;
@@ -1223,6 +1229,7 @@ namespace Zayats.Core
 
             public readonly List<int>[] Cells => Board.Cells;
             public readonly ArraySegment<List<int>> IntermediateCells => Cells.AsArraySegment(1, Cells.Length - 2);
+            public readonly ref Player CurrentPlayer => ref Players[CurrentPlayerIndex];
         }
 
         [Serializable]
@@ -1326,7 +1333,14 @@ namespace Zayats.Core
         public static readonly TypedIdentifier<object> AttachedPickupDelegateId = new(7);
         public static readonly TypedIdentifier<int> RespawnPointIdId = new(8);
         public static readonly TypedIdentifier<ThingFlags> FlagsId = new(9);
-        public const int Count = 10;
+
+        public struct ActivatedItem
+        {
+            public ActivatedItemKind Kind;
+            public int Payload;
+        }
+        public static readonly TypedIdentifier<ActivatedItem> ActivatedItemId = new(10);
+        public const int Count = 11;
 
         public static ComponentStorage<T> CreateStorage<T>(TypedIdentifier<T> id, int initialSize = 4)
         {

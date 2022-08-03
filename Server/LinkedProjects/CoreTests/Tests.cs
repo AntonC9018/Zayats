@@ -4,7 +4,7 @@ using Xunit;
 
 namespace Zayats.Core.Facts
 {
-    using static Zayats.Core.Events;
+    using static Zayats.Core.GameEvents;
     using Assert = Xunit.Assert;
     
     public class PredictableRandom : IRandom
@@ -63,6 +63,8 @@ namespace Zayats.Core.Facts
             Components.InitializeStorage(game, Components.AttachedPickupDelegateId);
             Components.InitializeStorage(game, Components.RespawnPointIdId);
             Components.InitializeStorage(game, Components.FlagsId);
+            Components.InitializeStorage(game, Components.ActivatedItemId);
+            
             Assert.True(game.State.ComponentsByType.All(f => f is not null), "Not all component storage units have been initialized.");
 
             return (game, rand);
@@ -279,7 +281,7 @@ namespace Zayats.Core.Facts
             AddSolidThing(game, ref id, 4);
             AddSolidThing(game, ref id, 7);
 
-            game.GetEventProxy(Events.OnPositionChanged).Add(
+            game.GetEventProxy(GameEvents.OnPositionChanged).Add(
                 (GameContext game, ref PlayerPositionChangedContext context) =>
                 {
                     var kind = context.InitialMoveCount switch
@@ -315,7 +317,7 @@ namespace Zayats.Core.Facts
             AddSolidThing(game, ref id, 3);
             AddSolidThing(game, ref id, 5);
 
-            game.GetEventProxy(Events.OnPositionChanged).Add(
+            game.GetEventProxy(GameEvents.OnPositionChanged).Add(
                 (GameContext game, ref PlayerPositionChangedContext context) =>
                 {
                     var expectedKind = context.InitialMoveCount switch

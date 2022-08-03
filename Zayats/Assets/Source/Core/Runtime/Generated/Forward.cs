@@ -6,7 +6,26 @@
 
 namespace Zayats.Core
 {
-    public static partial class Events
+
+    // public partial struct AddItemContext
+    // {
+    //     [Forward] public ItemInterationContext PlayerInteration;
+    //     public static implicit operator ItemInterationContext(AddItemContext context) => context.PlayerInteration;
+    // }
+
+    public partial struct ItemRemovedContext
+    {
+        public int ItemId { readonly get => PlayerInteration.ItemId; set => PlayerInteration.ItemId
+                                                                    = value; }
+        public int ThingId { readonly get => PlayerInteration.ThingId; set => PlayerInteration.ThingId = value; }
+        public int PlayerIndex { readonly get => PlayerInteration.PlayerIndex; set => PlayerInteration.PlayerIndex = value; }
+        public int Position { readonly get => PlayerInteration.Position; set => PlayerInteration.Position = value; }
+    }
+}
+
+namespace Zayats.Core
+{
+    public static partial class GameEvents
     {
         public partial struct PlayerPositionChangedContext
         {
