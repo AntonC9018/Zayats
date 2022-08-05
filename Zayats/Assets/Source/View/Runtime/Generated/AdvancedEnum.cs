@@ -8,6 +8,64 @@ namespace Zayats.Unity.View.Generated
 {
     using System;
     [Serializable]
+    public partial struct CornersArray<T>
+    {
+        public /*readonly*/ T[] Values;
+        private CornersArray(T[] values) => Values = values;
+        public static CornersArray<T> Create() => new CornersArray<T>(new T[3]);
+        public readonly ref T GetRef(Zayats.Unity.View.Corners key)
+        {
+            return ref Values[(int) key];
+        }
+        public readonly T Get(Zayats.Unity.View.Corners key)
+        {
+            return Values[(int) key];
+        }
+        public readonly void Set(Zayats.Unity.View.Corners key, T value)
+        {
+            Values[(int) key] = value;
+        }
+        public readonly ref T TopLeftRef => ref Values[(int) Zayats.Unity.View.Corners.TopLeft];
+        public T TopLeft
+        {
+            readonly get => Values[(int) Zayats.Unity.View.Corners.TopLeft];
+            set => Values[(int) Zayats.Unity.View.Corners.TopLeft] = value;
+        }
+        public readonly ref T BottomRightRef => ref Values[(int) Zayats.Unity.View.Corners.BottomRight];
+        public T BottomRight
+        {
+            readonly get => Values[(int) Zayats.Unity.View.Corners.BottomRight];
+            set => Values[(int) Zayats.Unity.View.Corners.BottomRight] = value;
+        }
+        public readonly ref T BottomLeftRef => ref Values[(int) Zayats.Unity.View.Corners.BottomLeft];
+        public T BottomLeft
+        {
+            readonly get => Values[(int) Zayats.Unity.View.Corners.BottomLeft];
+            set => Values[(int) Zayats.Unity.View.Corners.BottomLeft] = value;
+        }
+        public static implicit operator T[](CornersArray<T> a) => a.Values;
+        public readonly T[] Array => Values;
+        public readonly ref T this[Zayats.Unity.View.Corners key] => ref GetRef(key);
+        public readonly ref T this[int index] => ref Values[index];
+        public readonly int Length => 3;
+        public static bool operator==(CornersArray<T> a, CornersArray<T> b)
+        {
+            for (int i = 0; i < a.Length; i++)
+                if (!a.Values[i].Equals(b.Values[i]))
+                    return false;
+            return true;
+        }
+        public static bool operator!=(CornersArray<T> a, CornersArray<T> b)
+        {
+            return !(a == b);
+        }
+        public void FixSize()
+        {
+            if (Values is null || Values.Length != Length)
+                System.Array.Resize(ref Values, Length);
+        }
+    }
+    [Serializable]
     public partial struct GameplayButtonArray<T>
     {
         public /*readonly*/ T[] Values;
@@ -54,6 +112,22 @@ namespace Zayats.Unity.View.Generated
         public readonly ref T this[Zayats.Unity.View.GameplayButtonKind key] => ref GetRef(key);
         public readonly ref T this[int index] => ref Values[index];
         public readonly int Length => 4;
+        public static bool operator==(GameplayButtonArray<T> a, GameplayButtonArray<T> b)
+        {
+            for (int i = 0; i < a.Length; i++)
+                if (!a.Values[i].Equals(b.Values[i]))
+                    return false;
+            return true;
+        }
+        public static bool operator!=(GameplayButtonArray<T> a, GameplayButtonArray<T> b)
+        {
+            return !(a == b);
+        }
+        public void FixSize()
+        {
+            if (Values is null || Values.Length != Length)
+                System.Array.Resize(ref Values, Length);
+        }
     }
     [Serializable]
     public partial struct GameplayTextArray<T>
@@ -102,6 +176,22 @@ namespace Zayats.Unity.View.Generated
         public readonly ref T this[Zayats.Unity.View.GameplayTextKind key] => ref GetRef(key);
         public readonly ref T this[int index] => ref Values[index];
         public readonly int Length => 4;
+        public static bool operator==(GameplayTextArray<T> a, GameplayTextArray<T> b)
+        {
+            for (int i = 0; i < a.Length; i++)
+                if (!a.Values[i].Equals(b.Values[i]))
+                    return false;
+            return true;
+        }
+        public static bool operator!=(GameplayTextArray<T> a, GameplayTextArray<T> b)
+        {
+            return !(a == b);
+        }
+        public void FixSize()
+        {
+            if (Values is null || Values.Length != Length)
+                System.Array.Resize(ref Values, Length);
+        }
     }
 }
 

@@ -89,7 +89,7 @@ struct KariContext
 struct Plugins
 {
     @disable this();
-    static immutable(string[]) kariInternal = ["Flags"];
+    static immutable(string[]) kariInternal = ["Flags", "DataObject"];
     static immutable(string[]) custom = ["AdvancedEnum", "Forward"];
 }
 

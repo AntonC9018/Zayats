@@ -1,0 +1,20 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build_kari",
+            "command": "dev",
+            "args": [ "kari", "build" ]
+        },
+        {
+            "label": "run_kari",
+            "command": "dev",
+            "args": [ "kari", "run" ]
+        },
+        {
+            "label": "build_plugins",
+            "command": "dev",
+            "args": [ "kari", "build", "--allPlugins" ]
+        }
+    ]
+}

@@ -84,6 +84,22 @@ namespace Zayats.Core.Generated
         public readonly ref T this[Zayats.Core.ThingKind key] => ref GetRef(key);
         public readonly ref T this[int index] => ref Values[index];
         public readonly int Length => 9;
+        public static bool operator==(ThingArray<T> a, ThingArray<T> b)
+        {
+            for (int i = 0; i < a.Length; i++)
+                if (!a.Values[i].Equals(b.Values[i]))
+                    return false;
+            return true;
+        }
+        public static bool operator!=(ThingArray<T> a, ThingArray<T> b)
+        {
+            return !(a == b);
+        }
+        public void FixSize()
+        {
+            if (Values is null || Values.Length != Length)
+                System.Array.Resize(ref Values, Length);
+        }
     }
 }
 

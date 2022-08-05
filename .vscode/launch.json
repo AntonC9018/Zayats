@@ -31,6 +31,12 @@
             "args": [],
             "stopAtEntry": false,
             "console": "internalConsole"
+        },
+        {
+            "name": "Unity Editor",
+            "type": "unity",
+            "path": "${workspaceFolder}/Zayats/Library/EditorInstance.json",
+            "request": "launch"
         }
     ]
 }
