@@ -15,6 +15,7 @@ using System.Threading.Tasks;
 using Common;
 using static Zayats.Core.GameEvents;
 using Kari.Plugins.Forward;
+using DG.Tweening;
 
 namespace Zayats.Unity.View
 {
@@ -63,6 +64,8 @@ namespace Zayats.Unity.View
     {
         public ViewState State;
         public GameContext Game;
+        public SetupConfiguration SetupConfiguration;
+        public ref VisualConfiguration Visual => ref SetupConfiguration.Visual; 
         public UIContext UI;
         public Events.Storage Events { get; set; }
     }
@@ -212,9 +215,17 @@ namespace Zayats.Unity.View
     }
 
     [Serializable]
-    public struct SetupConfiguration
+    public struct VisualConfiguration
+    {
+        [Range(0.0f, 2.0f)]
+        public float AnimationSpeed;
+    }
+
+    [Serializable]
+    public class SetupConfiguration
     {
         public UIReferences UI;
+        public VisualConfiguration Visual;
         public GameConfiguration Game;
     }
 
@@ -545,7 +556,9 @@ namespace Zayats.Unity.View
             _view.GetEventProxy(ViewEvents.OnItemInteractionStarted).Add(
                 (ViewContext view, ref ActivatedItemHandling itemH) =>
                 {
-                    Debug.Log("Started");
+                    var scrollRect = view.UI.ItemScrollRect;
+                    var targetPos = scrollRect.GetContentLocalPositionToScrollChildIntoView(itemH.Index);
+                    scrollRect.content.DOLocalMove(targetPos, view.Visual.AnimationSpeed);
                 });
 
             _view.GetEventProxy(ViewEvents.OnItemInteractionCancelled).Add(

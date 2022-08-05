@@ -170,6 +170,8 @@ MonoBehaviour:
       ItemScrollRect: {fileID: 1954899523}
       BuyButtonPrefab: {fileID: 0}
       ParentForOldItems: {fileID: 523480899}
+    Visual:
+      AnimationSpeed: 1
     Game:
       PrefabsToSpawn:
         Values:
