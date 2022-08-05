@@ -274,11 +274,6 @@ namespace Zayats.Unity.View
 
         public void OnValidate()
         {
-            static bool IsNullOrEmpty<T>(T[] arr)
-            {
-                return arr is null || arr.Length == 0;
-            }
-
             ref var gameConfig = ref _config.Game;
 
             if (gameConfig.PlayerCharacterColors is null
@@ -288,7 +283,6 @@ namespace Zayats.Unity.View
             }
             gameConfig.CountsToSpawn.RespawnPoint = gameConfig.CountsToSpawn.Tower;
         }
-
         
 
         private GameContext InitializeGame()

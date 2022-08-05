@@ -204,7 +204,7 @@ SpriteRenderer:
   m_Size: {x: 1, y: 1}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
-  m_WasSpriteAssigned: 1
+  m_WasSpriteAssigned: 0
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
 --- !u!1 &68506408
@@ -288,7 +288,7 @@ SpriteRenderer:
   m_Size: {x: 1, y: 1}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
-  m_WasSpriteAssigned: 1
+  m_WasSpriteAssigned: 0
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
 --- !u!1 &274157949
@@ -458,6 +458,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4f231c4fb786f3946a6b90b886c48677, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_SendPointerHoverToParent: 1
   m_HorizontalAxis: Horizontal
   m_VerticalAxis: Vertical
   m_SubmitButton: Submit
@@ -659,52 +660,38 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ede2ccd48acddac4d966665b75adc8b7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  VisualCells:
-  - {fileID: 3767281}
-  - {fileID: 1156025004}
-  - {fileID: 1791297737}
-  - {fileID: 1410199505}
-  - {fileID: 1510196005}
-  - {fileID: 68506409}
-  - {fileID: 1781177235}
-  - {fileID: 1870409604}
-  - {fileID: 697231575}
-  - {fileID: 2016595052}
-  CountsToSpawn:
-    Values: 020000000000000000000000060000000000000000000000010000000000000000000000
-  PrefabsToSpawn:
-    Values:
-    - {fileID: 3774758881139110045, guid: 875c3e9599022804a856584928a8b309, type: 3}
-    - {fileID: 1293711456046588184, guid: 366c2b53f976f8e468941fa38adafef1, type: 3}
-    - {fileID: 7881211866911066594, guid: b6f6c5935ad87ac4a84c2b37924304f4, type: 3}
-    - {fileID: 8453468697743504471, guid: a0201f2d090ac4b449b8b66a882ace2c, type: 3}
-    - {fileID: 8453468697743504471, guid: a0201f2d090ac4b449b8b66a882ace2c, type: 3}
-    - {fileID: 8516213763366042117, guid: bd489cd99ae680e4c83f9d7c2bd911fb, type: 3}
-    - {fileID: 5002550212693235779, guid: da12648425fff2e4e8f1dd5b885d417b, type: 3}
-    - {fileID: 455958833997145204, guid: 46846f3c52a234f47a30e57db5a1884b, type: 3}
-    - {fileID: 455958833997145204, guid: 46846f3c52a234f47a30e57db5a1884b, type: 3}
-  ItemCosts:
-    Values: 000000000000000000000000000000000000000000000000020000000000000000000000
-  GameplayButtons:
-    Values:
-    - {fileID: 740110027}
-    - {fileID: 616911965}
-    - {fileID: 1199123530}
-    - {fileID: 536850535}
-    - {fileID: 788793583}
-  GameplayText:
-    Values:
-    - {fileID: 1058004559}
-    - {fileID: 1332562280}
-    - {fileID: 369635975}
-    - {fileID: 1018618562}
-  HolderPrefab: {fileID: 2351451263638466284, guid: 78905d10381e6bf4c8e36ff568f1a69d, type: 3}
-  ItemHolderHolder: {fileID: 1974683625}
-  PlayerCharacterColors:
-  - {r: 1, g: 0, b: 0, a: 1}
-  - {r: 0.043704987, g: 0, b: 1, a: 1}
-  ShopPositions: 01000000020000000300000004000000050000000600000007000000
-  BuyButtonPrefab: {fileID: 0}
+  _config:
+    UI:
+      VisualCells: []
+      GameplayButtons:
+        Values:
+        - {fileID: 0}
+        - {fileID: 0}
+        - {fileID: 0}
+        - {fileID: 0}
+      GameplayText:
+        Values: []
+      ItemScrollRect: {fileID: 0}
+      BuyButtonPrefab: {fileID: 0}
+      ParentForOldItems: {fileID: 0}
+    Game:
+      PrefabsToSpawn:
+        Values:
+        - {fileID: 0}
+        - {fileID: 0}
+        - {fileID: 0}
+        - {fileID: 0}
+        - {fileID: 0}
+        - {fileID: 0}
+        - {fileID: 0}
+        - {fileID: 0}
+        - {fileID: 0}
+      CountsToSpawn:
+        Values: 000000000000000000000000000000000000000000000000000000000000000000000000
+      ItemCosts:
+        Values: 000000000000000000000000000000000000000000000000000000000000000000000000
+      PlayerCharacterColors: []
+      ShopPositions: 
 --- !u!4 &488741827
 Transform:
   m_ObjectHideFlags: 0
@@ -1045,7 +1032,7 @@ SpriteRenderer:
   m_Size: {x: 1, y: 1}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
-  m_WasSpriteAssigned: 1
+  m_WasSpriteAssigned: 0
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
 --- !u!1 &740110025
@@ -1251,7 +1238,7 @@ SpriteRenderer:
   m_Size: {x: 1, y: 1}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
-  m_WasSpriteAssigned: 1
+  m_WasSpriteAssigned: 0
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
 --- !u!1 &788793581
@@ -2117,7 +2104,7 @@ SpriteRenderer:
   m_Size: {x: 1, y: 1}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
-  m_WasSpriteAssigned: 1
+  m_WasSpriteAssigned: 0
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
 --- !u!1 &1199123528
@@ -2458,7 +2445,7 @@ SpriteRenderer:
   m_Size: {x: 1, y: 1}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
-  m_WasSpriteAssigned: 1
+  m_WasSpriteAssigned: 0
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
 --- !u!1 &1412827571
@@ -2814,7 +2801,7 @@ SpriteRenderer:
   m_Size: {x: 1, y: 1}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
-  m_WasSpriteAssigned: 1
+  m_WasSpriteAssigned: 0
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
 --- !u!1 &1561664031
@@ -3219,7 +3206,7 @@ SpriteRenderer:
   m_Size: {x: 1, y: 1}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
-  m_WasSpriteAssigned: 1
+  m_WasSpriteAssigned: 0
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
 --- !u!1 &1791297736
@@ -3303,7 +3290,7 @@ SpriteRenderer:
   m_Size: {x: 1, y: 1}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
-  m_WasSpriteAssigned: 1
+  m_WasSpriteAssigned: 0
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
 --- !u!1 &1870409603
@@ -3387,7 +3374,7 @@ SpriteRenderer:
   m_Size: {x: 1, y: 1}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
-  m_WasSpriteAssigned: 1
+  m_WasSpriteAssigned: 0
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
 --- !u!1 &1974683624
@@ -3620,7 +3607,7 @@ SpriteRenderer:
   m_Size: {x: 1, y: 1}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
-  m_WasSpriteAssigned: 1
+  m_WasSpriteAssigned: 0
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
 --- !u!1 &2137405571
