@@ -134,58 +134,89 @@ namespace Zayats.Unity.View
             // TODO
         }
 
-        public static bool TryStartHandlingItemInteraction(this ViewContext context, int itemIndex)
+        public static bool TryStartHandlingItemInteraction(this ViewContext view, int itemIndex)
         {
-            ref var itemH = ref context.State.ItemHandling;
+            ref var itemH = ref view.State.ItemHandling;
             assert(itemH.Progress == 0);
 
-            int thingItemId = context.Game.State.CurrentPlayer.Items[itemIndex];
-            if (context.Game.TryGetComponentValue(Components.ActivatedItemId, thingItemId, out var activatedItem))
+            int thingItemId = view.Game.State.CurrentPlayer.Items[itemIndex];
+            if (view.Game.TryGetComponent(Components.ActivatedItemId, thingItemId, out var activatedItemProxy))
             {
-                switch (activatedItem.Kind)
+                ref var state = ref view.Game.State;
+                var itemContext = new ItemInterationContext
                 {
-                    case ActivatedItemKind.None:
-                    {
-                        break;
-                    }
-                    case ActivatedItemKind.SelectCell:
-                    {
-                        var cells = context.UI.VisualCells;
-                        context.HighlightCells(cells);
-                        break;
-                    }
-                    case ActivatedItemKind.SelectEmptyCell:
-                    {
-                        var emptyCells = context.UI.VisualCells
-                            .Where((a, i) => context.Game.State.Cells[i].Count == 0)
-                            // .Select((a, i) => (a, i))
-                            .ToArray();
+                    ItemId = state.CurrentPlayer.Items[itemIndex],
+                    PlayerIndex = state.CurrentPlayerIndex,
+                    Position = state.CurrentPlayer.Position,
+                };
 
-                        // Payload in this case means cell count
-                        if (emptyCells.Length < activatedItem.Payload)
+                var activatedItem = activatedItemProxy.Value;
+                var filter = activatedItem.Filter;
+                var targetKind = filter.Kind;
+
+                if (targetKind == TargetKind.None)
+                {
+                    // Immediately activate the item.
+                    view.Game.UseItem(new()
+                    {
+                        Interaction = itemContext,
+                        Item = activatedItemProxy,
+                        SelectedTargets = Array.Empty<int>(),
+                    });
+                }
+                else
+                {
+                    var valid = filter.GetValid(view.Game, itemContext).ToArray();
+
+                    string Subject()
+                    {
+                        switch (targetKind)
                         {
-                            context.DisplayTip($"Not enough empty cells (required {activatedItem.Payload}).");
-                            return false;
+                            default: panic("?" + targetKind); return null;
+                            case TargetKind.Cell:   return "cells";
+                            case TargetKind.Player: return "players";
+                            case TargetKind.Thing:  return "things";
                         }
-                        context.HighlightCells(emptyCells);
-                        break;
                     }
-                    case ActivatedItemKind.SelectPlayer:
+
+                    // Payload in this case means cell count
+                    if (valid.Length < activatedItem.Count)
                     {
-                        break;
+                        view.DisplayTip($"Not enough {Subject()} (required {activatedItem.Count}, available {valid.Length}).");
+                        return false;
                     }
-                    case ActivatedItemKind.SelectPlayerOtherThanSelf:
+
+                    switch (targetKind)
                     {
-                        break;
+                        default: panic($"Unimplemented case: {targetKind}"); break;
+
+                        case TargetKind.Cell:
+                        {
+                            // TODO: enumerate into a reusable buffer.
+                            var cells = valid;
+                            view.HighlightCells(cells.Select(c => view.UI.VisualCells[c]));
+                            break;
+                        }
+                        case TargetKind.Player:
+                        {
+                            var players = valid;
+                            break;
+                        }
+                        case TargetKind.Thing:
+                        {
+                            panic("Unimplemented");
+                            break;
+                        }
                     }
+                    
+                    itemH.ThingId = thingItemId;
+                    itemH.Progress = 1;
+                    itemH.Index = itemIndex;
+                    itemH.ActivatedItem = activatedItem;
+
+                    view.HandleEvent(ViewEvents.OnItemInteractionStarted, ref itemH);
                 }
                 
-                itemH.ThingId = thingItemId;
-                itemH.Progress = 1;
-                itemH.Index = itemIndex;
-                itemH.ActivatedItem = activatedItem;
-
-                context.HandleEvent(ViewEvents.OnItemInteractionStarted, ref itemH);
                 return true;
             }
 
@@ -456,7 +487,7 @@ namespace Zayats.Unity.View
             var pickupDelegateStorage = Components.InitializeStorage(Game, Components.AttachedPickupDelegateId);
             var respawnPointIdStorage = Components.InitializeStorage(Game, Components.RespawnPointIdId, countsToSpawn.Tower);
             var flagsStorage = Components.InitializeStorage(Game, Components.FlagsId, mineCount);
-            Components.InitializeStorage(Game, Components.ActivatedItemId);
+            var activatedItemStorage = Components.InitializeStorage(Game, Components.ActivatedItemId);
 
             assertNoneNull(Game.State.ComponentsByType);
 
@@ -593,6 +624,20 @@ namespace Zayats.Unity.View
                         SpawnRandomly(spawnRandom, id, obj);
                         break;
                     }
+                    case ThingKind.Snake:
+                    {
+                        activatedItemStorage.Add(id).Value = new()
+                        {
+                            Filter = NearbyOtherPlayersFilter.Instance,
+                            Action = new KillPlayersAction(Reasons.PoisonId),
+                            Count = 1,
+                            InitialUses = short.MaxValue,
+                            UsesLeft = short.MaxValue,
+                        };
+                        pickupStorage.Add(id).Value = PlayerInventoryPickup.Instance;
+                        Game.AddThingToShop(id);
+                        break;
+                    }
                 }
                 id++;
             }
@@ -694,7 +739,7 @@ namespace Zayats.Unity.View
                         
                     var s = _view.LastAnimationSequence;
                     // Placeholder rotation animation
-                    s.AppendInterval(_view.Visual.AnimationSpeed.UI);
+                    // s.AppendInterval(_view.Visual.AnimationSpeed.UI);
                     s.AppendCallback(() => UI.GameplayText.RollValue.text = val);
                 });
 

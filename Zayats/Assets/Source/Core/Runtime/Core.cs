@@ -676,6 +676,48 @@ namespace Zayats.Core
                 Position = player.Position,
             });
         }
+
+        public struct UseItemContext
+        {
+            public ItemInterationContext Interaction;
+            public ComponentProxy<Components.ActivatedItem> Item;
+            public int[] SelectedTargets;
+        }
+
+        public static bool ValidateItemUse(this GameContext game, UseItemContext context)
+        {
+            ref var item = ref context.Item.Value;
+            var distinct = context.SelectedTargets.Distinct().ToArray();
+            if (distinct.Length != context.SelectedTargets.Length)
+                return false;
+
+            var validTargets = item.Filter.GetValid(game, context.Interaction).ToHashSet();
+            foreach (var t in context.SelectedTargets)
+            {
+                if (!validTargets.Contains(t))
+                    return false;
+            }
+            return true;
+        }
+
+        public static void UseItem(this GameContext game, UseItemContext context)
+        {
+            assert(ValidateItemUse(game, context));
+            
+            ref var item = ref context.Item.Value;
+            item.Action.DoAction(game, context.Interaction, Array.Empty<int>());
+
+            if (item.UsesLeft != short.MaxValue)
+            {
+                item.UsesLeft--;
+                if (item.UsesLeft == 0)
+                {
+                    // TODO: return to shop or whatever if pickup
+                    item.UsesLeft = item.InitialUses;
+                    // TODO: destroy if not pickup
+                }
+            }
+        }
     }
 
     [Serializable]
@@ -763,9 +805,9 @@ namespace Zayats.Core
             return GetDataInItems<T>(game, componentId.Id, playerIndex);
         }
 
-        public static IEnumerable<ListItemComponentProxy<T>> GetDataInCell<T>(this GameContext game, TypedIdentifier<T> componentId, int cellId)
+        public static IEnumerable<ListItemComponentProxy<T>> GetDataInCell<T>(this GameContext game, TypedIdentifier<T> componentId, int cellIndex)
         {
-            return GetDataInCell<T>(game, componentId.Id, cellId);
+            return GetDataInCell<T>(game, componentId.Id, cellIndex);
         }
 
         public static ComponentStorage<T> GetComponentStorage<T>(this GameContext game, int componentId)
@@ -1262,6 +1304,7 @@ namespace Zayats.Core
         public const int UnknownId = 0;
         public const int ExplosionId = 1;
         public const int MagicId = 2;
+        public const int PoisonId = 3;
 
         public static Data.Reason Unknown => new Data.Reason { Id = UnknownId };
         public static Data.Reason Explosion(int explodedThingId) => new Data.Reason { Id = ExplosionId, Payload = explodedThingId };
@@ -1346,8 +1389,11 @@ namespace Zayats.Core
 
         public struct ActivatedItem
         {
-            public ActivatedItemKind Kind;
-            public int Payload;
+            public ITargetFilter Filter;
+            public ITargetedActivatedAction Action;
+            public short Count;
+            public short UsesLeft;
+            public short InitialUses;
         }
         public static readonly TypedIdentifier<ActivatedItem> ActivatedItemId = new(10);
         public const int Count = 11;

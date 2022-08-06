@@ -16,6 +16,7 @@ namespace Zayats.Core
         Rabbit,
         Tower,
         Horse,
+        Snake,
     }
 
     [NiceFlags]

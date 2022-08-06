@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using Kari.Plugins.Forward;
 
 namespace Zayats.Core
@@ -263,12 +265,130 @@ namespace Zayats.Core
         public bool ShouldRemoveFromCellOnPickup(GameContext game, ItemInterationContext info) => true;
     }
 
-    public enum ActivatedItemKind
+    public enum TargetKind
     {
         None,
-        SelectCell,
-        SelectEmptyCell,
-        SelectPlayer,
-        SelectPlayerOtherThanSelf,
+        Cell,
+        Player,
+        Thing,
     }
+
+    public interface ITargetFilter
+    {
+        TargetKind Kind { get; }
+
+        // Returns either cells indices, player indices or thing id's
+        IEnumerable<int> GetValid(GameContext game, ItemInterationContext context);
+    }
+
+    public sealed class NearbyOtherPlayersFilter : ITargetFilter
+    {
+        public static readonly NearbyOtherPlayersFilter Instance = new();
+        public TargetKind Kind => TargetKind.Player;
+        public IEnumerable<int> GetValid(GameContext game, ItemInterationContext context)
+        {
+            if (context.Position == 0)
+                yield break;
+
+            {
+                var pos = context.Position - 1;
+                if (pos > 0)
+                {
+                    foreach (var p in game.GetDataInCell(Components.PlayerId, cellIndex: pos))
+                        yield return p.Value.PlayerIndex;
+                }
+            }
+            // Even though the player over topples over other players,
+            // that mechanic might be disabled or different.
+            {
+                var pos = context.Position;
+                if (pos < game.State.Cells.Length - 1)
+                {
+                    foreach (var p in game.GetDataInCell(Components.PlayerId, cellIndex: pos))
+                    {
+                        int i = p.Value.PlayerIndex;
+                        if (i != context.PlayerIndex)
+                            yield return i;
+                    }
+                }
+            }
+            {
+                var pos = context.Position + 1;
+                if (pos < game.State.Cells.Length - 1)
+                {
+                    foreach (var p in game.GetDataInCell(Components.PlayerId, cellIndex: pos))
+                        yield return p.Value.PlayerIndex;
+                }
+            }
+        }
+    }
+
+    public sealed class UnoccupiedCellFilter : ITargetFilter
+    {
+        public static readonly UnoccupiedCellFilter Instance = new();
+        public TargetKind Kind => TargetKind.Cell;
+        public IEnumerable<int> GetValid(GameContext game, ItemInterationContext context)
+        {
+            var cells = game.State.Cells;
+            for (int i = 0; i < cells.Length; i++)
+            {
+                if (cells[i].Count == 0)
+                    yield return i;
+            }
+        }
+    }
+
+    public sealed class NoTargetFilter : ITargetFilter
+    {
+        public static readonly NoTargetFilter Instance = new();
+        public TargetKind Kind => TargetKind.None;
+        public IEnumerable<int> GetValid(GameContext game, ItemInterationContext context)
+        {
+            return Enumerable.Empty<int>();
+        }
+    }
+
+    public interface ITargetedActivatedAction
+    {
+        void DoAction(GameContext game, ItemInterationContext context, IEnumerable<int> targets);
+    }
+
+    public sealed class KillPlayersAction : ITargetedActivatedAction
+    {
+        public int ReasonId { get; }
+        public KillPlayersAction(int reasonId)
+        {
+            ReasonId = reasonId;
+        }
+
+        public void DoAction(GameContext game, ItemInterationContext context, IEnumerable<int> targets)
+        {
+            foreach (var t in targets)
+            {
+                game.KillPlayer(new()
+                {
+                    PlayerIndex = t,
+                    Reason = new()
+                    {
+                        Id = ReasonId,
+                        Payload = context.ThingId,
+                    }
+                });
+            }
+        }
+    }
+
+    // public class ActivatedItemConfig
+    // {
+    //     public IActivatedAction Action { get; }
+    //     public ITargetFilter Filter { get; }
+    //     public int InitialUses { get; }
+
+    //     public ActivatedItemConfig(IActivatedAction action, ITargetFilter filter, int initialUses)
+    //     {
+    //         Action = action;
+    //         Filter = filter;
+    //         InitialUses = initialUses;
+    //     }
+    // }
 }

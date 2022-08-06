@@ -9,6 +9,7 @@ using DG.Tweening;
 namespace Zayats.Unity.View
 {
     using static PointerEventData.InputButton;
+    using static Assert;
 
     [Serializable]
     public struct ButtonOverlay
@@ -34,6 +35,11 @@ namespace Zayats.Unity.View
                 // , ButtonOverlay buttonOverlay, Action<int> overlayButtonClickedAction
         )
         {
+            
+            assert(viewContext != null);
+            assert(viewport != null);
+            assert(holderPrefab != null);
+
             _viewContext = viewContext;
             _viewport = viewport;
             _prefab = holderPrefab;
@@ -52,15 +58,15 @@ namespace Zayats.Unity.View
             {
                 holder = GameObject.Instantiate(_prefab, parent: _viewport);
                 {
-                    var handler = holder.ItemFrameObject.AddComponent<PointerEnter<ItemContainers>>();
+                    var handler = holder.ItemFrameObject.AddComponent<PointerEnter>();
                     handler.Initialize(i, this);
                 }
                 {
-                    var handler = holder.ItemFrameObject.AddComponent<PointerExit<ItemContainers>>();
+                    var handler = holder.ItemFrameObject.AddComponent<PointerExit>();
                     handler.Initialize(i, this);
                 }
                 {
-                    var handler = holder.ItemFrameObject.AddComponent<PointerClick<ItemContainers>>();
+                    var handler = holder.ItemFrameObject.AddComponent<PointerClick>();
                     handler.Initialize(i, this);
                 }
                 _uiHolderInfos.Add(holder);
@@ -73,7 +79,7 @@ namespace Zayats.Unity.View
             return holder;
         }
 
-        private static readonly Vector3[] _WorldCornersCache;
+        private static readonly Vector3[] _WorldCornersCache = new Vector3[4];
 
         public void ChangeItems(
             IEnumerable<Transform> itemsToStore,
