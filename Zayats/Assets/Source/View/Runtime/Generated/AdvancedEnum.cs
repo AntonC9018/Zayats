@@ -8,6 +8,58 @@ namespace Zayats.Unity.View.Generated
 {
     using System;
     [Serializable]
+    public partial struct AnimationArray<T>
+    {
+        public /*readonly*/ T[] Values;
+        private AnimationArray(T[] values) => Values = values;
+        public static AnimationArray<T> Create() => new AnimationArray<T>(new T[2]);
+        public readonly ref T GetRef(Zayats.Unity.View.AnimationKind key)
+        {
+            return ref Values[(int) key];
+        }
+        public readonly T Get(Zayats.Unity.View.AnimationKind key)
+        {
+            return Values[(int) key];
+        }
+        public readonly void Set(Zayats.Unity.View.AnimationKind key, T value)
+        {
+            Values[(int) key] = value;
+        }
+        public readonly ref T UIRef => ref Values[(int) Zayats.Unity.View.AnimationKind.UI];
+        public T UI
+        {
+            readonly get => Values[(int) Zayats.Unity.View.AnimationKind.UI];
+            set => Values[(int) Zayats.Unity.View.AnimationKind.UI] = value;
+        }
+        public readonly ref T GameRef => ref Values[(int) Zayats.Unity.View.AnimationKind.Game];
+        public T Game
+        {
+            readonly get => Values[(int) Zayats.Unity.View.AnimationKind.Game];
+            set => Values[(int) Zayats.Unity.View.AnimationKind.Game] = value;
+        }
+        public static implicit operator T[](AnimationArray<T> a) => a.Values;
+        public readonly T[] Array => Values;
+        public readonly ref T this[Zayats.Unity.View.AnimationKind key] => ref GetRef(key);
+        public readonly ref T this[int index] => ref Values[index];
+        public readonly int Length => 2;
+        public static bool operator==(AnimationArray<T> a, AnimationArray<T> b)
+        {
+            for (int i = 0; i < a.Length; i++)
+                if (!a.Values[i].Equals(b.Values[i]))
+                    return false;
+            return true;
+        }
+        public static bool operator!=(AnimationArray<T> a, AnimationArray<T> b)
+        {
+            return !(a == b);
+        }
+        public void FixSize()
+        {
+            if (Values is null || Values.Length != Length)
+                System.Array.Resize(ref Values, Length);
+        }
+    }
+    [Serializable]
     public partial struct CornersArray<T>
     {
         public /*readonly*/ T[] Values;

@@ -13,7 +13,8 @@ namespace Zayats.Unity.View
             return a.Corners == b.Corners
                 && a.MapParent == b.MapParent
                 && a.CellPrefab == b.CellPrefab
-                && a.MaxMapSize == b.MaxMapSize;
+                && a.MaxMapSize == b.MaxMapSize
+                && a.TopToBottom == b.TopToBottom;
         }
         public static bool operator!=(SpawnMapStuff a, SpawnMapStuff b)
         {
@@ -25,6 +26,7 @@ namespace Zayats.Unity.View
             this.MapParent = other.MapParent;
             this.CellPrefab = other.CellPrefab;
             this.MaxMapSize = other.MaxMapSize;
+            this.TopToBottom = other.TopToBottom;
         }
         public override int GetHashCode()
         {
@@ -35,6 +37,7 @@ namespace Zayats.Unity.View
                 hash = hash * 23 + MapParent.GetHashCode();
                 hash = hash * 23 + CellPrefab.GetHashCode();
                 hash = hash * 23 + MaxMapSize.GetHashCode();
+                hash = hash * 23 + TopToBottom.GetHashCode();
                 return hash;
             }
         }

@@ -62,7 +62,7 @@ namespace Zayats.Core
         public static GameContext CreateGame(int cellCountNotIncludingStartAndFinish, int playerCount)
         {
             GameContext game = new();
-            game.EventHandlers = GameEvents.CreateStorage();
+            game.Events = GameEvents.CreateStorage();
             game.PostMovementMechanics = new()
             {
                 (g, c) => Logic.CollectPickupsAtCurrentPosition(g, c.PlayerIndex),
@@ -682,14 +682,12 @@ namespace Zayats.Core
     public class GameContext : IGetEvents
     {
         public Data.Game State;
-        public Events.Storage EventHandlers;
+        public Events.Storage Events { get; set; }
         public IRandom Random;
         public ILogger Logger;
 
         public delegate void PostMovementMechanic(GameContext game, Logic.MovementContext context);
         public List<PostMovementMechanic> PostMovementMechanics;
-
-        Events.Storage IGetEvents.Events => EventHandlers;
     }
 
     public interface ILogger
@@ -1063,6 +1061,24 @@ namespace Zayats.Core
                 h = ((Handler<G, T>) h) + handler;
             }
 
+            public readonly void Add(Action<G, T> handler)
+            {
+                ref var h = ref EventHandlers.Handlers[EventIndex];
+                h = ((Handler<G, T>) h) + ((G g, ref T t) => handler(g, t));
+            } 
+
+            public readonly void Add(Action<G> handler)
+            {
+                ref var h = ref EventHandlers.Handlers[EventIndex];
+                h = ((Handler<G, T>) h) + ((G g, ref T t) => handler(g));
+            }
+
+            public readonly void Add(Action handler)
+            {
+                ref var h = ref EventHandlers.Handlers[EventIndex];
+                h = ((Handler<G, T>) h) + ((G g, ref T t) => handler());
+            }
+
             public readonly void Remove(Handler<G, T> handler)
             {
                 ref var h = ref EventHandlers.Handlers[EventIndex];
@@ -1111,13 +1127,7 @@ namespace Zayats.Core
 
     public static partial class GameEvents
     {
-        public static Events.Storage CreateStorage()
-        {
-            return new Events.Storage
-            {
-                Handlers = new object[Count],
-            };
-        }
+        public static Events.Storage CreateStorage() => new(Count);
 
         public struct PlayerMovedContext
         {

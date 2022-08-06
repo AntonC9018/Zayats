@@ -67,6 +67,10 @@ namespace Zayats.Unity.View
         public SetupConfiguration SetupConfiguration;
         public ref VisualConfiguration Visual => ref SetupConfiguration.Visual; 
         public UIContext UI;
+
+        public LinkedList<Sequence> AnimationSequences;
+        public Sequence LastAnimationSequence => AnimationSequences.Last.Value;
+
         public Events.Storage Events { get; set; }
     }
 
@@ -86,6 +90,7 @@ namespace Zayats.Unity.View
         public GameplayTextArray<TMP_Text> GameplayText;
         public ScrollRect ItemScrollRect;
         public GameObject BuyButtonPrefab;
+        public UIHolderInfo ItemHolderPrefab;
         public Transform ParentForOldItems;
     }
 
@@ -110,12 +115,14 @@ namespace Zayats.Unity.View
 
     public static class ViewLogic
     {
-        public static void SetItemsForPlayer(this ViewContext context, int playerIndex)
+        public static void SetItemsForPlayer(this ViewContext view, int playerIndex)
         {
-            context.UI.ItemContainers.ChangeItems(
-                context.Game.State.CurrentPlayer.Items.Select(
-                    id => context.UI.ThingGameObjects[id].GetComponent<MeshRenderer>()),
-                context.UI.ParentForOldItems);
+            view.UI.ItemContainers.ChangeItems(
+                view.Game.State.CurrentPlayer.Items.Select(
+                    id => view.UI.ThingGameObjects[id].transform),
+                view.UI.ParentForOldItems,
+                view.LastAnimationSequence,
+                view.Visual.AnimationSpeed.UI);
         }
         public static void DisplayTip(this ViewContext context, string text)
         {
@@ -192,6 +199,114 @@ namespace Zayats.Unity.View
             context.HandleEvent(ViewEvents.OnItemInteractionCancelled, ref itemH);
             itemH.Progress = 0;
         }
+
+        public static Sequence BeginAnimationEpoch(this ViewContext context)
+        {
+            var sequences = context.AnimationSequences;
+            var s = DOTween.Sequence()
+                .OnComplete(() =>
+                {
+                    sequences.RemoveFirst();
+                    if (sequences.Count > 0)
+                        sequences.First.Value.Play();
+                });
+            if (sequences.Count != 0)
+                s.Pause();
+            sequences.AddLast(s);
+            return s;
+        }
+
+        public static Bounds GetCellOrThingBounds(Transform thing)
+        {
+            assert(thing.localScale == Vector3.one);
+            var (modelTransform, model) = thing.GetObject(ObjectHierarchy.Model);
+            var meshFilter = model.GetComponent<MeshFilter>();
+            var mesh = meshFilter.sharedMesh;
+            var bounds = mesh.bounds;
+            var localScale = modelTransform.localScale;
+            var b = new Bounds(
+                Vector3.Scale(bounds.center, localScale) + modelTransform.localPosition,
+                Vector3.Scale(bounds.size, localScale));
+            return b;
+        }
+
+        [Serializable]
+        public struct VisualInfo
+        {
+            public Transform OuterObject;
+            public MeshRenderer MeshRenderer;
+            public Bounds Bounds;
+            public Vector3 Normal;
+            public Vector3 TopCenterOffset;
+        }
+
+        public static VisualInfo GetCellVisualInfo(this ViewContext context, int cellIndex)
+        {
+            var cell = context.UI.VisualCells[cellIndex];
+            return GetInfo(cell);
+        }
+
+        public static VisualInfo GetThingVisualInfo(this ViewContext context, int thingIndex)
+        {
+            var thing = context.UI.ThingGameObjects[thingIndex];
+            return GetInfo(thing.transform);
+        }
+
+        public static VisualInfo GetInfo(Transform outerObject)
+        {
+            var (modelTransform, model) = outerObject.GetObject(ObjectHierarchy.Model);
+            var meshFilter = model.GetComponent<MeshFilter>();
+            var mesh = meshFilter.sharedMesh;
+            var bounds = mesh.bounds;
+            var localScale = modelTransform.localScale;
+            var b = new Bounds(
+                Vector3.Scale(bounds.center, localScale) + modelTransform.localPosition,
+                Vector3.Scale(bounds.size, localScale));
+            var normal = outerObject.up;
+
+            return new VisualInfo
+            {
+                OuterObject = outerObject,
+                MeshRenderer = model,
+                Bounds = bounds,
+                Normal = normal,
+                TopCenterOffset = Vector3.Scale(normal, bounds.extents)
+            };
+        }
+
+        public static ViewContext CreateView(this SetupConfiguration config)
+        {
+            var view = new ViewContext()
+            {
+                AnimationSequences = new(),
+                SetupConfiguration = config,
+                State = new(),
+                UI = new()
+                {
+                    Static = config.UI,
+                },
+                Events = ViewEvents.CreateStorage(),
+            };
+
+            view.UI.ItemBuyButtons = new List<GameObject>();
+            view.UI.ItemContainers = new ItemContainers(view, config.UI.ItemHolderPrefab, config.UI.ItemScrollRect.viewport); 
+
+            return view;
+        }
+    }
+
+
+    
+
+    public static class ObjectHierarchy
+    {
+        public static (Transform Transform, T Value) GetObject<T>(this Transform transform, TypedIdentifier<T> id)
+        {
+            var t = transform.GetChild(id.Id);
+            return (t, t.GetComponent<T>());
+        }
+
+        public static readonly TypedIdentifier<MeshRenderer> Model = new(0);
     }
     
     public static partial class ViewEvents
@@ -214,11 +329,21 @@ namespace Zayats.Unity.View
         public int[] ShopPositions;
     }
 
+    [GenerateArrayWrapper("AnimationArray")]
+    public enum AnimationKind
+    {
+        UI,
+        Game,
+    }
+
     [Serializable]
     public struct VisualConfiguration
     {
+        // [Range(0.0f, 2.0f)]
+        public AnimationArray<float> AnimationSpeed;
+
         [Range(0.0f, 2.0f)]
-        public float AnimationSpeed;
+        public float ToastTimeout;
     }
 
     [Serializable]
@@ -283,6 +408,8 @@ namespace Zayats.Unity.View
             }
         }
 
+        private List<UnityEngine.Object> _toDestroy;
+
         public void OnValidate()
         {
             ref var gameConfig = ref _config.Game;
@@ -329,6 +456,8 @@ namespace Zayats.Unity.View
             var pickupDelegateStorage = Components.InitializeStorage(Game, Components.AttachedPickupDelegateId);
             var respawnPointIdStorage = Components.InitializeStorage(Game, Components.RespawnPointIdId, countsToSpawn.Tower);
             var flagsStorage = Components.InitializeStorage(Game, Components.FlagsId, mineCount);
+            Components.InitializeStorage(Game, Components.ActivatedItemId);
+
             assertNoneNull(Game.State.ComponentsByType);
 
             var regularMinePickup = MinePickup.Regular;
@@ -338,26 +467,21 @@ namespace Zayats.Unity.View
             var horsePickup = new AddStatPickup(Stats.JumpAfterMoveCapacity, 1);
 
 
-            void ArrangeThings(int position)
+            void ArrangeThings(int position, Sequence animationSequence)
             {
                 var things = Game.State.Cells[position];
-                var spriteRenderer = UI.VisualCells[position].gameObject.GetComponent<SpriteRenderer>();
-                var bounds = spriteRenderer.bounds;
-                float availableSpaceY = spriteRenderer.bounds.extents.y * 2;
-                float offsetIncrement = -availableSpaceY / (things.Count + 1);
-                float offsetStart = offsetIncrement + availableSpaceY / 2;
+                var cellInfo = _view.GetCellVisualInfo(position);
+                Vector3 currentPos = cellInfo.OuterObject.position + cellInfo.TopCenterOffset;
 
                 for (int i = 0; i < things.Count; i++)
                 {
-                    var transform = UI.ThingGameObjects[things[i]].transform;
-                    Vector3 cellPosition = UI.VisualCells[position].position;
+                    var thing = _view.GetThingVisualInfo(things[i]);
                     
-                    Vector3 thingPosition;
-                    thingPosition.x = cellPosition.x;
-                    thingPosition.y = cellPosition.y + offsetStart + offsetIncrement * i;
-                    thingPosition.z = -(i + 1);
+                    Vector3 thingPosition = currentPos + thing.Bounds.center;
+                    var tween = thing.OuterObject.DOMove(thingPosition, _view.Visual.AnimationSpeed.Game);
+                    animationSequence.Join(tween);
 
-                    transform.position = thingPosition;
+                    currentPos += thing.TopCenterOffset;
                 }
             }
 
@@ -405,7 +529,12 @@ namespace Zayats.Unity.View
                             stats.Set(Stats.JumpAfterMoveCapacity, 0);
                         }
 
-                        obj.GetComponent<SpriteRenderer>().color = gameConfig.PlayerCharacterColors[instanceIndex];
+                        var (_, renderer) = obj.transform.GetObject(ObjectHierarchy.Model);
+                        var material = renderer.material;
+                        // Instance materials need to be cleaned up.
+                        // TODO: bring in the material search script.
+                        _toDestroy.Add(material);
+                        material.color = gameConfig.PlayerCharacterColors[instanceIndex];
 
                         SpawnOn(position: 0, id, obj);
                         break;
@@ -481,8 +610,12 @@ namespace Zayats.Unity.View
                 }
             }
 
+            var s = _view.BeginAnimationEpoch();
             for (int cellIndex = 0; cellIndex < UI.VisualCells.Length; cellIndex++)
-                ArrangeThings(cellIndex);
+                ArrangeThings(cellIndex, s);
+
+            Game.GetEventProxy(OnPositionChanged).Add(() => _view.BeginAnimationEpoch());
+            Game.GetEventProxy(OnCellContentChanged).Add(() => _view.BeginAnimationEpoch());
 
             Game.GetEventProxy(OnPositionChanged).Add(
                 (GameContext game, ref PlayerPositionChangedContext context) =>
@@ -497,15 +630,21 @@ namespace Zayats.Unity.View
                     int count = game.State.Cells[position].Count;
                     Debug.LogFormat("There are {0} things at {1}", count, position);
                     
-                    ArrangeThings(context.InitialPosition);
-                    ArrangeThings(position);
+                    var s = _view.LastAnimationSequence;
+                    ArrangeThings(context.InitialPosition, s);
+                    ArrangeThings(position, s);
                 });
 
             Game.GetEventProxy(OnPlayerWon).Add(
-                (GameContext game, ref int playerId) =>
+                (GameContext game, int playerId) =>
                 {
-                    UI.GameplayText.Win.text = $"{playerId} wins.";
-                    UI.GameplayText.Win.gameObject.SetActive(true);
+                    var win = UI.GameplayText.Win;
+                    win.gameObject.SetActive(true);
+                    win.text = $"{playerId} wins.";
+                    win.alpha = 0.0f;
+                    var fade = win.DOFade(255.0f, _view.Visual.AnimationSpeed.UI);
+
+                    _view.LastAnimationSequence.Join(fade);
                 });
 
             Game.GetEventProxy(GameEvents.OnItemAddedToInventory).Add(
@@ -533,7 +672,9 @@ namespace Zayats.Unity.View
                             // The component contains the amount that the coin represents.
                             totalAmount += currency.Value;
                         }
-                        UI.GameplayText.CoinCounter.text = totalAmount.ToString();
+                        var text = totalAmount.ToString();
+                        _view.LastAnimationSequence.AppendCallback(
+                            () => UI.GameplayText.CoinCounter.text = text);
                     }
                 });
 
@@ -541,7 +682,7 @@ namespace Zayats.Unity.View
                 (GameContext game, ref CellContentChangedContext context) =>
                 {
                     // This is ok, because it will be eventually animated.
-                    ArrangeThings(context.CellPosition);
+                    ArrangeThings(context.CellPosition, _view.LastAnimationSequence);
                 });
 
             Game.GetEventProxy(GameEvents.OnAmountRolled).Add(
@@ -550,15 +691,22 @@ namespace Zayats.Unity.View
                     string val = context.RolledAmount.ToString();
                     if (context.BonusAmount > 0)
                         val += " (+" + context.BonusAmount.ToString() + ")";
-                    UI.GameplayText.RollValue.text = val;
+                        
+                    var s = _view.LastAnimationSequence;
+                    // Placeholder rotation animation
+                    s.AppendInterval(_view.Visual.AnimationSpeed.UI);
+                    s.AppendCallback(() => UI.GameplayText.RollValue.text = val);
                 });
 
             _view.GetEventProxy(ViewEvents.OnItemInteractionStarted).Add(
                 (ViewContext view, ref ActivatedItemHandling itemH) =>
                 {
+                    // view.BeginAnimationEpoch();
+                    // view.LastAnimationSequence.Join(t);
+
                     var scrollRect = view.UI.ItemScrollRect;
                     var targetPos = scrollRect.GetContentLocalPositionToScrollChildIntoView(itemH.Index);
-                    scrollRect.content.DOLocalMove(targetPos, view.Visual.AnimationSpeed);
+                    var t = scrollRect.content.DOLocalMove(targetPos, view.Visual.AnimationSpeed.UI);
                 });
 
             _view.GetEventProxy(ViewEvents.OnItemInteractionCancelled).Add(
@@ -581,9 +729,14 @@ namespace Zayats.Unity.View
             return Game;
         }
 
-        public void Start()
+        void Start()
         {
-            UI.ItemBuyButtons = new();
+            DOTween.Init(
+                recycleAllByDefault: true,
+                useSafeMode: false,
+                logBehaviour: LogBehaviour.Verbose);
+            _view = ViewLogic.CreateView(_config);
+            _toDestroy = new();
 
             const int initialSeed = 5;
             Seed = initialSeed;
@@ -595,6 +748,7 @@ namespace Zayats.Unity.View
             var buttons = UI.GameplayButtons;
             buttons.Roll.onClick.AddListener(() =>
             {
+                _view.BeginAnimationEpoch();
                 Game.ExecuteCurrentPlayersTurn();
             });
 
@@ -615,6 +769,7 @@ namespace Zayats.Unity.View
             {
                 async Task DoBuying()
                 {
+                    _view.BeginAnimationEpoch();
                     assert(Game.State.Shop.Items.Count > 0);
                     
                     int itemIndex = 0;
@@ -661,10 +816,17 @@ namespace Zayats.Unity.View
                         }
                     }
 
+                    _view.BeginAnimationEpoch();
                     Game.EndBuyingThingFromShop(context, positions);
                 }
                 await DoBuying();
             });
+        }
+    
+        void OnDestroy()
+        {
+            foreach (var obj in _toDestroy)
+                Destroy(obj);
         }
     }
 }

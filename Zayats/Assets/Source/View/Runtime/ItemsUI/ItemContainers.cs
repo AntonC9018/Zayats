@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using Zayats.Core;
+using DG.Tweening;
 
 namespace Zayats.Unity.View
 {
@@ -29,7 +30,7 @@ namespace Zayats.Unity.View
         // private GameObject _buttonOverlay;
         // private Action<int> _overlayButtonClickedAction;
 
-        public void Initialize(ViewContext viewContext, UIHolderInfo holderPrefab, Transform viewport
+        public ItemContainers(ViewContext viewContext, UIHolderInfo holderPrefab, Transform viewport
                 // , ButtonOverlay buttonOverlay, Action<int> overlayButtonClickedAction
         )
         {
@@ -63,6 +64,7 @@ namespace Zayats.Unity.View
                     handler.Initialize(i, this);
                 }
                 _uiHolderInfos.Add(holder);
+                holder.OuterObject.SetActive(false);
             }
             else
             {
@@ -71,37 +73,41 @@ namespace Zayats.Unity.View
             return holder;
         }
 
+        private static readonly Vector3[] _WorldCornersCache;
+
         public void ChangeItems(
-            IEnumerable<MeshRenderer> itemsToStore,
-            Transform newParentForOldItems)
+            IEnumerable<Transform> itemsToStore,
+            Transform newParentForOldItems,
+            Sequence animationSequence,
+            float animationSpeed)
         {
-            {
-                for (int i = 0; i < _itemCount; i++)
-                    _uiHolderInfos[i].StoredItem.SetParent(newParentForOldItems, worldPositionStays: false);
-            }
+            animationSequence.AppendCallback(() =>
             {
                 int i = 0;
                 foreach (var item in itemsToStore)
-                {
-                    var holder = MaybeInitializeAt(i);
-                    holder.OuterObject.SetActive(true);
-                    
-                    // TODO:
-                    // measuring stuff, perhaps actually putting items in a completely different hierarchy and just
-                    // make their positions follow.
-                    {
-                        var t = item.transform;
-                        t.SetParent(holder.ItemFrameTransform, worldPositionStays: false);
-                        t.localPosition = holder.ItemFrameTransform.rect.center;
-                    }
-                    i++;
-                }
-
-                for (int j = i; j < _itemCount; j++)
-                    _uiHolderInfos[j].OuterObject.SetActive(false);
-                
+                    item.SetParent(_uiHolderInfos[i++].ItemFrameTransform, worldPositionStays: true);
                 _itemCount = i;
+            });
+
+            int i = 0;
+            {
+                foreach (var item in itemsToStore)
+                {
+                    var holder = MaybeInitializeAt(i++);
+                    var itemFrame = holder.ItemFrameTransform;
+                    itemFrame.GetWorldCorners(_WorldCornersCache);
+                    var center = (_WorldCornersCache[0] + _WorldCornersCache[2]) * 0.5f;
+                    var tween = item.DOMove(center, animationSpeed);
+                    animationSequence.Join(tween);
+                }
             }
+
+            animationSequence.AppendCallback(() =>
+            {
+                for (int j = i; j < _uiHolderInfos.Count; j++)
+                    _uiHolderInfos[j].OuterObject.SetActive(false);
+            });
+                
         }
 
         public void OnPointerEnter(int index, PointerEventData eventData)
