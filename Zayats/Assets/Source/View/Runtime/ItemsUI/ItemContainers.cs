@@ -80,6 +80,7 @@ namespace Zayats.Unity.View
         }
 
         private static readonly Vector3[] _WorldCornersCache = new Vector3[4];
+        private static readonly List<Transform> _GetChildrenCache = new();
 
         public void ChangeItems(
             IEnumerable<Transform> itemsToStore,
@@ -91,7 +92,11 @@ namespace Zayats.Unity.View
             {
                 int i = 0;
                 foreach (var item in itemsToStore)
-                    item.SetParent(_uiHolderInfos[i++].ItemFrameTransform, worldPositionStays: true);
+                {
+                    var h = _uiHolderInfos[i++];
+                    item.SetParent(h.ItemFrameTransform, worldPositionStays: true);
+                    h.OuterObject.SetActive(true);
+                }
                 _itemCount = i;
             });
 
@@ -99,11 +104,18 @@ namespace Zayats.Unity.View
             {
                 foreach (var item in itemsToStore)
                 {
+                    // UI layer
+                    item.GetComponentsInChildren<Transform>(_GetChildrenCache);
+                    foreach (var ch in _GetChildrenCache)
+                        ch.gameObject.layer = 5;
+
                     var holder = MaybeInitializeAt(i++);
                     var itemFrame = holder.ItemFrameTransform;
                     itemFrame.GetWorldCorners(_WorldCornersCache);
                     var center = (_WorldCornersCache[0] + _WorldCornersCache[2]) * 0.5f;
-                    var tween = item.DOMove(center, animationSpeed);
+
+                    var info = ViewLogic.GetInfo(item);
+                    var tween = item.DOMove(center - info.Center, animationSpeed);
                     animationSequence.Join(tween);
                 }
             }

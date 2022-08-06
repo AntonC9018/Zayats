@@ -266,9 +266,39 @@ namespace Zayats.Unity.View
         {
             public Transform OuterObject;
             public MeshRenderer MeshRenderer;
-            public Bounds Bounds;
+            public Vector3 Size;
+            public Vector3 Center;
             public Vector3 Normal;
-            public Vector3 TopCenterOffset;
+        }
+
+        public static VisualInfo GetInfo(Transform outerObject)
+        {
+            var (modelTransform, model) = outerObject.GetObject(ObjectHierarchy.Model);
+            // var meshFilter = model.GetComponent<MeshFilter>();
+            // var mesh = meshFilter.sharedMesh;
+            // var bounds = mesh.bounds;
+
+            // var scale = modelTransform.localScale;
+            // Vector3 Invert(Vector3 a)
+            // {
+            //     Vector3 result;
+            //     result.x = 1 / a.x;
+            //     result.y = 1 / a.y;
+            //     result.z = 1 / a.z;
+            //     return result;
+            // }
+
+            var bounds = model.bounds;
+            var normal = outerObject.up;
+
+            return new VisualInfo
+            {
+                OuterObject = outerObject,
+                MeshRenderer = model,
+                Size = bounds.size,
+                Center = bounds.center - modelTransform.position,
+                Normal = normal,
+            };
         }
 
         public static VisualInfo GetCellVisualInfo(this ViewContext context, int cellIndex)
@@ -281,28 +311,6 @@ namespace Zayats.Unity.View
         {
             var thing = context.UI.ThingGameObjects[thingIndex];
             return GetInfo(thing.transform);
-        }
-
-        public static VisualInfo GetInfo(Transform outerObject)
-        {
-            var (modelTransform, model) = outerObject.GetObject(ObjectHierarchy.Model);
-            var meshFilter = model.GetComponent<MeshFilter>();
-            var mesh = meshFilter.sharedMesh;
-            var bounds = mesh.bounds;
-            var localScale = modelTransform.localScale;
-            var b = new Bounds(
-                Vector3.Scale(bounds.center, localScale) + modelTransform.localPosition,
-                Vector3.Scale(bounds.size, localScale));
-            var normal = outerObject.up;
-
-            return new VisualInfo
-            {
-                OuterObject = outerObject,
-                MeshRenderer = model,
-                Bounds = bounds,
-                Normal = normal,
-                TopCenterOffset = Vector3.Scale(normal, bounds.extents)
-            };
         }
 
         public static ViewContext CreateView(this SetupConfiguration config)
@@ -424,7 +432,7 @@ namespace Zayats.Unity.View
     public class View : MonoBehaviour
     {
         [SerializeField] private SetupConfiguration _config;
-        private ViewContext _view;
+        public ViewContext _view;
         private GameContext Game => _view.Game;
         private ref UIContext UI => ref _view.UI;
 
@@ -500,19 +508,17 @@ namespace Zayats.Unity.View
 
             void ArrangeThings(int position, Sequence animationSequence)
             {
-                var things = Game.State.Cells[position];
+                var things = _view.Game.State.Cells[position];
                 var cellInfo = _view.GetCellVisualInfo(position);
-                Vector3 currentPos = cellInfo.OuterObject.position + cellInfo.TopCenterOffset;
+                Vector3 currentPos = cellInfo.OuterObject.position + cellInfo.Normal * cellInfo.Size.y / 2;
 
                 for (int i = 0; i < things.Count; i++)
                 {
                     var thing = _view.GetThingVisualInfo(things[i]);
-                    
-                    Vector3 thingPosition = currentPos + thing.Bounds.center;
-                    var tween = thing.OuterObject.DOMove(thingPosition, _view.Visual.AnimationSpeed.Game);
+                    var tween = thing.OuterObject.DOMove(currentPos, _view.Visual.AnimationSpeed.Game);
                     animationSequence.Join(tween);
 
-                    currentPos += thing.TopCenterOffset;
+                    currentPos += thing.Size.y * cellInfo.Normal;
                 }
             }
 
@@ -660,7 +666,6 @@ namespace Zayats.Unity.View
                 ArrangeThings(cellIndex, s);
 
             Game.GetEventProxy(OnPositionChanged).Add(() => _view.BeginAnimationEpoch());
-            Game.GetEventProxy(OnCellContentChanged).Add(() => _view.BeginAnimationEpoch());
 
             Game.GetEventProxy(OnPositionChanged).Add(
                 (GameContext game, ref PlayerPositionChangedContext context) =>
@@ -804,6 +809,21 @@ namespace Zayats.Unity.View
 
             buttons.Restart.onClick.AddListener(() =>
             {
+                {
+                    var s = _view.AnimationSequences.First;
+                    while (s is not null)
+                    {
+                        var t = s.Value;
+
+                        // Stopping the sequence will delete the first node,
+                        // which will set Next to null. (I checked).
+                        s = s.Next;
+
+                        // It will not run the callback of the next sequence if it's empty,
+                        // unless it's killed first. We do have manual control here. (I checked).
+                        t.Kill(complete: true);
+                    }
+                }
                 foreach (var thing in UI.ThingGameObjects)
                     Destroy(thing);
                 Seed = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
