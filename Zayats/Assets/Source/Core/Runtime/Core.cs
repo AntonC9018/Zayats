@@ -107,11 +107,11 @@ namespace Zayats.Core
         }
 
 
-        public static void InitializePlayer(this GameContext game, int index, int thingId, ComponentStorage<Components.Player> playerStorage)
+        public static void InitializePlayer(this GameContext game, int index, int thingId)
         {
             ref var player = ref game.State.Players[index];
             player.ThingId = thingId;
-            playerStorage.Add(thingId).Value.PlayerIndex = index;
+            game.AddComponent(Components.PlayerId, thingId).PlayerIndex = index;
         }
     }
     public enum MovementKind
@@ -120,6 +120,7 @@ namespace Zayats.Core
         HopOverThing = 1,
         ToppleOverPlayer = 2,
         Death = 3,
+        Count,
     }
 
     public static class Logic
@@ -138,20 +139,20 @@ namespace Zayats.Core
             public int Amount;
         }
 
-        public static void MovePlayerInBetweenCells(this GameContext game, ref Data.Player player, int toPosition)
+        public static void MovePlayerInBetweenCells(this GameContext game, ref Data.Player player, int toPosition, Data.Reason reason)
         {
             player.GetCell(game).Remove(player.ThingId);
             int prevPosition = player.Position;
             player.Position = toPosition;
-            game.TriggerSingleThingRemovedFromCellEvent(player.ThingId, prevPosition);
+            game.TriggerSingleThingRemovedFromCellEvent(player.ThingId, prevPosition, reason);
             player.GetCell(game).Add(player.ThingId);
-            game.TriggerSingleThingAddedToCellEvent(player.ThingId, toPosition);
+            game.TriggerSingleThingAddedToCellEvent(player.ThingId, toPosition, reason);
         }
 
-        public static void AddNonPlayerThingToCell(this GameContext game, int thingId, int toPosition)
+        public static void AddNonPlayerThingToCell(this GameContext game, int thingId, int toPosition, Data.Reason reason)
         {
             game.State.Cells[toPosition].Add(thingId);
-            game.TriggerSingleThingAddedToCellEvent(thingId, toPosition);
+            game.TriggerSingleThingAddedToCellEvent(thingId, toPosition, reason);
         }
 
         public static bool MaybeEndGame(this GameContext game, int playerIndex)
@@ -168,7 +169,7 @@ namespace Zayats.Core
         public static void MovePlayerToPosition(this GameContext game, GameEvents.PlayerPositionChangedContext context)
         {
             ref var player = ref game.State.Players[context.PlayerIndex];
-            MovePlayerInBetweenCells(game, ref player, context.TargetPosition);
+            game.MovePlayerInBetweenCells(ref player, context.TargetPosition, context.Reason);
             game.HandlePlayerEvent(GameEvents.OnPositionChanged, context.PlayerIndex, ref context);
             game.MaybeEndGame(context.PlayerIndex);
         }
@@ -187,7 +188,7 @@ namespace Zayats.Core
         public static void MovePlayer(this GameContext game, MovementStartContext context, out MovementContext outContext)
         {
             ref var player = ref game.State.Players[context.PlayerIndex];
-            var moveStart = StartMove(game, context.PlayerIndex);
+            var moveStart = game.StartMove(context.PlayerIndex);
             var toPosition = Math.Min(player.Position + context.Amount, game.State.Cells.Length - 1);
             outContext = new()
             {
@@ -656,7 +657,7 @@ namespace Zayats.Core
             for (int i = coinCount - 1; i >= 0; i--)
                 game.RemoveItemFromInventory_AtIndex(context.PlayerIndex, context.Coins[i].Index);
             for (int i = 0; i < coinCount; i++)
-                game.AddNonPlayerThingToCell(context.Coins[i].ThingId, selectedCoinPlacementPositions[i]);
+                game.AddNonPlayerThingToCell(context.Coins[i].ThingId, selectedCoinPlacementPositions[i], Reasons.Buying(context.PlayerIndex));
 
             game.AddThingFromShopToInventory(context.ThingShopIndex, context.PlayerIndex);
         }
@@ -982,7 +983,7 @@ namespace Zayats.Core
             return new(from, offset, count);
         }
 
-        public static void TriggerSingleThingAddedToCellEvent(this GameContext game, int thingId, int cellPosition)
+        public static void TriggerSingleThingAddedToCellEvent(this GameContext game, int thingId, int cellPosition, Data.Reason reason)
         {
             var a = ArrayPool<int>.Shared.Rent(1);
             a[0] = thingId;
@@ -991,11 +992,12 @@ namespace Zayats.Core
                 AddedThings = a.AsArraySegment(0, 1),
                 CellPosition = cellPosition,
                 RemovedThings = Array.Empty<int>(),
+                Reason = reason,
             });
             ArrayPool<int>.Shared.Return(a);
         }
 
-        public static void TriggerSingleThingRemovedFromCellEvent(this GameContext game, int thingId, int cellPosition)
+        public static void TriggerSingleThingRemovedFromCellEvent(this GameContext game, int thingId, int cellPosition, Data.Reason reason)
         {
             var a = ArrayPool<int>.Shared.Rent(1);
             a[0] = thingId;
@@ -1004,6 +1006,7 @@ namespace Zayats.Core
                 AddedThings = Array.Empty<int>(),
                 CellPosition = cellPosition,
                 RemovedThings = a.AsArraySegment(0, 1),
+                Reason = reason,
             });
             ArrayPool<int>.Shared.Return(a);
         }
@@ -1186,7 +1189,8 @@ namespace Zayats.Core
             [Forward]
             public MoveStartInfo MoveStart;
 
-            public readonly MovementKind Reason => Movement.Kind;
+            public readonly MovementKind MovementKind => Movement.Kind;
+            public readonly Data.Reason Reason => Reasons.PlayerMovement(MovementKind, PlayerIndex);
         }
         public static readonly TypedIdentifier<PlayerPositionChangedContext> OnPositionChanged = new(1);
         public static readonly TypedIdentifier<int> OnPlayerWon = new(2);
@@ -1233,6 +1237,7 @@ namespace Zayats.Core
             public ArraySegment<int> AddedThings;
             public ArraySegment<int> RemovedThings;
             public int CellPosition;
+            public Data.Reason Reason;
         }
         public static readonly TypedIdentifier<CellContentChangedContext> OnCellContentChanged = new(12);
         
@@ -1305,10 +1310,23 @@ namespace Zayats.Core
         public const int ExplosionId = 1;
         public const int MagicId = 2;
         public const int PoisonId = 3;
+        public const int BuyingId = 4;
+        public const int PlayerMovementOffset = 5;
+        public const int Next = PlayerMovementOffset + (int) MovementKind.Count;
 
         public static Data.Reason Unknown => new Data.Reason { Id = UnknownId };
         public static Data.Reason Explosion(int explodedThingId) => new Data.Reason { Id = ExplosionId, Payload = explodedThingId };
         public static Data.Reason Magic(int spellOrItemId) => new Data.Reason { Id = MagicId, Payload = spellOrItemId };
+        public static Data.Reason Buying(int playerIndex) => new Data.Reason { Id = BuyingId, Payload = playerIndex, };
+        public static Data.Reason PlayerMovement(MovementKind movementKind, int playerId)
+            => new Data.Reason { Id = PlayerMovementOffset + (int) movementKind, Payload = playerId, };
+        
+        public static (MovementKind Kind, int PlayerId)? MatchPlayerMovement(this Data.Reason reason)
+        {
+            if (reason.Id < PlayerMovementOffset || reason.Id >= PlayerMovementOffset + (int) MovementKind.Count)
+                return null;
+            return ((MovementKind)(reason.Id - PlayerMovementOffset), reason.Payload);
+        }
     }
 
     [Serializable]
@@ -1412,6 +1430,38 @@ namespace Zayats.Core
             var t = CreateStorage<T>(componentId, initialSize);
             game.State.ComponentsByType[componentId.Id] = t;
             return t;
+        }
+
+        // public static void InitializeStorages(GameContext game, ReadOnlySpan<int> initialSizes, int defaultSize = 4)
+        // {
+        //     int D(int s) => s > 0 ? s : defaultSize;
+
+        //     Components.InitializeStorage(game, Components.CurrencyCostId, D(initialSizes[Components.CurrencyCostId.Id]));
+        //     Components.InitializeStorage(game, Components.PlayerId, D(initialSizes[Components.PlayerId.Id]));
+        //     Components.InitializeStorage(game, Components.CurrencyId, D(initialSizes[Components.CurrencyId.Id]));
+        //     Components.InitializeStorage(game, Components.ThingSpecificEventsId, D(initialSizes[Components.ThingSpecificEventsId.Id]));
+        //     Components.InitializeStorage(game, Components.RespawnPointIdsId, D(initialSizes[Components.RespawnPointIdsId.Id]));
+        //     Components.InitializeStorage(game, Components.RespawnPositionId, D(initialSizes[Components.RespawnPositionId.Id]));
+        //     Components.InitializeStorage(game, Components.PickupId, D(initialSizes[Components.PickupId.Id]));
+        //     Components.InitializeStorage(game, Components.AttachedPickupDelegateId, D(initialSizes[Components.AttachedPickupDelegateId.Id]));
+        //     Components.InitializeStorage(game, Components.RespawnPointIdId, D(initialSizes[Components.RespawnPointIdId.Id]));
+        //     Components.InitializeStorage(game, Components.FlagsId, D(initialSizes[Components.FlagsId.Id]));
+        //     Components.InitializeStorage(game, Components.ActivatedItemId, D(initialSizes[Components.ActivatedItemId.Id]));
+        // }
+
+        public static void InitializeComponentStorages(this GameContext game, int defaultSize = 4)
+        {
+            Components.InitializeStorage(game, Components.CurrencyCostId, defaultSize);
+            Components.InitializeStorage(game, Components.PlayerId, defaultSize);
+            Components.InitializeStorage(game, Components.CurrencyId, defaultSize);
+            Components.InitializeStorage(game, Components.ThingSpecificEventsId, defaultSize);
+            Components.InitializeStorage(game, Components.RespawnPointIdsId, defaultSize);
+            Components.InitializeStorage(game, Components.RespawnPositionId, defaultSize);
+            Components.InitializeStorage(game, Components.PickupId, defaultSize);
+            Components.InitializeStorage(game, Components.AttachedPickupDelegateId, defaultSize);
+            Components.InitializeStorage(game, Components.RespawnPointIdId, defaultSize);
+            Components.InitializeStorage(game, Components.FlagsId, defaultSize);
+            Components.InitializeStorage(game, Components.ActivatedItemId, defaultSize);
         }
 
         [Serializable]

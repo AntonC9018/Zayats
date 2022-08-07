@@ -768,124 +768,49 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ede2ccd48acddac4d966665b75adc8b7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _config:
-    UI:
-      VisualCells:
-      - {fileID: 45353335}
-      - {fileID: 26155427}
-      - {fileID: 1846278082}
-      - {fileID: 356599366}
-      - {fileID: 1745455189}
-      - {fileID: 1562284433}
-      - {fileID: 1077566859}
-      - {fileID: 168703440}
-      - {fileID: 1194139386}
-      - {fileID: 282519723}
-      - {fileID: 173650861}
-      - {fileID: 1482606733}
-      - {fileID: 1002868606}
-      - {fileID: 1780015098}
-      - {fileID: 1822478008}
-      - {fileID: 1451521868}
-      - {fileID: 2025039611}
-      - {fileID: 1373116952}
-      - {fileID: 864697916}
-      - {fileID: 308124648}
-      - {fileID: 221702600}
-      - {fileID: 400417910}
-      - {fileID: 749399265}
-      - {fileID: 1370247273}
-      GameplayButtons:
-        Values:
-        - {fileID: 334593295}
-        - {fileID: 7751986958262208261}
-        - {fileID: 408681210}
-        - {fileID: 1306862625}
-      GameplayText:
-        Values:
-        - {fileID: 1579187254}
-        - {fileID: 115514632}
-        - {fileID: 546111429}
-        - {fileID: 4037795432254170651}
-      ItemScrollRect: {fileID: 1954899523}
-      BuyButtonPrefab: {fileID: 0}
-      ItemHolderPrefab: {fileID: 4080354373203152457, guid: 50cf138cf920c3c4fa079cf1d79a35d4, type: 3}
-      ParentForOldItems: {fileID: 523480899}
-    Visual:
-      AnimationSpeed:
-        Values:
-        - 1
-        - 1
-      ToastTimeout: 2
-    Game:
-      PrefabsToSpawn:
-        Values:
-        - {fileID: 5244891537468551939, guid: f029241cfaba09642aedc84ad9bcd60e, type: 3}
-        - {fileID: 5535414162906384630, guid: b2f9ca9285be9574384d52a0f6d37de7, type: 3}
-        - {fileID: 8605895771616095990, guid: cefa7f33a9367fa44a604e59d08b3c65, type: 3}
-        - {fileID: 2496883971429701372, guid: c08cc25b4570cba4da3e0067dddd4ee7, type: 3}
-        - {fileID: 4767638029798318955, guid: ef768a7d430eabc4e802a6bfa7280b89, type: 3}
-        - {fileID: 572154711423482554, guid: f75082f1238b4744fa36f2c2b51fe83b, type: 3}
-        - {fileID: 4420304009001216849, guid: 16b5450627b9cc341a7a1c03ed915161, type: 3}
-        - {fileID: 4251137231388668143, guid: 1d7eb54e5d3406947b2101d064ededbb, type: 3}
-        - {fileID: 6272538446848813115, guid: 018bb651ee2f7884493ae15ddbf32162, type: 3}
-        - {fileID: 7617779994967328136, guid: b264283c3c9c4eb4da391c992c35a8da, type: 3}
-      CountsToSpawn:
-        Values: 02000000010000000100000001000000010000000100000001000000010000000100000001000000
-      ItemCosts:
-        Values: 00000000000000000000000000000000000000000200000002000000020000000100000002000000
-      PlayerCharacterColors:
-      - {r: 1, g: 0, b: 0, a: 1}
-      - {r: 0, g: 0, b: 1, a: 1}
-      ShopPositions: 00000000
-  _view:
-    Game:
-      State:
-        TurnLock: 0
-        IsOver: 0
-        Players: []
-        CurrentPlayerIndex: 0
-        Shop:
-          CellsWhereAccessible: 
-          Items: 
-    SetupConfiguration:
-      UI:
-        VisualCells: []
-        GameplayButtons:
-          Values: []
-        GameplayText:
-          Values: []
-        ItemScrollRect: {fileID: 0}
-        BuyButtonPrefab: {fileID: 0}
-        ItemHolderPrefab: {fileID: 0}
-        ParentForOldItems: {fileID: 0}
-      Visual:
-        AnimationSpeed:
-          Values: []
-        ToastTimeout: 0
-      Game:
-        PrefabsToSpawn:
-          Values: []
-        CountsToSpawn:
-          Values: 
-        ItemCosts:
-          Values: 
-        PlayerCharacterColors: []
-        ShopPositions: 
-    UI:
-      Dynamic:
-        ThingGameObjects: []
-        ItemBuyButtons: []
-      Static:
-        VisualCells: []
-        GameplayButtons:
-          Values: []
-        GameplayText:
-          Values: []
-        ItemScrollRect: {fileID: 0}
-        BuyButtonPrefab: {fileID: 0}
-        ItemHolderPrefab: {fileID: 0}
-        ParentForOldItems: {fileID: 0}
+  _ui:
+    VisualCells:
+    - {fileID: 45353335}
+    - {fileID: 26155427}
+    - {fileID: 1846278082}
+    - {fileID: 356599366}
+    - {fileID: 1745455189}
+    - {fileID: 1562284433}
+    - {fileID: 1077566859}
+    - {fileID: 168703440}
+    - {fileID: 1194139386}
+    - {fileID: 282519723}
+    - {fileID: 173650861}
+    - {fileID: 1482606733}
+    - {fileID: 1002868606}
+    - {fileID: 1780015098}
+    - {fileID: 1822478008}
+    - {fileID: 1451521868}
+    - {fileID: 2025039611}
+    - {fileID: 1373116952}
+    - {fileID: 864697916}
+    - {fileID: 308124648}
+    - {fileID: 221702600}
+    - {fileID: 400417910}
+    - {fileID: 749399265}
+    - {fileID: 1370247273}
+    GameplayButtons:
+      Values:
+      - {fileID: 334593295}
+      - {fileID: 7751986958262208261}
+      - {fileID: 408681210}
+      - {fileID: 1306862625}
+    GameplayText:
+      Values:
+      - {fileID: 1579187254}
+      - {fileID: 115514632}
+      - {fileID: 546111429}
+      - {fileID: 4037795432254170651}
+    ItemScrollRect: {fileID: 1954899523}
+    BuyButtonPrefab: {fileID: 0}
+    ItemHolderPrefab: {fileID: 4080354373203152457, guid: 50cf138cf920c3c4fa079cf1d79a35d4, type: 3}
+    ParentForOldItems: {fileID: 523480899}
+  _config: {fileID: 11400000, guid: 2be54fa1a84ecb745a81af593662551b, type: 2}
 --- !u!4 &198451647
 Transform:
   m_ObjectHideFlags: 0
@@ -2682,7 +2607,7 @@ Camera:
   near clip plane: 0.3
   far clip plane: 1000
   field of view: 60
-  orthographic: 1
+  orthographic: 0
   orthographic size: 5
   m_Depth: 0
   m_CullingMask:
@@ -2706,14 +2631,14 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 798764395}
-  m_LocalRotation: {x: -0.37148017, y: 0.006211232, z: -0.005168066, w: -0.92840576}
-  m_LocalPosition: {x: 6.39, y: 6.57, z: -2.3}
+  m_LocalRotation: {x: -0.39825192, y: 0.006358516, z: -0.0049857385, w: -0.91724056}
+  m_LocalPosition: {x: 6.39, y: 6.57, z: -3.64}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 0
-  m_LocalEulerAnglesHint: {x: 43.617, y: -0.609, z: 0.394}
+  m_LocalEulerAnglesHint: {x: 46.941, y: -0.646, z: 0.343}
 --- !u!1 &834570111
 GameObject:
   m_ObjectHideFlags: 0

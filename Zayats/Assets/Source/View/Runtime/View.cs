@@ -122,7 +122,7 @@ namespace Zayats.Unity.View
                     id => view.UI.ThingGameObjects[id].transform),
                 view.UI.ParentForOldItems,
                 view.LastAnimationSequence,
-                view.Visual.AnimationSpeed.UI);
+                animationSpeed: 0);
         }
         public static void DisplayTip(this ViewContext context, string text)
         {
@@ -269,6 +269,8 @@ namespace Zayats.Unity.View
             public Vector3 Size;
             public Vector3 Center;
             public Vector3 Normal;
+            public readonly Vector3 GetTopOffset() => Center + Normal * Size.y / 2;
+            public readonly Vector3 GetTop() => OuterObject.position + GetTopOffset();
         }
 
         public static VisualInfo GetInfo(Transform outerObject)
@@ -313,7 +315,7 @@ namespace Zayats.Unity.View
             return GetInfo(thing.transform);
         }
 
-        public static ViewContext CreateView(this SetupConfiguration config)
+        public static ViewContext CreateView(SetupConfiguration config, UIReferences ui)
         {
             var view = new ViewContext()
             {
@@ -322,19 +324,17 @@ namespace Zayats.Unity.View
                 State = new(),
                 UI = new()
                 {
-                    Static = config.UI,
+                    Static = ui,
                 },
                 Events = ViewEvents.CreateStorage(),
             };
 
             view.UI.ItemBuyButtons = new List<GameObject>();
-            view.UI.ItemContainers = new ItemContainers(view, config.UI.ItemHolderPrefab, config.UI.ItemScrollRect.viewport); 
+            view.UI.ItemContainers = new ItemContainers(view, ui.ItemHolderPrefab, ui.ItemScrollRect.content); 
 
             return view;
         }
     }
-
-
     
 
     public static class ObjectHierarchy
@@ -358,40 +358,6 @@ namespace Zayats.Unity.View
         public const int Count = 3;
     }
 
-    [Serializable]
-    public struct GameConfiguration
-    {
-        public ThingArray<GameObject> PrefabsToSpawn;
-        public ThingArray<int> CountsToSpawn;
-        public ThingArray<int> ItemCosts;
-        public Color[] PlayerCharacterColors;
-        public int[] ShopPositions;
-    }
-
-    [GenerateArrayWrapper("AnimationArray")]
-    public enum AnimationKind
-    {
-        UI,
-        Game,
-    }
-
-    [Serializable]
-    public struct VisualConfiguration
-    {
-        // [Range(0.0f, 2.0f)]
-        public AnimationArray<float> AnimationSpeed;
-
-        [Range(0.0f, 2.0f)]
-        public float ToastTimeout;
-    }
-
-    [Serializable]
-    public class SetupConfiguration
-    {
-        public UIReferences UI;
-        public VisualConfiguration Visual;
-        public GameConfiguration Game;
-    }
 
     public class UnityRandom : IRandom
     {
@@ -431,8 +397,9 @@ namespace Zayats.Unity.View
 
     public class View : MonoBehaviour
     {
+        [SerializeField] private UIReferences _ui;
         [SerializeField] private SetupConfiguration _config;
-        public ViewContext _view;
+        private ViewContext _view;
         private GameContext Game => _view.Game;
         private ref UIContext UI => ref _view.UI;
 
@@ -465,37 +432,22 @@ namespace Zayats.Unity.View
         private GameContext InitializeGame()
         {
             ref var gameConfig = ref _config.Game;
-            ref var uiConfig = ref _config.UI;
             var countsToSpawn = gameConfig.CountsToSpawn;
 
-            _view.Game = Initialization.CreateGame(cellCountNotIncludingStartAndFinish: uiConfig.VisualCells.Length - 2, countsToSpawn.Player);
+            _view.Game = Initialization.CreateGame(cellCountNotIncludingStartAndFinish: UI.VisualCells.Length - 2, countsToSpawn.Player);
 
-            int seed = Seed;
-            UnityEngine.Random.InitState(seed);
+            UnityEngine.Random.InitState(Seed);
             var gameRandom = new UnityRandom(UnityEngine.Random.state);
             Game.Random = gameRandom;
 
             Game.Logger = new UnityLogger();
-
             Game.State.Shop.CellsWhereAccessible = gameConfig.ShopPositions.ToArray();
+            Game.InitializeComponentStorages();
 
-            UnityEngine.Random.InitState(seed + 1);
+            UnityEngine.Random.InitState(Seed + 1);
             var spawnRandom = new UnityRandom(UnityEngine.Random.state);
             
             UI.ThingGameObjects = new GameObject[countsToSpawn.Array.Sum()];
-
-            int mineCount = countsToSpawn.EternalMine + countsToSpawn.RegularMine;
-            var costStorage = Components.InitializeStorage(Game, Components.CurrencyCostId, mineCount);
-            var playerStorage = Components.InitializeStorage(Game, Components.PlayerId, countsToSpawn.Player);
-            var coinStorage = Components.InitializeStorage(Game, Components.CurrencyId, countsToSpawn.Coin);
-            Components.InitializeStorage(Game, Components.ThingSpecificEventsId);
-            var respawnPointIdsStorage = Components.InitializeStorage(Game, Components.RespawnPointIdsId, countsToSpawn.Player);
-            var respawnPositionStorage = Components.InitializeStorage(Game, Components.RespawnPositionId, countsToSpawn.RespawnPoint);
-            var pickupStorage = Components.InitializeStorage(Game, Components.PickupId);
-            var pickupDelegateStorage = Components.InitializeStorage(Game, Components.AttachedPickupDelegateId);
-            var respawnPointIdStorage = Components.InitializeStorage(Game, Components.RespawnPointIdId, countsToSpawn.Tower);
-            var flagsStorage = Components.InitializeStorage(Game, Components.FlagsId, mineCount);
-            var activatedItemStorage = Components.InitializeStorage(Game, Components.ActivatedItemId);
 
             assertNoneNull(Game.State.ComponentsByType);
 
@@ -510,16 +462,47 @@ namespace Zayats.Unity.View
             {
                 var things = _view.Game.State.Cells[position];
                 var cellInfo = _view.GetCellVisualInfo(position);
-                Vector3 currentPos = cellInfo.OuterObject.position + cellInfo.Normal * cellInfo.Size.y / 2;
+                Vector3 currentPos = cellInfo.GetTop();
 
-                for (int i = 0; i < things.Count; i++)
+                var lastTime = animationSequence.Duration();
+
+                foreach (var thingId in things)
                 {
-                    var thing = _view.GetThingVisualInfo(things[i]);
-                    var tween = thing.OuterObject.DOMove(currentPos, _view.Visual.AnimationSpeed.Game);
-                    animationSequence.Join(tween);
+                    var thingInfo = _view.GetThingVisualInfo(thingId);
+                    var tween = thingInfo.OuterObject.DOMove(currentPos, _view.Visual.AnimationSpeed.Game);
+                    animationSequence.Insert(lastTime, tween);
 
-                    currentPos += thing.Size.y * cellInfo.Normal;
+                    currentPos += thingInfo.Size.y * cellInfo.Normal;
                 }
+            }
+
+            void ArrangeThings2(int position, Sequence animationSequence, int thingIdNotToAnimateIfAlone)
+            {
+                var things = _view.Game.State.Cells[position];
+                if (things.Count == 0 && thingIdNotToAnimateIfAlone == things[0])
+                    return;
+                ArrangeThings(position, animationSequence);
+            }
+
+            Vector3 GetCellTopPosition(int cellIndex)
+            {
+                var things = _view.Game.State.Cells[cellIndex];
+                var cellInfo = _view.GetCellVisualInfo(cellIndex);
+                var top = cellInfo.GetTop();
+                foreach (var thingId in things)
+                {
+                    var thingInfo = _view.GetThingVisualInfo(thingId);
+                    top += thingInfo.Size.y * cellInfo.Normal;
+                }
+                return top;
+            }
+
+            Vector3 GetCellTopPosition2(int cellIndex, int thingToIgnore)
+            {
+                var things = _view.Game.State.Cells[cellIndex];
+                if (things.Count == 1 && things[0] == thingToIgnore)
+                    return _view.GetCellVisualInfo(cellIndex).GetTop();
+                return GetCellTopPosition(cellIndex);
             }
 
             void SpawnOn(int position, int id, GameObject obj)
@@ -536,6 +519,7 @@ namespace Zayats.Unity.View
                     SpawnOn(randomPos, id, obj);
                 return randomPos;
             }
+            
 
             int currentId = 0;
             for (int kindIndex = 0; kindIndex < countsToSpawn.Length; kindIndex++)
@@ -548,7 +532,7 @@ namespace Zayats.Unity.View
                 {
                     var c = gameConfig.ItemCosts[kindIndex];
                     if (c > 0)
-                        costStorage.Add(id).Value = c;
+                        Game.AddComponent(Components.CurrencyCostId, id) = c;
                 }
 
                 switch ((ThingKind) kindIndex)
@@ -557,8 +541,8 @@ namespace Zayats.Unity.View
 
                     case ThingKind.Player:
                     {
-                        Game.InitializePlayer(index: instanceIndex, thingId: id, playerStorage);
-                        respawnPointIdsStorage.Add(id).Value = new Stack<int>();
+                        Game.InitializePlayer(index: instanceIndex, thingId: id);
+                        Game.AddComponent(Components.RespawnPointIdsId, id) = new Stack<int>();
                         
                         {
                             var stats = Game.State.Players[instanceIndex].Stats; 
@@ -578,61 +562,61 @@ namespace Zayats.Unity.View
                     }
                     case ThingKind.EternalMine:
                     {
-                        pickupStorage.Add(id).Value = eternalMinePickup;
-                        flagsStorage.Add(id).Value = ThingFlags.Solid;
+                        Game.AddComponent(Components.PickupId, id) = MinePickup.Eternal;
+                        Game.AddComponent(Components.FlagsId, id) = ThingFlags.Solid;
                         SpawnRandomly(spawnRandom, id, obj);
                         break;
                     }
                     case ThingKind.RegularMine:
                     {
-                        pickupStorage.Add(id).Value = regularMinePickup;
-                        flagsStorage.Add(id).Value = ThingFlags.Solid;
+                        Game.AddComponent(Components.PickupId, id) = MinePickup.Regular;
+                        Game.AddComponent(Components.FlagsId, id) = ThingFlags.Solid;
                         SpawnRandomly(spawnRandom, id, obj);
                         break;
                     }
                     case ThingKind.Coin:
                     {
-                        coinStorage.Add(id).Value = 1;
-                        pickupStorage.Add(id).Value = PlayerInventoryPickup.Instance;
+                        Game.AddComponent(Components.CurrencyId, id) = 1;
+                        Game.AddComponent(Components.PickupId, id) = PlayerInventoryPickup.Instance;
                         SpawnRandomly(spawnRandom, id, obj);
                         break;
                     }
                     case ThingKind.RespawnPoint:
                     {
                         int position = SpawnRandomly(spawnRandom, id, obj);
-                        respawnPositionStorage.Add(id).Value = position;
+                        Game.AddComponent(Components.RespawnPositionId, id) = position;
                         break;
                     }
                     case ThingKind.Totem:
                     {
                         var pickup = TotemPickup.Instance;
-                        pickupStorage.Add(id).Value = pickup;
-                        pickupDelegateStorage.Add(id);
+                        Game.AddComponent(Components.PickupId, id) = pickup;
+                        Game.AddComponent(Components.AttachedPickupDelegateId, id);
                         SpawnRandomly(spawnRandom, id, obj);
                         break;
                     }
                     case ThingKind.Rabbit:
                     {
-                        pickupStorage.Add(id).Value = rabbitPickup;
+                        Game.AddComponent(Components.PickupId, id) = rabbitPickup;
                         // SpawnRandomly(spawnRandom, id, obj);
                         Game.AddThingToShop(id);
                         break;
                     }
                     case ThingKind.Tower:
                     {
-                        pickupStorage.Add(id).Value = TowerPickup.Instance;
-                        respawnPointIdStorage.Add(id);
+                        Game.AddComponent(Components.PickupId, id) = TowerPickup.Instance;
+                        Game.AddComponent(Components.RespawnPointIdId, id);
                         break;
                     }
                     case ThingKind.Horse:
                     {
-                        pickupStorage.Add(id).Value = horsePickup;
+                        Game.AddComponent(Components.PickupId, id) = horsePickup;
                         SpawnRandomly(spawnRandom, id, obj);
                         break;
                     }
                     case ThingKind.Snake:
                     {
-                        activatedItemStorage.Add(id).Value = new()
+                        Game.AddComponent(Components.ActivatedItemId, id) = new()
                         {
                             Filter = NearbyOtherPlayersFilter.Instance,
                             Action = new KillPlayersAction(Reasons.PoisonId),
@@ -640,7 +624,7 @@ namespace Zayats.Unity.View
                             InitialUses = short.MaxValue,
                             UsesLeft = short.MaxValue,
                         };
-                        pickupStorage.Add(id).Value = PlayerInventoryPickup.Instance;
+                        Game.AddComponent(Components.PickupId, id) = PlayerInventoryPickup.Instance;
                         Game.AddThingToShop(id);
                         break;
                     }
@@ -650,9 +634,13 @@ namespace Zayats.Unity.View
 
             // Associate respawn points with the items.
             {
+                var respawnPositionStorage = Game.GetComponentStorage(Components.RespawnPositionId);
+                var respawnPointIdStorage = Game.GetComponentStorage(Components.RespawnPointIdId);
+                
                 int[] idsOfPositions = respawnPositionStorage.MapThingIdToIndex.Keys.ToArray();
                 int[] idsOfPointStorage = respawnPointIdStorage.MapThingIdToIndex.Keys.ToArray();
                 assert(idsOfPositions.Length >= idsOfPointStorage.Length, "why and also how?");
+
                 for (int i = 0; i < idsOfPointStorage.Length; i++)
                 {
                     int refereeId = idsOfPointStorage[i];
@@ -670,19 +658,41 @@ namespace Zayats.Unity.View
             Game.GetEventProxy(OnPositionChanged).Add(
                 (GameContext game, ref PlayerPositionChangedContext context) =>
                 {
-                    var player = game.State.Players[context.PlayerIndex];
-
-                    var targetTransform = UI.VisualCells[player.Position];
+                    ref var player = ref game.State.Players[context.PlayerIndex];
                     var playerTransform = UI.ThingGameObjects[player.ThingId].transform;
-                    playerTransform.parent = targetTransform;
 
-                    int position = player.Position;
-                    int count = game.State.Cells[position].Count;
-                    Debug.LogFormat("There are {0} things at {1}", count, position);
+                    var moveSequence = DOTween.Sequence();
+                    var arrangeInitialTween = DOTween.Sequence();
+                    ArrangeThings(context.InitialPosition, arrangeInitialTween);
                     
-                    var s = _view.LastAnimationSequence;
-                    ArrangeThings(context.InitialPosition, s);
-                    ArrangeThings(position, s);
+                    {
+                        var playerVisualInfo = _view.GetThingVisualInfo(player.ThingId);
+                        for (int i = context.InitialPosition + 1; i <= player.Position; i++)
+                        {
+                            var cell = UI.VisualCells[i];
+                            var t = playerTransform.DOJump(
+                                GetCellTopPosition2(i, player.ThingId),
+                                duration: _view.Visual.AnimationSpeed.Game,
+                                jumpPower: _view.Visual.MovementJumpPower,
+                                numJumps: 1);
+                            t.OnComplete(() => playerTransform.SetParent(cell, worldPositionStays: true));
+                            moveSequence.Append(t);
+
+                            if (i == context.InitialPosition + 1)
+                                moveSequence.Append(arrangeInitialTween);
+                        }
+                    }
+                    {
+                        var s = DOTween.Sequence();
+                        ArrangeThings2(player.Position, moveSequence, player.ThingId);
+                        moveSequence.Join(s);
+                    }
+
+                    {
+                        var s = _view.LastAnimationSequence;
+                        s.Append(moveSequence);
+                        s.AppendInterval(0);
+                    }
                 });
 
             Game.GetEventProxy(OnPlayerWon).Add(
@@ -731,8 +741,12 @@ namespace Zayats.Unity.View
             Game.GetEventProxy(GameEvents.OnCellContentChanged).Add(
                 (GameContext game, ref CellContentChangedContext context) =>
                 {
-                    // This is ok, because it will be eventually animated.
-                    ArrangeThings(context.CellPosition, _view.LastAnimationSequence);
+                    // I think this isn't perfect, but it will cover more common cases.
+                    if (!context.Reason.MatchPlayerMovement().HasValue)
+                    {
+                        // This is ok, because it will be eventually animated.
+                        ArrangeThings(context.CellPosition, _view.LastAnimationSequence);
+                    }
                 });
 
             Game.GetEventProxy(GameEvents.OnAmountRolled).Add(
@@ -785,7 +799,7 @@ namespace Zayats.Unity.View
                 recycleAllByDefault: true,
                 useSafeMode: false,
                 logBehaviour: LogBehaviour.Verbose);
-            _view = ViewLogic.CreateView(_config);
+            _view = ViewLogic.CreateView(_config, _ui);
             _toDestroy = new();
 
             const int initialSeed = 5;

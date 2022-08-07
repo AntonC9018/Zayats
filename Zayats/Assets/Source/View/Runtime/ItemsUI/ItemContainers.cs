@@ -23,7 +23,7 @@ namespace Zayats.Unity.View
     {
         private List<UIHolderInfo> _uiHolderInfos;
         private UIHolderInfo _prefab;
-        private Transform _viewport;
+        private Transform _content;
         private int _itemCount;
         private int _currentlyHoveredItem;
         private ViewContext _viewContext;
@@ -31,17 +31,17 @@ namespace Zayats.Unity.View
         // private GameObject _buttonOverlay;
         // private Action<int> _overlayButtonClickedAction;
 
-        public ItemContainers(ViewContext viewContext, UIHolderInfo holderPrefab, Transform viewport
+        public ItemContainers(ViewContext viewContext, UIHolderInfo holderPrefab, Transform content
                 // , ButtonOverlay buttonOverlay, Action<int> overlayButtonClickedAction
         )
         {
             
             assert(viewContext != null);
-            assert(viewport != null);
+            assert(content != null);
             assert(holderPrefab != null);
 
             _viewContext = viewContext;
-            _viewport = viewport;
+            _content = content;
             _prefab = holderPrefab;
             _uiHolderInfos = new();
 
@@ -56,7 +56,7 @@ namespace Zayats.Unity.View
             UIHolderInfo holder;
             if (_uiHolderInfos.Count <= i)
             {
-                holder = GameObject.Instantiate(_prefab, parent: _viewport);
+                holder = GameObject.Instantiate(_prefab, parent: _content);
                 {
                     var handler = holder.ItemFrameObject.AddComponent<PointerEnter>();
                     handler.Initialize(i, this);
@@ -91,6 +91,10 @@ namespace Zayats.Unity.View
             animationSequence.AppendCallback(() =>
             {
                 int i = 0;
+
+                for (int j = 0; j < _itemCount; j++)
+                    _uiHolderInfos[j].ItemFrameTransform.GetChild(0).parent = newParentForOldItems;
+
                 foreach (var item in itemsToStore)
                 {
                     var h = _uiHolderInfos[i++];
