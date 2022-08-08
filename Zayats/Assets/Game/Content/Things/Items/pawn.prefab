@@ -53,7 +53,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8111302928891257696, guid: 8c593b8acb580464285433f5b1cb2f78, type: 3}
       propertyPath: m_Name
-      value: thing_base
+      value: pawn
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 8c593b8acb580464285433f5b1cb2f78, type: 3}
@@ -119,3 +119,28 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 37aabd406a889a44abf59de6bdabbd42, type: 3}
+--- !u!1 &7624872325532740430 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 37aabd406a889a44abf59de6bdabbd42, type: 3}
+  m_PrefabInstance: {fileID: 7282766083027162655}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1000386274
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7624872325532740430}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8e905fc35073907459dde9f370d933ee, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  MaterialPaths:
+  - MeshRenderer: {fileID: 8273113114153208475}
+    Index: 0
+--- !u!23 &8273113114153208475 stripped
+MeshRenderer:
+  m_CorrespondingSourceObject: {fileID: -7511558181221131132, guid: 37aabd406a889a44abf59de6bdabbd42, type: 3}
+  m_PrefabInstance: {fileID: 7282766083027162655}
+  m_PrefabAsset: {fileID: 0}

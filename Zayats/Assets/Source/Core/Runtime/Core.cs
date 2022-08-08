@@ -233,6 +233,7 @@ namespace Zayats.Core
 
         public static void MovePlayer_DoPostMovementMechanics(this GameContext game, MovementStartContext startContext)
         {
+            assert(startContext.Amount > 0);
             ref var player = ref game.State.Players[startContext.PlayerIndex];
 
             MovePlayer(game, startContext, out var context);
@@ -1312,6 +1313,7 @@ namespace Zayats.Core
             public int CurrentPlayerIndex;
             public object[] ComponentsByType;
             public Shop Shop;
+            public int LastThingId;
 
             public readonly List<int>[] Cells => Board.Cells;
             public readonly ArraySegment<List<int>> IntermediateCells => Cells.AsArraySegment(1, Cells.Length - 2);
@@ -1400,6 +1402,19 @@ namespace Zayats.Core
                 Index = index,
                 Storage = Data,
             };
+        }
+
+        public IEnumerable<(int Id, ComponentProxy<T> Proxy)> Enumerate()
+        {
+            // a terrible implementation for now
+            foreach (var kvp in MapThingIdToIndex.OrderBy(kvp => kvp.Value))
+            {
+                yield return (kvp.Key, new()
+                {
+                    Index = kvp.Value,
+                    Storage = Data,
+                });
+            }
         }
     }
 

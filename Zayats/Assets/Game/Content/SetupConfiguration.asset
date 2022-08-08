@@ -22,8 +22,9 @@ MonoBehaviour:
     ItemUsabilityColors:
       Values:
       - {r: 0, g: 0, b: 0, a: 0}
-      - {r: 1, g: 0.95084643, b: 0, a: 0}
-      - {r: 0.0027144956, g: 0.5754717, b: 0.027960142, a: 0}
+      - {r: 1, g: 0.95084643, b: 0, a: 1}
+      - {r: 0.0027144956, g: 0.5754717, b: 0.027960142, a: 1}
+    HighlightEmissionIntensity: 0.7
   Game:
     PrefabsToSpawn:
       Values:
@@ -38,7 +39,7 @@ MonoBehaviour:
       - {fileID: 6272538446848813115, guid: 018bb651ee2f7884493ae15ddbf32162, type: 3}
       - {fileID: 7617779994967328136, guid: b264283c3c9c4eb4da391c992c35a8da, type: 3}
     CountsToSpawn:
-      Values: 02000000020000000200000002000000000000000100000000000000000000000000000000000000
+      Values: 02000000020000000200000002000000000000000100000000000000000000000000000005000000
     ItemCosts:
       Values: 00000000000000000000000000000000000000000200000002000000020000000100000002000000
     PlayerCharacterColors:

@@ -27,19 +27,4 @@ namespace Zayats.Unity.View
             Target = target;
         }
     }
-
-    public class PointerEnter : PointerEventHelper<IPointerEnterIndex>, IPointerEnterHandler
-    {
-        public void OnPointerEnter(PointerEventData eventData) => Target.OnPointerEnter(Index, eventData);
-    }
-
-    public class PointerExit : PointerEventHelper<IPointerExitIndex>, IPointerExitHandler
-    {
-        public void OnPointerExit(PointerEventData eventData) => Target.OnPointerExit(Index, eventData);
-    }
-
-    public class PointerClick : PointerEventHelper<IPointerClickIndex>, IPointerClickHandler
-    {
-        public void OnPointerClick(PointerEventData eventData) => Target.OnPointerClick(Index, eventData);
-    }
 }

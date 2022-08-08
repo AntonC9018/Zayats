@@ -1,7 +1,6 @@
 using UnityEngine;
 using Zayats.Core;
 using static Zayats.Core.Assert;
-using Zayats.Core.Generated;
 using System.Linq;
 using System;
 using System.Collections.Generic;
@@ -13,8 +12,6 @@ using DG.Tweening;
 
 namespace Zayats.Unity.View
 {
-    
-
 
     public class UnityRandom : IRandom
     {
@@ -78,6 +75,13 @@ namespace Zayats.Unity.View
 
         private List<UnityEngine.Object> _toDestroy;
 
+        public enum WorldMode
+        {
+            Random,
+            Set,
+        }
+        public WorldMode Mode;
+
         public void OnValidate()
         {
             ref var gameConfig = ref _config.Game;
@@ -90,6 +94,27 @@ namespace Zayats.Unity.View
             gameConfig.CountsToSpawn.RespawnPoint = gameConfig.CountsToSpawn.Tower;
         }
 
+        private void CustomCreateThings()
+        {
+            var creating = Game.StartCreating();
+            
+            {
+                var p = creating.Create();
+                _view.InstantiateThing(p, ThingKind.Player);
+                p.Player(0).Place().At(0);
+            }
+            {
+                var p = creating.Create();
+                _view.InstantiateThing(p, ThingKind.Snake);
+                p.Snake().Place().At(1); 
+            }
+            {
+                var p = creating.Create();
+                _view.InstantiateThing(p, ThingKind.Player);
+                p.Player(1).Place().At(2);
+            }
+        }
+
         private void DefaultCreateThings(in GameConfiguration config)
         {
             UnityEngine.Random.InitState(Seed + 1);
@@ -100,19 +125,7 @@ namespace Zayats.Unity.View
             for (int instanceIndex = 0; instanceIndex < config.CountsToSpawn[kindIndex]; instanceIndex++)
             {
                 var create = creating.Create();
-
-                var obj = GameObject.Instantiate(config.PrefabsToSpawn[kindIndex]);
-                UI.ThingGameObjects[create.Id] = obj;
-
-                {
-                    var c = config.ItemCosts[kindIndex];
-                    if (c > 0)
-                        Game.AddComponent(Components.CurrencyCostId, create.Id) = c;
-                }
-
-                {
-                    obj.name = create.Id + "_" + ((ThingKind) kindIndex).ToString() + "_" + instanceIndex;
-                }
+                _view.InstantiateThing(create, (ThingKind) kindIndex);
 
                 switch ((ThingKind) kindIndex)
                 {
@@ -121,13 +134,6 @@ namespace Zayats.Unity.View
                     case ThingKind.Player:
                     {
                         create.Player(instanceIndex).Place().At(0);
-
-                        var (_, renderer) = obj.transform.GetObject(ObjectHierarchy.Model);
-                        var material = renderer.material;
-                        // Instance materials need to be cleaned up.
-                        // TODO: bring in the material search script.
-                        _toDestroy.Add(material);
-                        material.color = config.PlayerCharacterColors[instanceIndex];
                         break;
                     }
                     case ThingKind.EternalMine:
@@ -178,11 +184,20 @@ namespace Zayats.Unity.View
                     }
                 }
             }
-
-            // Associate respawn points with the items.
-            Core.Initialization.AssociateRespawnPointIdsOneToOne(Game);
         }
-        
+
+        private void InitializePlayerColor(Color[] playerCharacterColors)
+        {
+            for (int i = 0; i < Game.State.Players.Length; i++)
+            {
+                int thingId = Game.State.Players[i].ThingId;
+                var (_, renderer) = UI.ThingGameObjects[thingId].transform.GetObject(ObjectHierarchy.Model);
+                var material = renderer.material;
+                // Instance materials need to be cleaned up.
+                _toDestroy.Add(material);
+                material.color = playerCharacterColors[i];
+            }
+        }
 
         private GameContext InitializeGame()
         {
@@ -206,8 +221,17 @@ namespace Zayats.Unity.View
             }
             assertNoneNull(Game.State.ComponentsByType);
 
-            DefaultCreateThings(_config.Game);
-            
+            if (Mode == WorldMode.Random)
+                DefaultCreateThings(_config.Game);
+            else
+                CustomCreateThings();
+
+            {    
+                InitializePlayerColor(_config.Game.PlayerCharacterColors);
+                // Associate respawn points with the items.
+                Core.Initialization.AssociateRespawnPointIdsOneToOne(Game);
+            }
+
             void ArrangeThings(int position, Sequence animationSequence)
             {
                 var things = _view.Game.State.Cells[position];
@@ -304,7 +328,10 @@ namespace Zayats.Unity.View
             Game.GetEventProxy(GameEvents.OnItemRemovedFromInventory).Add(
                 (GameContext game, ref ItemRemovedContext context) =>
                 {
-                    UI.ItemContainers.RemoveItemAt(context.ItemIndex);
+                    UI.ItemContainers.RemoveItemAt(
+                        context.ItemIndex,
+                        _view.LastAnimationSequence,
+                        _view.Visual.AnimationSpeed.UI);
                 });
 
             Game.GetEventProxy(GameEvents.OnNextTurn).Add(
@@ -372,6 +399,7 @@ namespace Zayats.Unity.View
             _view.GetEventProxy(ViewEvents.OnItemInteractionCancelled).Add(
                 (ViewContext view, ref ActivatedItemHandling itemH) =>
                 {
+                    view.CancelHighlighting();
                     Debug.Log("Cancelled");
                 });
 
@@ -419,21 +447,7 @@ namespace Zayats.Unity.View
 
             buttons.Restart.onClick.AddListener(() =>
             {
-                {
-                    var s = _view.AnimationSequences.First;
-                    while (s is not null)
-                    {
-                        var t = s.Value;
-
-                        // Stopping the sequence will delete the first node,
-                        // which will set Next to null. (I checked).
-                        s = s.Next;
-
-                        // It will not run the callback of the next sequence if it's empty,
-                        // unless it's killed first. We do have manual control here. (I checked).
-                        t.Kill(complete: true);
-                    }
-                }
+                _view.SkipAnimations();
                 foreach (var thing in UI.ThingGameObjects)
                     Destroy(thing);
                 Seed = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
@@ -496,6 +510,8 @@ namespace Zayats.Unity.View
                 }
                 await DoBuying();
             });
+
+            UI.ScreenOverlayObject.AddComponent<InputInterceptorOverlay>().Initialize(_view);
         }
     
         void OnDestroy()

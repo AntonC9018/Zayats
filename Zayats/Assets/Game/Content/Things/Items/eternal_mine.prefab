@@ -57,7 +57,32 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8605895771616095990, guid: cefa7f33a9367fa44a604e59d08b3c65, type: 3}
       propertyPath: m_Name
-      value: regular_mine
+      value: eternal_mine
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: cefa7f33a9367fa44a604e59d08b3c65, type: 3}
+--- !u!1 &4305429431208560433 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1698160945, guid: cefa7f33a9367fa44a604e59d08b3c65, type: 3}
+  m_PrefabInstance: {fileID: 4305429431692109312}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1814769869
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4305429431208560433}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8e905fc35073907459dde9f370d933ee, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  MaterialPaths:
+  - MeshRenderer: {fileID: 4305429431208560436}
+    Index: 0
+--- !u!23 &4305429431208560436 stripped
+MeshRenderer:
+  m_CorrespondingSourceObject: {fileID: 1698160948, guid: cefa7f33a9367fa44a604e59d08b3c65, type: 3}
+  m_PrefabInstance: {fileID: 4305429431692109312}
+  m_PrefabAsset: {fileID: 0}

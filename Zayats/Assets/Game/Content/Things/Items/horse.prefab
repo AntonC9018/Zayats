@@ -57,6 +57,31 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: a89641b507106d644a41895ac53b8faa, type: 3}
+--- !u!1 &3456186915882671305 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: a89641b507106d644a41895ac53b8faa, type: 3}
+  m_PrefabInstance: {fileID: 2537706242399740312}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &2058735170
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3456186915882671305}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8e905fc35073907459dde9f370d933ee, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  MaterialPaths:
+  - MeshRenderer: {fileID: 3816285837879262492}
+    Index: 0
+--- !u!23 &3816285837879262492 stripped
+MeshRenderer:
+  m_CorrespondingSourceObject: {fileID: -7511558181221131132, guid: a89641b507106d644a41895ac53b8faa, type: 3}
+  m_PrefabInstance: {fileID: 2537706242399740312}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &2854626245512088411
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -110,7 +135,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8111302928891257696, guid: 8c593b8acb580464285433f5b1cb2f78, type: 3}
       propertyPath: m_Name
-      value: thing_base
+      value: horse
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 8c593b8acb580464285433f5b1cb2f78, type: 3}

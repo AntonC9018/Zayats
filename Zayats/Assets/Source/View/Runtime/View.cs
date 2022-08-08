@@ -9,6 +9,7 @@ using UnityEngine.UI;
 using Kari.Plugins.AdvancedEnum;
 using System.Linq;
 using static Zayats.Core.Assert;
+using Common.Unity;
 
 namespace Zayats.Unity.View
 {
@@ -51,19 +52,21 @@ namespace Zayats.Unity.View
         RollValue,
     }
 
+    [Serializable]
     public struct ActivatedItemHandling
     {
-        public readonly bool InProgress => Progress != 0;
+        public readonly bool InProgress => Progress > 0;
         public int Progress;
         public int Index;
         public int ThingId;
         public Components.ActivatedItem ActivatedItem; 
     }
 
+    [Serializable]
     public struct ViewState
     {
         public ActivatedItemHandling ItemHandling;
-        // public List<GameObject> HighlightedGameObjects;
+        public BatchedMaterial HighlightMaterial;
         // public List<GameObject> HighlightedUIObjects;
     }
 
@@ -85,6 +88,7 @@ namespace Zayats.Unity.View
         public GameObject BuyButtonPrefab;
         public UIHolderInfo ItemHolderPrefab;
         public Transform ParentForOldItems;
+        public GameObject ScreenOverlayObject;
     }
 
     [Serializable]
@@ -104,6 +108,7 @@ namespace Zayats.Unity.View
         public readonly ScrollRect ItemScrollRect { get => Static.ItemScrollRect; }
         public readonly GameObject BuyButtonPrefab { get => Static.BuyButtonPrefab; }
         public readonly Transform ParentForOldItems { get => Static.ParentForOldItems; }
+        public readonly GameObject ScreenOverlayObject { get => Static.ScreenOverlayObject; }
     }
 
     [GenerateArrayWrapper]
@@ -144,8 +149,7 @@ namespace Zayats.Unity.View
                     }
                     
                     return (view.Visual.ItemUsabilityColors.Get(usability), t);
-                }),
-                view.UI.ParentForOldItems,
+                }).ToArray(),
                 view.LastAnimationSequence,
                 animationSpeed: 0);
         }
@@ -154,98 +158,123 @@ namespace Zayats.Unity.View
             // TODO
         }
 
-        public static void HighlightCells(this ViewContext context, IEnumerable<Transform> cells)
+        public static void HighlightObjects(this ViewContext view, IEnumerable<Transform> cells)
         {
-            // TODO
+            ref var highlightMaterial = ref view.State.HighlightMaterial;
+            var materialPaths = cells.SelectMany(c => c.GetObject(ObjectHierarchy.ModelInfo).Value.MaterialPaths).ToArray();
+            var propertyNames = BatchedMaterial.DefaultPropertyNames;
+            
+            highlightMaterial ??= new BatchedMaterial();
+            highlightMaterial.Reset(materialPaths, propertyNames);
+
+            var intensity = view.Visual.HighlightEmissionIntensity;
+            highlightMaterial.EmissionColor = new Color(intensity, intensity, intensity, 1);
+            highlightMaterial.Apply();
+        }
+
+        public static void CancelHighlighting(this ViewContext view)
+        {
+            view.State.HighlightMaterial.Reset();
         }
 
         public static bool TryStartHandlingItemInteraction(this ViewContext view, int itemIndex)
         {
+            Debug.Log("Went through");
+
             ref var itemH = ref view.State.ItemHandling;
             assert(itemH.Progress == 0);
 
-            int thingItemId = view.Game.State.CurrentPlayer.Items[itemIndex];
-            if (view.Game.TryGetComponent(Components.ActivatedItemId, thingItemId, out var activatedItemProxy))
+            var items = view.Game.State.CurrentPlayer.Items;
+            if (items.Count <= itemIndex)
+                return false;
+
+            int thingItemId = items[itemIndex];
+            if (!view.Game.TryGetComponent(Components.ActivatedItemId, thingItemId, out var activatedItemProxy))
+                return false;
+
+            ref var state = ref view.Game.State;
+            var itemContext = new ItemInterationContext
             {
-                ref var state = ref view.Game.State;
-                var itemContext = new ItemInterationContext
+                ItemId = state.CurrentPlayer.Items[itemIndex],
+                PlayerIndex = state.CurrentPlayerIndex,
+                Position = state.CurrentPlayer.Position,
+            };
+
+            var activatedItem = activatedItemProxy.Value;
+            var filter = activatedItem.Filter;
+            var targetKind = filter.Kind;
+
+            if (targetKind == TargetKind.None)
+            {
+                // Immediately activate the item.
+                view.Game.UseItem(new()
                 {
-                    ItemId = state.CurrentPlayer.Items[itemIndex],
-                    PlayerIndex = state.CurrentPlayerIndex,
-                    Position = state.CurrentPlayer.Position,
-                };
-
-                var activatedItem = activatedItemProxy.Value;
-                var filter = activatedItem.Filter;
-                var targetKind = filter.Kind;
-
-                if (targetKind == TargetKind.None)
-                {
-                    // Immediately activate the item.
-                    view.Game.UseItem(new()
-                    {
-                        Interaction = itemContext,
-                        Item = activatedItemProxy,
-                        SelectedTargets = Array.Empty<int>(),
-                    });
-                }
-                else
-                {
-                    var valid = filter.GetValid(view.Game, itemContext).ToArray();
-
-                    string Subject()
-                    {
-                        switch (targetKind)
-                        {
-                            default: panic("?" + targetKind); return null;
-                            case TargetKind.Cell:   return "cells";
-                            case TargetKind.Player: return "players";
-                            case TargetKind.Thing:  return "things";
-                        }
-                    }
-
-                    // Payload in this case means cell count
-                    if (valid.Length < activatedItem.Count)
-                    {
-                        view.DisplayTip($"Not enough {Subject()} (required {activatedItem.Count}, available {valid.Length}).");
-                        return false;
-                    }
-
-                    switch (targetKind)
-                    {
-                        default: panic($"Unimplemented case: {targetKind}"); break;
-
-                        case TargetKind.Cell:
-                        {
-                            // TODO: enumerate into a reusable buffer.
-                            var cells = valid;
-                            view.HighlightCells(cells.Select(c => view.UI.VisualCells[c]));
-                            break;
-                        }
-                        case TargetKind.Player:
-                        {
-                            var players = valid;
-                            break;
-                        }
-                        case TargetKind.Thing:
-                        {
-                            panic("Unimplemented");
-                            break;
-                        }
-                    }
-                    
-                    itemH.ThingId = thingItemId;
-                    itemH.Progress = 1;
-                    itemH.Index = itemIndex;
-                    itemH.ActivatedItem = activatedItem;
-
-                    view.HandleEvent(ViewEvents.OnItemInteractionStarted, ref itemH);
-                }
-                
+                    Interaction = itemContext,
+                    Item = activatedItemProxy,
+                    SelectedTargets = Array.Empty<int>(),
+                });
                 return true;
             }
+            else
+            {
+                var valid = filter.GetValid(view.Game, itemContext).ToArray();
 
-            return false;
+                string Subject()
+                {
+                    switch (targetKind)
+                    {
+                        default: panic("?" + targetKind); return null;
+                        case TargetKind.Cell:   return "cells";
+                        case TargetKind.Player: return "players";
+                        case TargetKind.Thing:  return "things";
+                    }
+                }
+
+                // Payload in this case means cell count
+                if (valid.Length < activatedItem.Count)
+                {
+                    view.DisplayTip($"Not enough {Subject()} (required {activatedItem.Count}, available {valid.Length}).");
+                    return false;
+                }
+
+                switch (targetKind)
+                {
+                    default: panic($"Unimplemented case: {targetKind}"); break;
+
+                    case TargetKind.Cell:
+                    {
+                        // TODO: enumerate into a reusable buffer.
+                        var cells = valid;
+                        view.HighlightObjects(cells.Select(c => view.UI.VisualCells[c]));
+                        break;
+                    }
+                    case TargetKind.Player:
+                    {
+                        var players = valid;
+                        Transform GetPlayerTransform(int playerIndex)
+                        {
+                            int id = view.Game.State.Players[playerIndex].ThingId;
+                            return view.UI.ThingGameObjects[id].transform;
+                        }
+                        view.HighlightObjects(players.Select(GetPlayerTransform));
+                        break;
+                    }
+                    case TargetKind.Thing:
+                    {
+                        view.HighlightObjects(valid.Select(id => view.UI.ThingGameObjects[id].transform));
+                        break;
+                    }
+                }
+                
+                itemH.ThingId = thingItemId;
+                itemH.Progress = 1;
+                itemH.Index = itemIndex;
+                itemH.ActivatedItem = activatedItem;
+
+                view.HandleEvent(ViewEvents.OnItemInteractionStarted, ref itemH);
+            }
+            
+            return true;
         }
 
         public static void CancelHandlingCurrentItemInteraction(this ViewContext context)
@@ -256,9 +285,17 @@ namespace Zayats.Unity.View
             itemH.Progress = 0;
         }
 
-        public static Sequence BeginAnimationEpoch(this ViewContext context)
+        public static Sequence MaybeBeginAnimationEpoch(this ViewContext view)
         {
-            var sequences = context.AnimationSequences;
+            var sequences = view.AnimationSequences;
+            if (sequences.Count == 0)
+                return view.BeginAnimationEpoch();
+            return sequences.Last.Value;
+        }
+
+        public static Sequence BeginAnimationEpoch(this ViewContext view)
+        {
+            var sequences = view.AnimationSequences;
             var s = DOTween.Sequence()
                 .OnComplete(() =>
                 {
@@ -270,6 +307,23 @@ namespace Zayats.Unity.View
                 s.Pause();
             sequences.AddLast(s);
             return s;
+        }
+
+        public static void SkipAnimations(this ViewContext view)
+        {
+            var s = view.AnimationSequences.First;
+            while (s is not null)
+            {
+                var t = s.Value;
+
+                // Stopping the sequence will delete the first node,
+                // which will set Next to null. (I checked).
+                s = s.Next;
+
+                // It will not run the callback of the next sequence if it's empty,
+                // unless it's killed first. We do have manual control here. (I checked).
+                t.Kill(complete: true);
+            }
         }
 
         public static Bounds GetCellOrThingBounds(Transform thing)
@@ -359,6 +413,25 @@ namespace Zayats.Unity.View
 
             return view;
         }
+
+        // meh
+        public static GameObject InstantiateThing(this ViewContext view, ThingCreationProxy create, ThingKind thingKind)
+        {
+            var obj = GameObject.Instantiate(view.SetupConfiguration.Game.PrefabsToSpawn[(int) thingKind]);
+            view.UI.ThingGameObjects[create.Id] = obj;
+
+            {
+                var c = view.SetupConfiguration.Game.ItemCosts[(int) thingKind];
+                if (c > 0)
+                    create.AddComponent(Components.CurrencyCostId) = c;
+            }
+
+            {
+                obj.name = create.Id + "_" + (thingKind).ToString() + "_" + create.Id;
+            }
+
+            return obj;
+        }
     }
     
 
@@ -371,6 +444,7 @@ namespace Zayats.Unity.View
         }
 
         public static readonly TypedIdentifier<MeshRenderer> Model = new(0);
+        public static readonly TypedIdentifier<ModelInfo> ModelInfo = new(0);
     }
     
     public static partial class ViewEvents

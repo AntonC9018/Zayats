@@ -53,7 +53,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8111302928891257696, guid: 8c593b8acb580464285433f5b1cb2f78, type: 3}
       propertyPath: m_Name
-      value: thing_base
+      value: tiki_totem
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 8c593b8acb580464285433f5b1cb2f78, type: 3}
@@ -119,3 +119,28 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 2850bee72400d0b4b8152f4b7c3b4129, type: 3}
+--- !u!1 &8024695769963903607 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 2850bee72400d0b4b8152f4b7c3b4129, type: 3}
+  m_PrefabInstance: {fileID: 7177642249449768742}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &575739533
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8024695769963903607}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8e905fc35073907459dde9f370d933ee, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  MaterialPaths:
+  - MeshRenderer: {fileID: 8385014456864250786}
+    Index: 0
+--- !u!23 &8385014456864250786 stripped
+MeshRenderer:
+  m_CorrespondingSourceObject: {fileID: -7511558181221131132, guid: 2850bee72400d0b4b8152f4b7c3b4129, type: 3}
+  m_PrefabInstance: {fileID: 7177642249449768742}
+  m_PrefabAsset: {fileID: 0}

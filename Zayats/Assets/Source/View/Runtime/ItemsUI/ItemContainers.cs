@@ -84,37 +84,17 @@ namespace Zayats.Unity.View
         private static readonly List<Transform> _GetChildrenCache = new();
 
         public void ChangeItems(
-            IEnumerable<(Color UsabilityColor, Transform Transform)> itemsToStore,
-            Transform newParentForOldItems,
+            (Color UsabilityColor, Transform Transform)[] itemsToStore,
             Sequence animationSequence,
             float animationSpeed)
         {
-            animationSequence.AppendCallback(() =>
-            {
-                int i = 0;
-
-                for (int j = 0; j < _itemCount; j++)
-                    _uiHolderInfos[j].ItemFrameTransform.GetChild(0).parent = newParentForOldItems;
-
-                foreach (var (isUsable, item) in itemsToStore)
-                {
-                    var h = _uiHolderInfos[i++];
-                    item.SetParent(h.ItemFrameTransform, worldPositionStays: true);
-                    h.OuterObject.SetActive(true);
-                    
-                    h.UsabilityGraphic.color = isUsable;
-                }
-                _itemCount = i;
-            });
-
             int i = 0;
             {
-                foreach (var (isUsable, item) in itemsToStore)
+                foreach (var (_, item) in itemsToStore)
                 {
-                    // UI layer
                     item.GetComponentsInChildren<Transform>(_GetChildrenCache);
                     foreach (var ch in _GetChildrenCache)
-                        ch.gameObject.layer = 5;
+                        ch.gameObject.layer = LayerIndex.UI;
 
                     var holder = MaybeInitializeAt(i++);
                     var itemFrame = holder.ItemFrameTransform;
@@ -127,6 +107,24 @@ namespace Zayats.Unity.View
                     animationSequence.Join(tween);
                 }
             }
+
+            animationSequence.AppendCallback(() =>
+            {
+                int i = 0;
+
+                for (int j = 0; j < _itemCount; j++)
+                    _uiHolderInfos[j].ItemFrameTransform.GetChild(0).parent = _viewContext.UI.ParentForOldItems;
+
+                foreach (var (isUsable, item) in itemsToStore)
+                {
+                    var h = _uiHolderInfos[i++];
+                    item.SetParent(h.ItemFrameTransform, worldPositionStays: true);
+                    h.OuterObject.SetActive(true);
+                    
+                    h.UsabilityGraphic.color = isUsable;
+                }
+                _itemCount = i;
+            });
 
             animationSequence.AppendCallback(() =>
             {
@@ -164,9 +162,17 @@ namespace Zayats.Unity.View
                 _viewContext.TryStartHandlingItemInteraction(index);
         }
 
-        internal void RemoveItemAt(int itemIndex)
+        public void RemoveItemAt(int itemIndex, Sequence animationSequence, float animationSpeed)
         {
-            throw new NotImplementedException();
+            animationSequence.AppendCallback(() =>
+            {
+                _uiHolderInfos[itemIndex].StoredItem.parent = _viewContext.UI.ParentForOldItems;
+                for (int i = itemIndex + 1; i < _itemCount; i++)
+                    _uiHolderInfos[i].StoredItem.parent = _uiHolderInfos[i - 1].ItemFrameTransform;
+                _uiHolderInfos[_itemCount - 1].OuterObject.SetActive(false);
+
+                assert(_uiHolderInfos[_itemCount - 1].StoredItem == null);
+            });
         }
     }
 }

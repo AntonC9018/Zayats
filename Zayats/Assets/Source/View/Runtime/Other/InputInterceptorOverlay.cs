@@ -1,3 +1,4 @@
+using Common.Unity;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
@@ -22,9 +23,10 @@ namespace Zayats.Unity.View
                 if (_viewContext.State.ItemHandling.InProgress)
                 {
                     _viewContext.CancelHandlingCurrentItemInteraction();
-                    eventData.Use();
+                    return;
                 }
             }
+            eventData.Bubble(ExecuteEvents.pointerClickHandler, gameObject);
         }
     }
 }

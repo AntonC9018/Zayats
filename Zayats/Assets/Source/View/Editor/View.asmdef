@@ -6,7 +6,8 @@
         "Zayats.Core",
         "Common",
         "Common.Editor",
-        "Unity.TextMeshPro"
+        "Unity.TextMeshPro",
+        "Common.Unity"
     ],
     "includePlatforms": ["Editor"],
     "excludePlatforms": [],

@@ -5,7 +5,8 @@
         "Zayats.Core",
         "Common",
         "Unity.TextMeshPro",
-        "DOTween.Modules"
+        "DOTween.Modules",
+        "Common.Unity"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

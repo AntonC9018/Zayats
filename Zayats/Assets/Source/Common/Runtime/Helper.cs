@@ -5,6 +5,15 @@ namespace Common
 {
     public static class HelperThing
     {
+        public static T? MaybeFirst<T>(this IEnumerable<T> e, System.Predicate<T> func) where T : struct
+        {
+            foreach (T el in e)
+            {
+                if (func(el))
+                    return el;
+            }
+            return null;
+        } 
         // public static int Count<T>(this Span<T> span, System.Predicate<T> func)
         // {
         //     int a = 0;
