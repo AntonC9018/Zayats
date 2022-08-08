@@ -811,6 +811,31 @@ MonoBehaviour:
     ItemHolderPrefab: {fileID: 4080354373203152457, guid: 50cf138cf920c3c4fa079cf1d79a35d4, type: 3}
     ParentForOldItems: {fileID: 523480899}
   _config: {fileID: 11400000, guid: 2be54fa1a84ecb745a81af593662551b, type: 2}
+  _view:
+    Game:
+      State:
+        TurnLock: 0
+        IsOver: 0
+        Players: []
+        CurrentPlayerIndex: 0
+        Shop:
+          CellsWhereAccessible: 
+          Items: 
+    SetupConfiguration: {fileID: 0}
+    UI:
+      Dynamic:
+        ThingGameObjects: []
+        ItemBuyButtons: []
+      Static:
+        VisualCells: []
+        GameplayButtons:
+          Values: []
+        GameplayText:
+          Values: []
+        ItemScrollRect: {fileID: 0}
+        BuyButtonPrefab: {fileID: 0}
+        ItemHolderPrefab: {fileID: 0}
+        ParentForOldItems: {fileID: 0}
 --- !u!4 &198451647
 Transform:
   m_ObjectHideFlags: 0
@@ -2846,7 +2871,7 @@ MonoBehaviour:
     m_Bottom: 0
   m_ChildAlignment: 0
   m_Spacing: 0
-  m_ChildForceExpandWidth: 1
+  m_ChildForceExpandWidth: 0
   m_ChildForceExpandHeight: 1
   m_ChildControlWidth: 0
   m_ChildControlHeight: 1
@@ -3203,7 +3228,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4f231c4fb786f3946a6b90b886c48677, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_SendPointerHoverToParent: 1
   m_HorizontalAxis: Horizontal
   m_VerticalAxis: Vertical
   m_SubmitButton: Submit

@@ -27,6 +27,7 @@ namespace Zayats.Unity.View
         private int _itemCount;
         private int _currentlyHoveredItem;
         private ViewContext _viewContext;
+        // private List<Tween> _usableGraphicFade;
 
         // private GameObject _buttonOverlay;
         // private Action<int> _overlayButtonClickedAction;
@@ -83,7 +84,7 @@ namespace Zayats.Unity.View
         private static readonly List<Transform> _GetChildrenCache = new();
 
         public void ChangeItems(
-            IEnumerable<Transform> itemsToStore,
+            IEnumerable<(Color UsabilityColor, Transform Transform)> itemsToStore,
             Transform newParentForOldItems,
             Sequence animationSequence,
             float animationSpeed)
@@ -95,18 +96,20 @@ namespace Zayats.Unity.View
                 for (int j = 0; j < _itemCount; j++)
                     _uiHolderInfos[j].ItemFrameTransform.GetChild(0).parent = newParentForOldItems;
 
-                foreach (var item in itemsToStore)
+                foreach (var (isUsable, item) in itemsToStore)
                 {
                     var h = _uiHolderInfos[i++];
                     item.SetParent(h.ItemFrameTransform, worldPositionStays: true);
                     h.OuterObject.SetActive(true);
+                    
+                    h.UsabilityGraphic.color = isUsable;
                 }
                 _itemCount = i;
             });
 
             int i = 0;
             {
-                foreach (var item in itemsToStore)
+                foreach (var (isUsable, item) in itemsToStore)
                 {
                     // UI layer
                     item.GetComponentsInChildren<Transform>(_GetChildrenCache);
@@ -119,7 +122,8 @@ namespace Zayats.Unity.View
                     var center = (_WorldCornersCache[0] + _WorldCornersCache[2]) * 0.5f;
 
                     var info = ViewLogic.GetInfo(item);
-                    var tween = item.DOMove(center - info.Center, animationSpeed);
+                    var position = center + info.Center + info.Size.z * -itemFrame.forward;
+                    var tween = item.DOMove(position, animationSpeed);
                     animationSequence.Join(tween);
                 }
             }

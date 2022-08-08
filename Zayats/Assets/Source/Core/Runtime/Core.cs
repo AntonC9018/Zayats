@@ -113,6 +113,24 @@ namespace Zayats.Core
             player.ThingId = thingId;
             game.AddComponent(Components.PlayerId, thingId).PlayerIndex = index;
         }
+
+        public static void AssociateRespawnPointIdsOneToOne(this GameContext game)
+        {
+            var respawnPositionStorage = game.GetComponentStorage(Components.RespawnPositionId);
+            var respawnPointIdStorage = game.GetComponentStorage(Components.RespawnPointIdId);
+            
+            int[] idsOfPositions = respawnPositionStorage.MapThingIdToIndex.Keys.ToArray();
+            int[] idsOfPointStorage = respawnPointIdStorage.MapThingIdToIndex.Keys.ToArray();
+            assert(idsOfPositions.Length >= idsOfPointStorage.Length, "why and also how?");
+
+            for (int i = 0; i < idsOfPointStorage.Length; i++)
+            {
+                int refereeId = idsOfPointStorage[i];
+                respawnPointIdStorage.GetProxy(refereeId).Value = idsOfPositions[i];
+                int position = respawnPositionStorage.Data[idsOfPositions[i]];
+                game.PlaceThing(refereeId).At(position);
+            }
+        }
     }
     public enum MovementKind
     {
@@ -141,12 +159,7 @@ namespace Zayats.Core
 
         public static void MovePlayerInBetweenCells(this GameContext game, ref Data.Player player, int toPosition, Data.Reason reason)
         {
-            player.GetCell(game).Remove(player.ThingId);
-            int prevPosition = player.Position;
-            player.Position = toPosition;
-            game.TriggerSingleThingRemovedFromCellEvent(player.ThingId, prevPosition, reason);
-            player.GetCell(game).Add(player.ThingId);
-            game.TriggerSingleThingAddedToCellEvent(player.ThingId, toPosition, reason);
+            panic("Not implemented correctly");
         }
 
         public static void AddNonPlayerThingToCell(this GameContext game, int thingId, int toPosition, Data.Reason reason)
@@ -169,8 +182,23 @@ namespace Zayats.Core
         public static void MovePlayerToPosition(this GameContext game, GameEvents.PlayerPositionChangedContext context)
         {
             ref var player = ref game.State.Players[context.PlayerIndex];
-            game.MovePlayerInBetweenCells(ref player, context.TargetPosition, context.Reason);
+
+            game.HandlePlayerEvent(GameEvents.OnPositionAboutToChange, context.PlayerIndex, ref context);
+            
+            // Remove from cell
+            player.GetCell(game).Remove(player.ThingId);
+            int prevPosition = player.Position;
+            game.TriggerSingleThingRemovedFromCellEvent(player.ThingId, prevPosition, context.Reason);
+
+            game.HandlePlayerEvent(GameEvents.OnPositionChanging, context.PlayerIndex, ref context);
+            
+            // Add to cell
+            player.Position = context.TargetPosition;
+            player.GetCell(game).Add(player.ThingId);
+            game.TriggerSingleThingAddedToCellEvent(player.ThingId, context.TargetPosition, context.Reason);
+
             game.HandlePlayerEvent(GameEvents.OnPositionChanged, context.PlayerIndex, ref context);
+
             game.MaybeEndGame(context.PlayerIndex);
         }
 
@@ -828,8 +856,7 @@ namespace Zayats.Core
 
         public static bool TryGetComponentValue<T>(this GameContext game, TypedIdentifier<T> componentId, int thingId, out T value)
         {
-            GetComponentStorage(game, componentId).TryGetProxy(thingId, out var proxy);
-            if (proxy.Exists)
+            if (TryGetComponent<T>(game, componentId, thingId, out var proxy))
             {
                 value = proxy.Value;
                 return true;
@@ -1249,8 +1276,10 @@ namespace Zayats.Core
             public readonly int Amount => RolledAmount + BonusAmount;
         }
         public static readonly TypedIdentifier<AmountRolledContext> OnAmountRolled = new(13);
+        public static readonly TypedIdentifier<PlayerPositionChangedContext> OnPositionChanging = new(14);
+        public static readonly TypedIdentifier<PlayerPositionChangedContext> OnPositionAboutToChange = new(15);
 
-        public const int Count = 14;
+        public const int Count = 16;
     }
 
     public static class Data
@@ -1312,7 +1341,7 @@ namespace Zayats.Core
         public const int PoisonId = 3;
         public const int BuyingId = 4;
         public const int PlayerMovementOffset = 5;
-        public const int Next = PlayerMovementOffset + (int) MovementKind.Count;
+        public const int DebugId = PlayerMovementOffset + (int) MovementKind.Count;
 
         public static Data.Reason Unknown => new Data.Reason { Id = UnknownId };
         public static Data.Reason Explosion(int explodedThingId) => new Data.Reason { Id = ExplosionId, Payload = explodedThingId };
@@ -1327,6 +1356,8 @@ namespace Zayats.Core
                 return null;
             return ((MovementKind)(reason.Id - PlayerMovementOffset), reason.Payload);
         }
+
+        public static Data.Reason Debug => new Data.Reason { Id = DebugId };
     }
 
     [Serializable]

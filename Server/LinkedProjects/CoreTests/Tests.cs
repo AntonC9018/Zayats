@@ -44,64 +44,48 @@ namespace Zayats.Core.Facts
             }
         }
 
-        public static (GameContext, PredictableRandom) Basic(int cellCount, int playerCount)
+        public static (GameContext, PredictableRandom, ThingCreationContext) Basic(int cellCount, int playerCount)
         {
             var game = Initialization.CreateGame(cellCountNotIncludingStartAndFinish: cellCount - 2, playerCount);
+            var creating = game.StartCreating();
             
             var rand = new PredictableRandom();
             game.Random = rand;
             
             game.Logger = new Logger();
 
-            Components.InitializeStorage(game, Components.PlayerId, playerCount);
-            Components.InitializeStorage(game, Components.CurrencyCostId);
-            Components.InitializeStorage(game, Components.CurrencyId);
-            Components.InitializeStorage(game, Components.ThingSpecificEventsId);
-            Components.InitializeStorage(game, Components.RespawnPointIdsId);
-            Components.InitializeStorage(game, Components.RespawnPositionId);
-            Components.InitializeStorage(game, Components.PickupId);
-            Components.InitializeStorage(game, Components.AttachedPickupDelegateId);
-            Components.InitializeStorage(game, Components.RespawnPointIdId);
-            Components.InitializeStorage(game, Components.FlagsId);
-            Components.InitializeStorage(game, Components.ActivatedItemId);
+            Components.InitializeComponentStorages(game, defaultSize: 0);
             
             Assert.True(game.State.ComponentsByType.All(f => f is not null), "Not all component storage units have been initialized.");
 
-            return (game, rand);
+            return (game, rand, creating);
         }
 
-        public static ref Data.Player InitializePlayer(GameContext game, int playerIndex, int initialPosition = 0)
+        public static ref Data.Player InitializePlayer(ThingCreationContext creating, int playerIndex, int initialPosition = 0)
         {
-            return ref InitializePlayer(game, playerIndex, playerIndex, initialPosition);
+            creating.Create().Player(playerIndex).Place().At(initialPosition);
+            return ref creating.Game.State.Players[playerIndex];
         }
 
-        public static ref Data.Player InitializePlayer(GameContext game, int playerIndex, int playerId, int initialPosition = 0)
+        public static (GameContext, PredictableRandom, ThingCreationContext) BasicSinglePlayer(int cellCount)
         {
-            ref var player = ref game.State.Players[playerIndex];
-            player.ThingId = playerId;
-            game.AddComponent(Components.PlayerId, playerId).PlayerIndex = playerIndex;
-            game.State.Cells[initialPosition].Add(playerId);
-
-            return ref player;
+            var (game, rand, creating) = Basic(cellCount, playerCount: 1);
+            creating.Create().Player(playerIndex: 0).Place().At(0);
+            return (game, rand, creating);
         }
 
-        public static (GameContext, PredictableRandom) BasicSinglePlayer(int cellCount)
+        public static int AddPickup(ThingCreationContext creating, IPickup pickup, int position = 1)
         {
-            var (game, rand) = Basic(cellCount, playerCount: 1);
-            ref var player = ref InitializePlayer(game, playerIndex: 0);
-            return (game, rand);
-        }
-
-        public static void AddPickup(GameContext game, int itemId, IPickup pickup, int position = 1)
-        {
-            game.AddComponent(Components.PickupId, itemId) = pickup;
-            game.State.Cells[position].Add(itemId);
+            var p = creating.Create();
+            p.AddComponent(Components.PickupId) = pickup;
+            p.Place().At(position);
+            return p.Id;
         }
 
         [Fact]
         public void RollTheIndicatedAmount()
         {
-            var (game, rand) = BasicSinglePlayer(cellCount: 6);
+            var (game, rand, creating) = BasicSinglePlayer(cellCount: 6);
             int playerIndex = 0;
 
             rand.NextAmount = 1;
@@ -114,7 +98,7 @@ namespace Zayats.Core.Facts
         [Fact]
         public void PlayerCanMove()
         {
-            var (game, rand) = BasicSinglePlayer(cellCount: 6);
+            var (game, rand, creating) = BasicSinglePlayer(cellCount: 6);
             ref var player = ref game.State.Players[0];
 
             rand.NextAmount = 1;
@@ -130,10 +114,9 @@ namespace Zayats.Core.Facts
         [Fact]
         public void EquipSimple()
         {
-            var (game, rand) = BasicSinglePlayer(cellCount: 3);
+            var (game, rand, creating) = BasicSinglePlayer(cellCount: 3);
 
-            int itemId = 1;
-            AddPickup(game, itemId, PlayerInventoryPickup.Instance);
+            int itemId = AddPickup(creating, PlayerInventoryPickup.Instance);
 
             rand.NextAmount = 1;
             game.ExecuteCurrentPlayersTurn();
@@ -145,14 +128,14 @@ namespace Zayats.Core.Facts
         [Fact]
         public void EquipStatIncrease()
         {
-            var (game, rand) = BasicSinglePlayer(cellCount: 3);
+            var (game, rand, creating) = BasicSinglePlayer(cellCount: 3);
 
-            int itemId = 1;
             int addedStatValue = 3;
             // Choose a stat that doesn't affect movement here.
             var statId = Stats.JumpAfterMoveCapacity;
             var pickup = new AddStatPickup(statId, addedStatValue);
-            AddPickup(game, itemId, pickup);
+
+            int itemId = AddPickup(creating, pickup);
 
             rand.NextAmount = 1;
             game.ExecuteCurrentPlayersTurn();
@@ -165,7 +148,7 @@ namespace Zayats.Core.Facts
         [Fact]
         public void MovementCounter()
         {
-            var (game, rand) = BasicSinglePlayer(cellCount: 3);
+            var (game, rand, creating) = BasicSinglePlayer(cellCount: 3);
             
             game.GetEventProxy(OnPositionChanged).Add(
                 (GameContext game, ref PlayerPositionChangedContext context) => 
@@ -184,9 +167,9 @@ namespace Zayats.Core.Facts
         [Fact]
         public void ToppleOverPlayers()
         {
-            var (game, rand) = Basic(cellCount: 3, playerCount: 2);
-            ref var player0 = ref InitializePlayer(game, playerIndex: 0);
-            ref var player1 = ref InitializePlayer(game, playerIndex: 1, initialPosition: 1);
+            var (game, rand, creating) = Basic(cellCount: 3, playerCount: 2);
+            ref var player0 = ref InitializePlayer(creating, playerIndex: 0);
+            ref var player1 = ref InitializePlayer(creating, playerIndex: 1, initialPosition: 1);
 
             game.GetEventProxy(OnPositionChanged).Add(
                 (GameContext game, ref PlayerPositionChangedContext context) => 
@@ -218,20 +201,19 @@ namespace Zayats.Core.Facts
             public bool Value = false;
         }
 
-        private GameContext MineSetup(int mineId, MinePickup pickup)
+        private (GameContext, int mineId) MineSetup(MinePickup pickup)
         {
-            var (game, rand) = BasicSinglePlayer(cellCount: 3);
+            var (game, rand, creating) = BasicSinglePlayer(cellCount: 3);
             rand.NextAmount = 1;
-            AddPickup(game, mineId, pickup, position: 1);
+            int mineId = AddPickup(creating, pickup, position: 1);
 
-            return game;
+            return (game, mineId);
         }
 
         [Fact]
         public void RegularMine()
         {
-            int mineId = 1;
-            var game = MineSetup(mineId, MinePickup.Regular);
+            var (game, mineId) = MineSetup(MinePickup.Regular);
 
             game.ExecuteCurrentPlayersTurn();
             
@@ -246,8 +228,7 @@ namespace Zayats.Core.Facts
         [Fact]
         public void EternalMine()
         {
-            int mineId = 1;
-            var game = MineSetup(mineId, MinePickup.Eternal);
+            var (game, mineId) = MineSetup(MinePickup.Eternal);
 
             game.ExecuteCurrentPlayersTurn();
 
@@ -259,11 +240,12 @@ namespace Zayats.Core.Facts
             AssertEqual(mineId, game.State.Cells[1].Single(), "The mine stayed at its initial position.");
         }
 
-        private static void AddSolidThing(GameContext game, ref int id, int position)
+        private static int AddSolidThing(ThingCreationContext creating, int position)
         {
-            game.AddComponent(Components.FlagsId, id) = ThingFlags.Solid;
-            game.State.Cells[position].Add(id);
-            id++;
+            var p = creating.Create();
+            p.AddComponent(Components.FlagsId) = ThingFlags.Solid;
+            p.Place().At(position);
+            return p.Id;
         }
 
         #pragma warning disable CS8509 // Non-exhaustive switch
@@ -271,15 +253,14 @@ namespace Zayats.Core.Facts
         [Fact]
         public void HoppingOverSolidThings()
         {
-            var (game, rand) = BasicSinglePlayer(cellCount: 9);
+            var (game, rand, creating) = BasicSinglePlayer(cellCount: 9);
             ref var player = ref game.State.Players[0];
 
             player.Stats.Set(Stats.JumpAfterMoveCapacity, 1);
 
-            var id = 1;
-            AddSolidThing(game, ref id, 2);
-            AddSolidThing(game, ref id, 4);
-            AddSolidThing(game, ref id, 7);
+            AddSolidThing(creating, 2);
+            AddSolidThing(creating, 4);
+            AddSolidThing(creating, 7);
 
             game.GetEventProxy(GameEvents.OnPositionChanged).Add(
                 (GameContext game, ref PlayerPositionChangedContext context) =>
@@ -307,15 +288,14 @@ namespace Zayats.Core.Facts
         [Fact]
         public void HoppingOverSolidThings_MultiStat()
         {
-            var (game, rand) = BasicSinglePlayer(cellCount: 9);
+            var (game, rand, creating) = BasicSinglePlayer(cellCount: 9);
             ref var player = ref game.State.Players[0];
 
             player.Stats.Set(Stats.JumpAfterMoveCapacity, 2);
 
-            var id = 1;
-            AddSolidThing(game, ref id, 2);
-            AddSolidThing(game, ref id, 3);
-            AddSolidThing(game, ref id, 5);
+            AddSolidThing(creating, 2);
+            AddSolidThing(creating, 3);
+            AddSolidThing(creating, 5);
 
             game.GetEventProxy(GameEvents.OnPositionChanged).Add(
                 (GameContext game, ref PlayerPositionChangedContext context) =>
@@ -345,7 +325,7 @@ namespace Zayats.Core.Facts
         [Fact]
         public void TotemSaves()
         {
-            var (game, rand) = BasicSinglePlayer(cellCount: 3);
+            var (game, rand, creating) = BasicSinglePlayer(cellCount: 3);
             ref var player = ref game.State.Players[0];
 
 
@@ -372,9 +352,8 @@ namespace Zayats.Core.Facts
 
             AssertEqual(totemId, player.Items.Single());
 
-            int mineId = 2;
             int minePosition = 1;
-            AddPickup(game, mineId, MinePickup.Eternal, minePosition);
+            int mineId = AddPickup(creating, MinePickup.Eternal, minePosition);
 
             rand.NextAmount = 1;
             game.ExecuteCurrentPlayersTurn();
@@ -392,12 +371,11 @@ namespace Zayats.Core.Facts
         [Fact]
         public void RespawnPoints()
         {
-            var (game, rand) = BasicSinglePlayer(cellCount: 4);
+            var (game, rand, creating) = BasicSinglePlayer(cellCount: 4);
             ref var player = ref game.State.Players[0];
 
-            int mineId = 1;
             int minePosition = 2;
-            AddPickup(game, mineId, MinePickup.Eternal, minePosition);
+            int mineId = AddPickup(creating, MinePickup.Eternal, minePosition);
 
             int respawnPointId = 2;
             int respawnPointPosition = 1;

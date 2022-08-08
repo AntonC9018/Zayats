@@ -24,6 +24,8 @@ namespace Zayats.Unity.View
 
         [Range(0.0f, 2.0f)]
         public float ToastTimeout;
+
+        public ItemUsabilityArray<Color> ItemUsabilityColors; 
     }
 
     [Serializable]

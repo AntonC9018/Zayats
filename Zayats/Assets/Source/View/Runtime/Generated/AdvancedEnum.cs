@@ -245,6 +245,64 @@ namespace Zayats.Unity.View.Generated
                 System.Array.Resize(ref Values, Length);
         }
     }
+    [Serializable]
+    public partial struct ItemUsabilityArray<T>
+    {
+        public /*readonly*/ T[] Values;
+        private ItemUsabilityArray(T[] values) => Values = values;
+        public static ItemUsabilityArray<T> Create() => new ItemUsabilityArray<T>(new T[3]);
+        public readonly ref T GetRef(Zayats.Unity.View.ItemUsability key)
+        {
+            return ref Values[(int) key];
+        }
+        public readonly T Get(Zayats.Unity.View.ItemUsability key)
+        {
+            return Values[(int) key];
+        }
+        public readonly void Set(Zayats.Unity.View.ItemUsability key, T value)
+        {
+            Values[(int) key] = value;
+        }
+        public readonly ref T NoneRef => ref Values[(int) Zayats.Unity.View.ItemUsability.None];
+        public T None
+        {
+            readonly get => Values[(int) Zayats.Unity.View.ItemUsability.None];
+            set => Values[(int) Zayats.Unity.View.ItemUsability.None] = value;
+        }
+        public readonly ref T NotEnoughSpotsRef => ref Values[(int) Zayats.Unity.View.ItemUsability.NotEnoughSpots];
+        public T NotEnoughSpots
+        {
+            readonly get => Values[(int) Zayats.Unity.View.ItemUsability.NotEnoughSpots];
+            set => Values[(int) Zayats.Unity.View.ItemUsability.NotEnoughSpots] = value;
+        }
+        public readonly ref T UsableRef => ref Values[(int) Zayats.Unity.View.ItemUsability.Usable];
+        public T Usable
+        {
+            readonly get => Values[(int) Zayats.Unity.View.ItemUsability.Usable];
+            set => Values[(int) Zayats.Unity.View.ItemUsability.Usable] = value;
+        }
+        public static implicit operator T[](ItemUsabilityArray<T> a) => a.Values;
+        public readonly T[] Array => Values;
+        public readonly ref T this[Zayats.Unity.View.ItemUsability key] => ref GetRef(key);
+        public readonly ref T this[int index] => ref Values[index];
+        public readonly int Length => 3;
+        public static bool operator==(ItemUsabilityArray<T> a, ItemUsabilityArray<T> b)
+        {
+            for (int i = 0; i < a.Length; i++)
+                if (!a.Values[i].Equals(b.Values[i]))
+                    return false;
+            return true;
+        }
+        public static bool operator!=(ItemUsabilityArray<T> a, ItemUsabilityArray<T> b)
+        {
+            return !(a == b);
+        }
+        public void FixSize()
+        {
+            if (Values is null || Values.Length != Length)
+                System.Array.Resize(ref Values, Length);
+        }
+    }
 }
 
 #pragma warning restore
