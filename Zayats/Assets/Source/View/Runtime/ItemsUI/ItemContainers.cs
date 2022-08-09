@@ -84,20 +84,20 @@ namespace Zayats.Unity.View
         private static readonly List<Transform> _GetChildrenCache = new();
 
         public void ChangeItems(
-            (Color UsabilityColor, Transform Transform)[] itemsToStore,
+            IEnumerable<Transform> itemsToStore,
             Sequence animationSequence,
             float animationSpeed)
         {
             int i = 0;
             {
-                foreach (var (_, item) in itemsToStore)
+                foreach (var item in itemsToStore)
                 {
                     var holder = MaybeInitializeAt(i++);
                     var itemFrame = holder.ItemFrameTransform;
                     var (itemFrameCenter, itemFrameSize) = itemFrame.GetWorldSpaceRect();
                     var info = ViewLogic.GetInfo(item);
                     float smallerFactor = Vector2.Scale(info.Size.xy().Inverse(), itemFrameSize).Min();
-                    Vector3 adjustedModelCenterOffset = info.Center * -smallerFactor;
+                    Vector3 adjustedModelCenterOffset = info.Center * smallerFactor;
                     Vector3 bringModelForwardOffset = info.Size.z * -smallerFactor * itemFrame.forward;
                     var position = itemFrameCenter + adjustedModelCenterOffset + bringModelForwardOffset;
                     var tween = item.DOMove(position, animationSpeed);
@@ -112,7 +112,7 @@ namespace Zayats.Unity.View
                 for (int j = 0; j < _itemCount; j++)
                     _uiHolderInfos[j].ItemFrameTransform.GetChild(0).parent = _viewContext.UI.ParentForOldItems;
 
-                foreach (var (isUsable, item) in itemsToStore)
+                foreach (var item in itemsToStore)
                 {
                     item.GetComponentsInChildren<Transform>(_GetChildrenCache);
                     foreach (var ch in _GetChildrenCache)
@@ -121,8 +121,6 @@ namespace Zayats.Unity.View
                     var h = _uiHolderInfos[i++];
                     item.SetParent(h.ItemFrameTransform, worldPositionStays: true);
                     h.OuterObject.SetActive(true);
-                    
-                    h.UsabilityGraphic.color = isUsable;
                 }
                 _itemCount = i;
             });
@@ -173,6 +171,23 @@ namespace Zayats.Unity.View
                 _uiHolderInfos[_itemCount - 1].OuterObject.SetActive(false);
 
                 assert(_uiHolderInfos[_itemCount - 1].StoredItem == null);
+                _itemCount--;
+            });
+        }
+
+        public void ResetUsabilityColors(
+            IEnumerable<Color> colors,
+            Sequence animationSequence)
+        {
+            animationSequence.AppendCallback(() =>
+            {
+                int i = 0;
+                foreach (var color in colors)
+                {
+                    assert(i < _itemCount);
+                    _uiHolderInfos[i].UsabilityGraphic.color = color;
+                    i++;
+                }
             });
         }
     }

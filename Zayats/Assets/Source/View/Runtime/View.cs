@@ -13,6 +13,10 @@ using Common.Unity;
 using Common;
 using UnityEngine.EventSystems;
 
+#if UNITY_EDITOR
+    using UnityEditor;
+#endif
+
 namespace Zayats.Unity.View
 {
     using static PointerEventData.InputButton;
@@ -66,6 +70,7 @@ namespace Zayats.Unity.View
         public Components.ActivatedItem ActivatedItem;
         public List<int> ValidTargets;
         public List<int> SelectedTargetIndices;
+        public readonly TargetKind TargetKind => ActivatedItem.Filter.Kind;
     }
 
     [Serializable]
@@ -127,48 +132,62 @@ namespace Zayats.Unity.View
 
     public static class ViewLogic
     {
+        public static ItemUsability GetItemUsability(this ViewContext view, int playerIndex, int itemId)
+        {
+            if (!view.Game.TryGetComponent(Components.ActivatedItemId, itemId, out var proxy)
+                || proxy.Value.Action is null)
+            {
+                return ItemUsability.None;
+            }
+
+            var valid = proxy.Value.Filter.GetValid(view.Game, new()
+            {
+                PlayerIndex = playerIndex,
+                Position = view.Game.State.Players[playerIndex].Position,
+                ThingId = itemId,
+            });
+            int requiredCount = proxy.Value.RequiredTargetCount;
+            if (valid.Take(requiredCount).Count() < requiredCount)
+                return ItemUsability.NotEnoughSpots;
+
+            return ItemUsability.Usable;
+        }
+
+        public static IEnumerable<Color> GetItemUsabilityColors(this ViewContext view, int playerIndex)
+        {
+            return view.Game.State.Players[playerIndex].Items.Select(it =>
+            {
+                var usability = GetItemUsability(view, playerIndex, it);
+                return view.Visual.ItemUsabilityColors.Get(usability);
+            });
+        }
+
         public static void SetItemsForPlayer(this ViewContext view, int playerIndex)
         {
             view.UI.ItemContainers.ChangeItems(
-                view.Game.State.Players[playerIndex].Items.Select(id =>
-                {
-                    var t = view.UI.ThingGameObjects[id].transform;
-
-                    ItemUsability usability;
-                    if (!view.Game.TryGetComponent(Components.ActivatedItemId, id, out var proxy)
-                        || proxy.Value.Action is null)
-                    {
-                        usability = ItemUsability.None;
-                    }
-                    else if (proxy.Value.Filter.GetValid(view.Game, new()
-                        {
-                            PlayerIndex = playerIndex,
-                            Position = view.Game.State.Players[playerIndex].Position,
-                            ThingId = id,
-                        }).Take(proxy.Value.RequiredTargetCount).Count() < proxy.Value.RequiredTargetCount)
-                    {
-                        usability = ItemUsability.NotEnoughSpots;
-                    }
-                    else
-                    {
-                        usability = ItemUsability.Usable;
-                    }
-                    
-                    return (view.Visual.ItemUsabilityColors.Get(usability), t);
-                }).ToArray(),
+                view.Game.State.Players[playerIndex].Items.Select(
+                    id => view.UI.ThingGameObjects[id].transform),
                 view.LastAnimationSequence,
                 animationSpeed: 0);
+            view.ResetUsabilityColors(playerIndex);
         }
+
+        public static void ResetUsabilityColors(this ViewContext view, int playerIndex)
+        {
+            var colors = GetItemUsabilityColors(view, playerIndex);
+            view.UI.ItemContainers.ResetUsabilityColors(colors, view.LastAnimationSequence);
+        }
+
         public static void DisplayTip(this ViewContext context, string text)
         {
             // TODO
             Debug.Log(text);
         }
 
-        public static void HighlightObjects(this ViewContext view, IEnumerable<Transform> cells)
+        public static void HighlightObjects(this ViewContext view, IEnumerable<Transform> objs)
         {
             ref var highlightMaterial = ref view.State.HighlightMaterial;
-            var materialPaths = cells.SelectMany(c => c.GetObject(ObjectHierarchy.ModelInfo).Value.MaterialPaths).ToArray();
+            var materialPaths = objs.SelectMany(c => c.GetObject(ObjectHierarchy.ModelInfo).Value.MaterialPaths).ToArray();
             var propertyNames = BatchedMaterial.DefaultPropertyNames;
             
             highlightMaterial.Reset(materialPaths, propertyNames);
@@ -253,19 +272,19 @@ namespace Zayats.Unity.View
             return true;
         }
 
-        public static void HighlightObjectsOfItemInteraction(this ViewContext view, ref ActivatedItemHandling itemH)
+        public static IEnumerable<Transform> GetObjectsValidForInteraction(this ViewContext view, ref ActivatedItemHandling itemH)
         {
-            var targetKind = itemH.ActivatedItem.Filter.Kind;
+            assert(itemH.InProgress);
+            var targetKind = itemH.TargetKind;
 
             switch (targetKind)
             {
-                default: panic($"Unimplemented case: {targetKind}"); break;
+                default: panic($"Unimplemented case: {targetKind}"); return null;
 
                 case TargetKind.Cell:
                 {
                     var cells = itemH.ValidTargets;
-                    view.HighlightObjects(cells.Select(c => view.UI.VisualCells[c]));
-                    break;
+                    return cells.Select(c => view.UI.VisualCells[c]);
                 }
                 case TargetKind.Player:
                 {
@@ -275,15 +294,30 @@ namespace Zayats.Unity.View
                         int id = view.Game.State.Players[playerIndex].ThingId;
                         return view.UI.ThingGameObjects[id].transform;
                     }
-                    view.HighlightObjects(players.Select(GetPlayerTransform));
-                    break;
+                    return players.Select(GetPlayerTransform);
                 }
                 case TargetKind.Thing:
                 {
-                    view.HighlightObjects(itemH.ValidTargets.Select(id => view.UI.ThingGameObjects[id].transform));
-                    break;
+                    return itemH.ValidTargets.Select(id => view.UI.ThingGameObjects[id].transform);
                 }
             }
+        }
+
+        public static void HighlightObjectsOfItemInteraction(this ViewContext view, ref ActivatedItemHandling itemH)
+        {
+            view.HighlightObjects(view.GetObjectsValidForInteraction(ref itemH));
+        }
+
+        public static void ChangeLayerOnValidTargetsForRaycasts(this ViewContext view, ref ActivatedItemHandling itemH)
+        {
+            foreach (var t in view.GetObjectsValidForInteraction(ref itemH))
+                t.GetChild(ObjectHierarchy.Collider.Id).gameObject.layer = LayerIndex.RaycastTarget;
+        }
+
+        public static void ChangeLayerOnValidTargetsToDefault(this ViewContext view, ref ActivatedItemHandling itemH)
+        {
+            foreach (var t in view.GetObjectsValidForInteraction(ref itemH))
+                t.GetChild(ObjectHierarchy.Collider.Id).gameObject.layer = LayerIndex.Default;
         }
 
         public static void SelectObjectsForItemInteraction(this ViewContext view, Vector3 positionOfInteractionOnScreen)
@@ -388,14 +422,16 @@ namespace Zayats.Unity.View
             });
 
             view.HandleEvent(ViewEvents.OnItemInteractionFinalized, ref itemH);
+            view.HandleEvent(ViewEvents.OnItemInteractionCancelledOrFinalized, ref itemH);
             itemH.Progress = 0;
         }
 
-        public static void CancelHandlingCurrentItemInteraction(this ViewContext context)
+        public static void CancelHandlingCurrentItemInteraction(this ViewContext view)
         {
-            ref var itemH = ref context.State.ItemHandling;
+            ref var itemH = ref view.State.ItemHandling;
             assert(itemH.Progress != 0);
-            context.HandleEvent(ViewEvents.OnItemInteractionCancelled, ref itemH);
+            view.HandleEvent(ViewEvents.OnItemInteractionCancelled, ref itemH);
+            view.HandleEvent(ViewEvents.OnItemInteractionCancelledOrFinalized, ref itemH);
             itemH.Progress = 0;
         }
 
@@ -532,9 +568,23 @@ namespace Zayats.Unity.View
             return (t, t.GetComponent<T>());
         }
 
+        #if UNITY_EDITOR
+            public static void RestoreHierarchy(this Transform transform)
+            {
+                while (transform.childCount < ChildCount)
+                {
+                    var g = new GameObject(_Names[transform.childCount]);
+                    Undo.RegisterCreatedObjectUndo(g, _Names[transform.childCount]);
+                    g.transform.parent = transform;
+                }
+            }
+        #endif
+
+        private static readonly string[] _Names = { "model", "collider", }; 
         public static readonly TypedIdentifier<MeshRenderer> Model = new(0);
         public static readonly TypedIdentifier<ModelInfo> ModelInfo = new(0);
         public static readonly TypedIdentifier<Collider> Collider = new(1);
+        public const int ChildCount = 2;
     }
     
     public static partial class ViewEvents
@@ -545,6 +595,7 @@ namespace Zayats.Unity.View
         public static readonly TypedIdentifier<ActivatedItemHandling> OnItemInteractionProgress = new(1);
         public static readonly TypedIdentifier<ActivatedItemHandling> OnItemInteractionCancelled = new(2);
         public static readonly TypedIdentifier<ActivatedItemHandling> OnItemInteractionFinalized = new(3);
+        public static readonly TypedIdentifier<ActivatedItemHandling> OnItemInteractionCancelledOrFinalized = new(4);
 
         public struct PointerEvent : Events.IContinue
         {
@@ -552,8 +603,8 @@ namespace Zayats.Unity.View
             public bool Continue { get; set; }
             public PointerEventData Data;
         }
-        public static readonly TypedIdentifier<PointerEvent> OnPointerClick = new(4);
+        public static readonly TypedIdentifier<PointerEvent> OnPointerClick = new(5);
 
-        public const int Count = 5;
+        public const int Count = 6;
     }
 }

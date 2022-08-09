@@ -43,5 +43,12 @@ namespace Common.Unity
         }
 
         public static Vector2 xy(this Vector3 v) => new(v.x, v.y);
+
+        public static void SetLocalTransform(this Transform t, Transform from)
+        {
+            t.localScale = from.localScale;
+            t.localRotation = from.localRotation;
+            t.localPosition = from.localPosition;
+        }
     }
 }

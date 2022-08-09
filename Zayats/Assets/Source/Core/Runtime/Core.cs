@@ -754,7 +754,8 @@ namespace Zayats.Core
                 }
             }
 
-            item.Action.DoAction(game, context.Interaction, Array.Empty<int>());
+            assert(context.SelectedTargets.Length == context.Item.Value.RequiredTargetCount);
+            item.Action.DoAction(game, context.Interaction, context.SelectedTargets);
 
             if (shouldRemove)
             {

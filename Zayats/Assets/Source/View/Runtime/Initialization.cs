@@ -385,6 +385,13 @@ namespace Zayats.Unity.View
                     s.AppendCallback(() => UI.GameplayText.RollValue.text = val);
                 });
 
+            Game.GetEventProxy(GameEvents.OnPositionChanged).Add(
+                (GameContext game, ref PlayerPositionChangedContext context) =>
+                {
+                    Debug.Log("Moved");
+                    _view.ResetUsabilityColors(context.PlayerIndex);
+                });
+
             UI.GameplayText.Win.gameObject.SetActive(false);
             UI.GameplayText.CoinCounter.text = "0";
             _view.SetItemsForPlayer(0);
@@ -509,14 +516,16 @@ namespace Zayats.Unity.View
 
             _view.GetEventProxy(ViewEvents.OnItemInteractionStarted)
                 .Add(ViewLogic.HighlightObjectsOfItemInteraction);
-
-            _view.GetEventProxy(ViewEvents.OnItemInteractionCancelled).Add(
+            _view.GetEventProxy(ViewEvents.OnItemInteractionCancelledOrFinalized).Add(
                 (ViewContext view, ref ActivatedItemHandling itemH) =>
                 {
                     view.CancelHighlighting();
-                    Debug.Log("Cancelled");
                 });
 
+            _view.GetEventProxy(ViewEvents.OnItemInteractionStarted)
+                .Add(ViewLogic.ChangeLayerOnValidTargetsForRaycasts);
+            _view.GetEventProxy(ViewEvents.OnItemInteractionCancelledOrFinalized)
+                .Add(ViewLogic.ChangeLayerOnValidTargetsForRaycasts);
         }
     
         void OnDestroy()
