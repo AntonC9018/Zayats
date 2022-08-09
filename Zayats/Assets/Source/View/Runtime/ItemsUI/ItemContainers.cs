@@ -97,7 +97,7 @@ namespace Zayats.Unity.View
                     var (itemFrameCenter, itemFrameSize) = itemFrame.GetWorldSpaceRect();
                     var info = ViewLogic.GetInfo(item);
                     float smallerFactor = Vector2.Scale(info.Size.xy().Inverse(), itemFrameSize).Min();
-                    Vector3 adjustedModelCenterOffset = info.Center * smallerFactor;
+                    Vector3 adjustedModelCenterOffset = info.Size.y / 2 * -smallerFactor * itemFrame.up;
                     Vector3 bringModelForwardOffset = info.Size.z * -smallerFactor * itemFrame.forward;
                     var position = itemFrameCenter + adjustedModelCenterOffset + bringModelForwardOffset;
                     var tween = item.DOMove(position, animationSpeed);

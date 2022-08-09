@@ -388,8 +388,7 @@ namespace Zayats.Unity.View
             Game.GetEventProxy(GameEvents.OnPositionChanged).Add(
                 (GameContext game, ref PlayerPositionChangedContext context) =>
                 {
-                    Debug.Log("Moved");
-                    _view.ResetUsabilityColors(context.PlayerIndex);
+                    _view.ResetUsabilityColors(game.State.CurrentPlayerIndex);
                 });
 
             UI.GameplayText.Win.gameObject.SetActive(false);

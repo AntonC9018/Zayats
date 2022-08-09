@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Kari.Plugins.AdvancedEnum;
 using Kari.Plugins.Forward;
 
 namespace Zayats.Core
@@ -408,6 +409,39 @@ namespace Zayats.Core
         }
     }
 
+    
+    [GenerateArrayWrapper]
+    public enum ItemUsability
+    {
+        None,
+        NotEnoughSpots,
+        Usable,
+    }
+
+    public static class ItemHelper
+    {
+        public static ItemUsability GetItemUsability(this GameContext game, int playerIndex, int itemId)
+        {
+            if (!game.TryGetComponent(Components.ActivatedItemId, itemId, out var proxy)
+                || proxy.Value.Action is null)
+            {
+                return ItemUsability.None;
+            }
+
+            var valid = proxy.Value.Filter.GetValid(game, new()
+            {
+                PlayerIndex = playerIndex,
+                Position = game.State.Players[playerIndex].Position,
+                ThingId = itemId,
+            });
+            int requiredCount = proxy.Value.RequiredTargetCount;
+            if (valid.Take(requiredCount).Count() < requiredCount)
+                return ItemUsability.NotEnoughSpots;
+
+            return ItemUsability.Usable;
+        }
+    }
+    
     // public class ActivatedItemConfig
     // {
     //     public IActivatedAction Action { get; }

@@ -19,8 +19,6 @@ using UnityEngine.EventSystems;
 
 namespace Zayats.Unity.View
 {
-    using static PointerEventData.InputButton;
-
     [Serializable]
     public class ViewContext : IGetEvents
     {
@@ -122,42 +120,13 @@ namespace Zayats.Unity.View
         public readonly GameObject ScreenOverlayObject { get => Static.ScreenOverlayObject; }
     }
 
-    [GenerateArrayWrapper]
-    public enum ItemUsability
-    {
-        None,
-        NotEnoughSpots,
-        Usable,
-    }
-
     public static class ViewLogic
     {
-        public static ItemUsability GetItemUsability(this ViewContext view, int playerIndex, int itemId)
-        {
-            if (!view.Game.TryGetComponent(Components.ActivatedItemId, itemId, out var proxy)
-                || proxy.Value.Action is null)
-            {
-                return ItemUsability.None;
-            }
-
-            var valid = proxy.Value.Filter.GetValid(view.Game, new()
-            {
-                PlayerIndex = playerIndex,
-                Position = view.Game.State.Players[playerIndex].Position,
-                ThingId = itemId,
-            });
-            int requiredCount = proxy.Value.RequiredTargetCount;
-            if (valid.Take(requiredCount).Count() < requiredCount)
-                return ItemUsability.NotEnoughSpots;
-
-            return ItemUsability.Usable;
-        }
-
         public static IEnumerable<Color> GetItemUsabilityColors(this ViewContext view, int playerIndex)
         {
             return view.Game.State.Players[playerIndex].Items.Select(it =>
             {
-                var usability = GetItemUsability(view, playerIndex, it);
+                var usability = view.Game.GetItemUsability(playerIndex, it);
                 return view.Visual.ItemUsabilityColors.Get(usability);
             });
         }
@@ -174,7 +143,7 @@ namespace Zayats.Unity.View
 
         public static void ResetUsabilityColors(this ViewContext view, int playerIndex)
         {
-            var colors = GetItemUsabilityColors(view, playerIndex);
+            var colors = view.GetItemUsabilityColors(playerIndex).ToArray();
             view.UI.ItemContainers.ResetUsabilityColors(colors, view.LastAnimationSequence);
         }
 

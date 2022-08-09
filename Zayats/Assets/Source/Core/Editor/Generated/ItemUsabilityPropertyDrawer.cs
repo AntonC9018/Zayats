@@ -4,10 +4,10 @@
 
 #pragma warning disable
 
-namespace Zayats.Unity.View.Editor.Generated
+namespace Zayats.Core.Editor.Generated
 {
     using UnityEditor;
-    [CustomPropertyDrawer(typeof(Zayats.Unity.View.Generated.ItemUsabilityArray<>))]
+    [CustomPropertyDrawer(typeof(Zayats.Core.Generated.ItemUsabilityArray<>))]
     public class ItemUsabilityPropertyDrawer : Kari.Plugins.AdvancedEnum.Editor.EnumArrayDrawer
     {
         private static readonly string[] _Names = new[] {"None", "NotEnoughSpots", "Usable"};
