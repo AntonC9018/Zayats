@@ -13,7 +13,51 @@ namespace Common
                     return el;
             }
             return null;
-        } 
+        }
+
+        public static List<T> Overwrite<T>(this IEnumerable<T> e, List<T> list)
+        {
+            list.Clear();
+            list.AddRange(e);
+            return list;
+        }
+
+        public static int IndexOf<T>(this IEnumerable<T> e, System.Predicate<T> func)
+        {
+            int i = 0;
+            foreach (T el in e)
+            {
+                if (func(el))
+                    return i;
+                else
+                    i++;
+            }
+            return -1;
+        }
+
+        public static int IndexOf<T>(this IEnumerable<T> e, T item) where T : class
+        {
+            int i = 0;
+            foreach (T el in e)
+            {
+                if (el.Equals(item))
+                    return i;
+                else
+                    i++;
+            }
+            return -1;
+        }
+
+        public static int AddIfContains_RemoveIfNot<T>(this List<T> list, T item)
+        {
+            int index = list.IndexOf(item);
+            if (index == -1)
+                list.Add(item);
+            else
+                list.RemoveAt(index);
+            return index;
+        }
+
         // public static int Count<T>(this Span<T> span, System.Predicate<T> func)
         // {
         //     int a = 0;

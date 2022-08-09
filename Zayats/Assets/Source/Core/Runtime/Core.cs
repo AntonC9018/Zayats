@@ -360,7 +360,7 @@ namespace Zayats.Core
             foreach (var pickupInfo in pickupInfos)
             {
                 info.ThingId = pickupInfo.ThingId;
-                if (pickupInfo.Pickup.ShouldRemoveFromCellOnPickup(game, info))
+                if (pickupInfo.Pickup.Interaction.ShouldRemoveFromCellOnPickup(game, info))
                     things.RemoveAt(pickupInfo.ListIndex);
             }
 
@@ -369,13 +369,13 @@ namespace Zayats.Core
             foreach (var pickupInfo in pickupInfos)
             {
                 info.ThingId = pickupInfo.ThingId;
-                DoPickupEffectWithEvent(game, pickupInfo.Pickup, info);
-                if (pickupInfo.Pickup.IsInventoryItem(game, info))
+                DoPickupEffectWithEvent(game, pickupInfo.Pickup.Effect, info);
+                if (pickupInfo.Pickup.Interaction.IsInventoryItem(game, info))
                     AddItemToInventory_WithoutPickupEffect(game, info);
             }
         }
 
-        public static void DoPickupEffectWithEvent(this GameContext game, IPickup pickup, ItemInterationContext info)
+        public static void DoPickupEffectWithEvent(this GameContext game, IPickupEffect pickup, ItemInterationContext info)
         {
             pickup.DoPickupEffect(game, info);
             game.HandlePlayerEvent(GameEvents.OnThingPickedUp, info.PlayerIndex, ref info);
@@ -383,7 +383,11 @@ namespace Zayats.Core
 
         public static void AddThingToShop(this GameContext game, int thingId)
         {
-            game.State.Shop.Items.Add(thingId);
+            var shopItems = game.State.Shop.Items;
+            if (shopItems.Contains(thingId))
+                panic($"Adding an item to shop even though it's already there. ID: {thingId}");
+            shopItems.Add(thingId);
+            game.HandleEvent(GameEvents.OnThingAddedToShop, thingId);
         }
 
         // public static void DoDefaultPickupEffectWithEvent(ItemInteractionInfo info)
@@ -400,16 +404,16 @@ namespace Zayats.Core
         {
             if (game.TryGetComponentValue(Components.PickupId, context.ThingId, out var pickup))
             {
-                assert(pickup.IsInventoryItem(game, context));
-                pickup.DoPickupEffect(game, context);
+                assert(pickup.Interaction.IsInventoryItem(game, context));
+                pickup.Effect.DoPickupEffect(game, context);
             }
             AddItemToInventory_WithoutPickupEffect(game, context);
         }
 
-        public static void AddItemToInventory_DoPickupEffect(this GameContext game, IPickup pickup, ItemInterationContext context)
+        public static void AddItemToInventory_DoPickupEffect(this GameContext game, Components.Pickup pickup, ItemInterationContext context)
         {
-            assert(pickup.IsInventoryItem(game, context));
-            pickup.DoPickupEffect(game, context);
+            assert(pickup.Interaction.IsInventoryItem(game, context));
+            pickup.Effect.DoPickupEffect(game, context);
             AddItemToInventory_WithoutPickupEffect(game, context);
         }
 
@@ -735,18 +739,47 @@ namespace Zayats.Core
             assert(ValidateItemUse(game, context));
             
             ref var item = ref context.Item.Value;
-            item.Action.DoAction(game, context.Interaction, Array.Empty<int>());
 
+            // Update the referenced values first, because the proxy
+            // gets invalidated after any logic happens
+            // (even though right now no things can be added or removed after initialization)
+            bool shouldRemove = false;
             if (item.UsesLeft != short.MaxValue)
             {
                 item.UsesLeft--;
                 if (item.UsesLeft == 0)
                 {
-                    // TODO: return to shop or whatever if pickup
+                    shouldRemove = true;
                     item.UsesLeft = item.InitialUses;
-                    // TODO: destroy if not pickup
                 }
             }
+
+            item.Action.DoAction(game, context.Interaction, Array.Empty<int>());
+
+            if (shouldRemove)
+            {
+                int itemId = context.Interaction.ThingId;
+                ref var player = ref game.State.Players[context.Interaction.PlayerIndex];
+                int newItemIndex = player.Items.IndexOf(itemId);
+                if (newItemIndex != -1)
+                {
+                    player.Items.RemoveAt(itemId);
+                    // TODO: some more options of what's gonna happen after.
+                    game.AddThingToShop(itemId);
+                }
+            }
+        }
+
+        public static ItemInterationContext GetItemInteractionContextForCurrentPlayer(this GameContext game, int itemIndex)
+        {
+            int pindex = game.State.CurrentPlayerIndex;
+            ref var player = ref game.State.Players[pindex];
+            return new()
+            {
+                PlayerIndex = pindex,
+                ThingId = player.Items[itemIndex],
+                Position = player.Position,
+            };
         }
     }
 
@@ -1137,19 +1170,19 @@ namespace Zayats.Core
             public readonly void Add(Action<G, T> handler)
             {
                 ref var h = ref EventHandlers.Handlers[EventIndex];
-                h = ((Handler<G, T>) h) + ((G g, ref T t) => handler(g, t));
+                Add((G g, ref T t) => handler(g, t));
             } 
 
             public readonly void Add(Action<G> handler)
             {
                 ref var h = ref EventHandlers.Handlers[EventIndex];
-                h = ((Handler<G, T>) h) + ((G g, ref T t) => handler(g));
+                Add((G g, ref T t) => handler(g));
             }
 
             public readonly void Add(Action handler)
             {
                 ref var h = ref EventHandlers.Handlers[EventIndex];
-                h = ((Handler<G, T>) h) + ((G g, ref T t) => handler());
+                Add((G g, ref T t) => handler());
             }
 
             public readonly void Remove(Handler<G, T> handler)
@@ -1279,8 +1312,9 @@ namespace Zayats.Core
         public static readonly TypedIdentifier<AmountRolledContext> OnAmountRolled = new(13);
         public static readonly TypedIdentifier<PlayerPositionChangedContext> OnPositionChanging = new(14);
         public static readonly TypedIdentifier<PlayerPositionChangedContext> OnPositionAboutToChange = new(15);
+        public static readonly TypedIdentifier<int> OnThingAddedToShop = new(16);
 
-        public const int Count = 16;
+        public const int Count = 17;
     }
 
     public static class Data
@@ -1440,13 +1474,12 @@ namespace Zayats.Core
         public static readonly TypedIdentifier<Events.Storage> ThingSpecificEventsId = new(3);
         public static readonly TypedIdentifier<Stack<int>> RespawnPointIdsId = new(4);
         public static readonly TypedIdentifier<int> RespawnPositionId = new(5);
-        // public struct Pickup
-        // {
-        //     public IPickupEffect Effect;
-        //     public bool IsInventoryItem;
-        //     public bool ShouldRemoveFromCellOnPickup;
-        // }
-        public static readonly TypedIdentifier<IPickup> PickupId = new(6);
+        public struct Pickup
+        {
+            public IPickupEffect Effect;
+            public IPickupInteraction Interaction;
+        }
+        public static readonly TypedIdentifier<Pickup> PickupId = new(6);
         public static readonly TypedIdentifier<object> AttachedPickupDelegateId = new(7);
         public static readonly TypedIdentifier<int> RespawnPointIdId = new(8);
         public static readonly TypedIdentifier<ThingFlags> FlagsId = new(9);
@@ -1455,7 +1488,7 @@ namespace Zayats.Core
         {
             public ITargetFilter Filter;
             public ITargetedActivatedAction Action;
-            public short Count;
+            public short RequiredTargetCount;
             public short UsesLeft;
             public short InitialUses;
         }

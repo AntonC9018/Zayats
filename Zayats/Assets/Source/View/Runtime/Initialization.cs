@@ -385,24 +385,6 @@ namespace Zayats.Unity.View
                     s.AppendCallback(() => UI.GameplayText.RollValue.text = val);
                 });
 
-            _view.GetEventProxy(ViewEvents.OnItemInteractionStarted).Add(
-                (ViewContext view, ref ActivatedItemHandling itemH) =>
-                {
-                    // view.BeginAnimationEpoch();
-                    // view.LastAnimationSequence.Join(t);
-
-                    var scrollRect = view.UI.ItemScrollRect;
-                    var targetPos = scrollRect.GetContentLocalPositionToScrollChildIntoView(itemH.Index);
-                    var t = scrollRect.content.DOLocalMove(targetPos, view.Visual.AnimationSpeed.UI);
-                });
-
-            _view.GetEventProxy(ViewEvents.OnItemInteractionCancelled).Add(
-                (ViewContext view, ref ActivatedItemHandling itemH) =>
-                {
-                    view.CancelHighlighting();
-                    Debug.Log("Cancelled");
-                });
-
             UI.GameplayText.Win.gameObject.SetActive(false);
             UI.GameplayText.CoinCounter.text = "0";
             _view.SetItemsForPlayer(0);
@@ -512,6 +494,29 @@ namespace Zayats.Unity.View
             });
 
             UI.ScreenOverlayObject.AddComponent<InputInterceptorOverlay>().Initialize(_view);
+
+            _view.GetEventProxy(ViewEvents.OnItemInteractionStarted).Add(
+                // Scroll the item into view on the scrollview.
+                (ViewContext view, ref ActivatedItemHandling itemH) =>
+                {
+                    // view.BeginAnimationEpoch();
+                    // view.LastAnimationSequence.Join(t);
+
+                    var scrollRect = view.UI.ItemScrollRect;
+                    var targetPos = scrollRect.GetContentLocalPositionToScrollChildIntoView(itemH.Index);
+                    var t = scrollRect.content.DOLocalMove(targetPos, view.Visual.AnimationSpeed.UI);
+                });
+
+            _view.GetEventProxy(ViewEvents.OnItemInteractionStarted)
+                .Add(ViewLogic.HighlightObjectsOfItemInteraction);
+
+            _view.GetEventProxy(ViewEvents.OnItemInteractionCancelled).Add(
+                (ViewContext view, ref ActivatedItemHandling itemH) =>
+                {
+                    view.CancelHighlighting();
+                    Debug.Log("Cancelled");
+                });
+
         }
     
         void OnDestroy()

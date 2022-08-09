@@ -28,8 +28,8 @@ namespace Zayats.Unity.View
         private int _itemCount;
         private int _currentlyHoveredItem;
         private ViewContext _viewContext;
+        // private List<Tween> _rotationTweens;
         // private List<Tween> _usableGraphicFade;
-
         // private GameObject _buttonOverlay;
         // private Action<int> _overlayButtonClickedAction;
 
@@ -37,7 +37,6 @@ namespace Zayats.Unity.View
                 // , ButtonOverlay buttonOverlay, Action<int> overlayButtonClickedAction
         )
         {
-            
             assert(viewContext != null);
             assert(content != null);
             assert(holderPrefab != null);
@@ -161,7 +160,7 @@ namespace Zayats.Unity.View
         public void OnPointerClick(int index, PointerEventData eventData)
         {
             if (eventData.button == Left)
-                _viewContext.TryStartHandlingItemInteraction(index);
+                _viewContext.MaybeTryStartHandlingItemInteraction(index);
         }
 
         public void RemoveItemAt(int itemIndex, Sequence animationSequence, float animationSpeed)

@@ -7,12 +7,12 @@ namespace Zayats.Core
     using static GameEvents;
     using static ForwardOptions;
 
-    public class AttachEventOnPickup<TEventData> : IPickup where TEventData : struct
+    public class AttachEventOnPickupEffect<TEventData> : IPickupEffect where TEventData : struct
     {
         private readonly int _eventId;
         private readonly Events.Handler<GameContext, TEventData> _handler;
 
-        public AttachEventOnPickup(int eventId, Events.Handler<GameContext, TEventData> handler)
+        public AttachEventOnPickupEffect(int eventId, Events.Handler<GameContext, TEventData> handler)
         {
             _eventId = eventId;
             _handler = handler;
@@ -72,13 +72,28 @@ namespace Zayats.Core
         void DoDropEffect(GameContext game, ItemInterationContext info);
     }
 
-    public interface IPickup : IPickupEffect
+    public interface IPickupInteraction
     {
         bool ShouldRemoveFromCellOnPickup(GameContext game, ItemInterationContext info);
         bool IsInventoryItem(GameContext game, ItemInterationContext info);
     }
-    
-    public abstract class AttachEffectHandlerPickupBase<TEventData> : IPickup where TEventData : struct
+
+    public class ConstantPickupInteration : IPickupInteraction
+    {
+        private bool _shouldRemove;
+        private bool _isInventory;
+
+        public ConstantPickupInteration(bool shouldRemove, bool isInventory)
+        {
+            _shouldRemove = shouldRemove;
+            _isInventory = isInventory;
+        }
+
+        public bool ShouldRemoveFromCellOnPickup(GameContext game, ItemInterationContext info) => _shouldRemove;
+        public bool IsInventoryItem(GameContext game, ItemInterationContext info) => _isInventory;
+    }
+
+    public abstract class AttachEffectHandlerPickupEffectBase<TEventData> : IPickupEffect where TEventData : struct
     {
         protected abstract int EventId { get; }
         protected abstract void DoEffect(GameContext game, ItemInterationContext info, ref TEventData eventData);
@@ -109,24 +124,31 @@ namespace Zayats.Core
             DoDetach(game, info);
             DoDrop(game, info);
         }
-
-        public virtual bool ShouldRemoveFromCellOnPickup(GameContext game, ItemInterationContext info) => true;
-        public virtual bool IsInventoryItem(GameContext game, ItemInterationContext info) => true;
     }
 
     public static class PickupHelper
     {
-        public static AttachEventOnPickup<TEventData> GetAttachEventComponent<TEventData>(
+        public static AttachEventOnPickupEffect<TEventData> GetAttachEventComponent<TEventData>(
             TypedIdentifier<TEventData> eventId, Events.Handler<GameContext, TEventData> handler) where TEventData : struct
         {
             return new(eventId.Id, handler);
         }
+
+        public static Components.Pickup AsPickup(this IPickupEffect effect)
+        {
+            return new()
+            {
+                Interaction = Pickups.DefaultInventoryInteraction,
+                Effect = effect,
+            };
+        }
     }
 
-    public sealed class TotemPickup : AttachEffectHandlerPickupBase<SavePlayerContext>
+    public sealed class TotemPickupEffect : AttachEffectHandlerPickupEffectBase<SavePlayerContext>
     {
-        public static readonly TotemPickup Instance = new(Reasons.ExplosionId);
-        private TotemPickup(int reasonFromWhichToProtect)
+        public static readonly TotemPickupEffect Instance = new(Reasons.ExplosionId);
+
+        private TotemPickupEffect(int reasonFromWhichToProtect)
         {
             _reasonFromWhichToProtect = reasonFromWhichToProtect;
         }
@@ -153,13 +175,10 @@ namespace Zayats.Core
         }
     }
 
-    public sealed class PlayerInventoryPickup : IPickup
+    public sealed class DoNothingPickupEffect : IPickupEffect
     {
-        public static readonly PlayerInventoryPickup Instance = new();
-        private PlayerInventoryPickup(){}
-
-        public bool IsInventoryItem(GameContext game, ItemInterationContext info) => true;
-        public bool ShouldRemoveFromCellOnPickup(GameContext game, ItemInterationContext info) => true;
+        public static readonly DoNothingPickupEffect Instance = new();
+        private DoNothingPickupEffect(){}
 
         void IPickupEffect.DoDropEffect(GameContext game, ItemInterationContext info)
         {
@@ -170,27 +189,16 @@ namespace Zayats.Core
         }
     }
 
-    public class MinePickup : IPickup
+    public class MinePickupEffect : IPickupEffect
     {
-        public Components.Mine _mine;
-        
-        public static readonly MinePickup Regular = new(new()
+        public readonly bool DestroyOnDetonation;
+        private MinePickupEffect(bool destroyOnDetonation)
         {
-            DestroyOnDetonation = false,
-            PutInInventoryOnDetonation = true,
-            RemoveOnDetonation = true,
-        });
-        public static readonly MinePickup Eternal = new(new()
-        {
-            DestroyOnDetonation = false,
-            PutInInventoryOnDetonation = false,
-            RemoveOnDetonation = false,
-        });
-
-        public MinePickup(Components.Mine mine)
-        {
-            _mine = mine;
+            DestroyOnDetonation = destroyOnDetonation;
         }
+
+        public static readonly MinePickupEffect DestroysOnDetonation = new(true);
+        public static readonly MinePickupEffect StaysOnDetonation = new(false);
 
         public void DoDropEffect(GameContext game, ItemInterationContext info)
         {
@@ -204,25 +212,22 @@ namespace Zayats.Core
                 PlayerIndex = info.PlayerIndex,
                 Reason = Reasons.Explosion(info.ThingId),
             });
-            if (_mine.DestroyOnDetonation)
+            if (DestroyOnDetonation)
                 game.DestroyThing(info.ThingId);
         }
-
-        public bool IsInventoryItem(GameContext game, ItemInterationContext info) => _mine.PutInInventoryOnDetonation;
-        public bool ShouldRemoveFromCellOnPickup(GameContext game, ItemInterationContext info) => _mine.RemoveOnDetonation;
     }
 
-    public sealed class AddStatPickup : IPickup
+    public sealed class AddStatPickupEffect : IPickupEffect
     {
-        public AddStatPickup(TypedIdentifier<float> id, float value) : this(id.Id, value)
+        public AddStatPickupEffect(TypedIdentifier<float> id, float value) : this(id.Id, value)
         {
         }
         
-        public AddStatPickup(TypedIdentifier<int> id, int value) : this(id.Id, (float) value)
+        public AddStatPickupEffect(TypedIdentifier<int> id, int value) : this(id.Id, (float) value)
         {
         }
         
-        public AddStatPickup(int id, float value)
+        public AddStatPickupEffect(int id, float value)
         {
             StatValue = value;
             StatIndex = id;
@@ -238,14 +243,12 @@ namespace Zayats.Core
 
         public void DoDropEffect(GameContext game, ItemInterationContext info) => GetProxy(game, info).Value -= StatValue;
         public void DoPickupEffect(GameContext game, ItemInterationContext info) => GetProxy(game, info).Value += StatValue;
-        public bool IsInventoryItem(GameContext game, ItemInterationContext info) => true;
-        public bool ShouldRemoveFromCellOnPickup(GameContext game, ItemInterationContext info) => true;
     }
 
-    public sealed class TowerPickup : IPickup
+    public sealed class TowerPickupEffect : IPickupEffect
     {
-        public static readonly TowerPickup Instance = new();
-        private TowerPickup(){}
+        public static readonly TowerPickupEffect Instance = new();
+        private TowerPickupEffect(){}
 
         public void DoDropEffect(GameContext game, ItemInterationContext info)
         {
@@ -260,9 +263,36 @@ namespace Zayats.Core
             int respawnPointId = game.GetComponent(Components.RespawnPointIdId, info.ThingId);
             game.PushRespawnPoint(info.PlayerIndex, respawnPointId);
         }
+    }
 
-        public bool IsInventoryItem(GameContext game, ItemInterationContext info) => true;
-        public bool ShouldRemoveFromCellOnPickup(GameContext game, ItemInterationContext info) => true;
+    public static class Pickups
+    {
+        public static readonly ConstantPickupInteration DefaultInventoryInteraction = new(shouldRemove: true, isInventory: true);
+        public static readonly Components.Pickup Tower = new()
+        {
+            Effect = TowerPickupEffect.Instance,
+            Interaction = DefaultInventoryInteraction,
+        };
+
+        private static readonly ConstantPickupInteration _EternalMineInteraction = new(shouldRemove: false, isInventory: false);
+        public static readonly Components.Pickup EternalMine = new()
+        {
+            Effect = MinePickupEffect.StaysOnDetonation,
+            Interaction = _EternalMineInteraction,
+        };
+
+        private static readonly ConstantPickupInteration _RegularMineInteraction = DefaultInventoryInteraction;
+        public static readonly Components.Pickup RegularMine = new()
+        {
+            Effect = MinePickupEffect.StaysOnDetonation,
+            Interaction = _RegularMineInteraction,
+        };
+
+        public static readonly Components.Pickup Totem = new()
+        {
+            Effect = TotemPickupEffect.Instance,
+            Interaction = DefaultInventoryInteraction,
+        };
     }
 
     public enum TargetKind

@@ -10,9 +10,13 @@ using Kari.Plugins.AdvancedEnum;
 using System.Linq;
 using static Zayats.Core.Assert;
 using Common.Unity;
+using Common;
+using UnityEngine.EventSystems;
 
 namespace Zayats.Unity.View
 {
+    using static PointerEventData.InputButton;
+
     [Serializable]
     public class ViewContext : IGetEvents
     {
@@ -59,7 +63,9 @@ namespace Zayats.Unity.View
         public int Progress;
         public int Index;
         public int ThingId;
-        public Components.ActivatedItem ActivatedItem; 
+        public Components.ActivatedItem ActivatedItem;
+        public List<int> ValidTargets;
+        public List<int> SelectedTargetIndices;
     }
 
     [Serializable]
@@ -139,7 +145,7 @@ namespace Zayats.Unity.View
                             PlayerIndex = playerIndex,
                             Position = view.Game.State.Players[playerIndex].Position,
                             ThingId = id,
-                        }).Take(proxy.Value.Count).Count() < proxy.Value.Count)
+                        }).Take(proxy.Value.RequiredTargetCount).Count() < proxy.Value.RequiredTargetCount)
                     {
                         usability = ItemUsability.NotEnoughSpots;
                     }
@@ -156,6 +162,7 @@ namespace Zayats.Unity.View
         public static void DisplayTip(this ViewContext context, string text)
         {
             // TODO
+            Debug.Log(text);
         }
 
         public static void HighlightObjects(this ViewContext view, IEnumerable<Transform> cells)
@@ -164,7 +171,6 @@ namespace Zayats.Unity.View
             var materialPaths = cells.SelectMany(c => c.GetObject(ObjectHierarchy.ModelInfo).Value.MaterialPaths).ToArray();
             var propertyNames = BatchedMaterial.DefaultPropertyNames;
             
-            highlightMaterial ??= new BatchedMaterial();
             highlightMaterial.Reset(materialPaths, propertyNames);
 
             var intensity = view.Visual.HighlightEmissionIntensity;
@@ -177,12 +183,17 @@ namespace Zayats.Unity.View
             view.State.HighlightMaterial.Reset();
         }
 
+        public static bool MaybeTryStartHandlingItemInteraction(this ViewContext view, int itemIndex)
+        {
+            if (!view.State.ItemHandling.InProgress)
+                return TryStartHandlingItemInteraction(view, itemIndex);
+            return false;
+        }
+
         public static bool TryStartHandlingItemInteraction(this ViewContext view, int itemIndex)
         {
-            Debug.Log("Went through");
-
             ref var itemH = ref view.State.ItemHandling;
-            assert(itemH.Progress == 0);
+            assert(!itemH.InProgress);
 
             var items = view.Game.State.CurrentPlayer.Items;
             if (items.Count <= itemIndex)
@@ -192,32 +203,30 @@ namespace Zayats.Unity.View
             if (!view.Game.TryGetComponent(Components.ActivatedItemId, thingItemId, out var activatedItemProxy))
                 return false;
 
-            ref var state = ref view.Game.State;
-            var itemContext = new ItemInterationContext
-            {
-                ItemId = state.CurrentPlayer.Items[itemIndex],
-                PlayerIndex = state.CurrentPlayerIndex,
-                Position = state.CurrentPlayer.Position,
-            };
-
             var activatedItem = activatedItemProxy.Value;
             var filter = activatedItem.Filter;
             var targetKind = filter.Kind;
 
+            itemH.SelectedTargetIndices.Clear();
+            itemH.ValidTargets.Clear();
+
+            itemH.ThingId = thingItemId;
+            itemH.Index = itemIndex;
+            itemH.ActivatedItem = activatedItem;
+
             if (targetKind == TargetKind.None)
             {
-                // Immediately activate the item.
-                view.Game.UseItem(new()
-                {
-                    Interaction = itemContext,
-                    Item = activatedItemProxy,
-                    SelectedTargets = Array.Empty<int>(),
-                });
-                return true;
+                itemH.Progress = 1;
+                view.ConfirmItemUse();
+
+                // Makes sense for it to not return true,
+                // since the interaction has already ended at this point.
+                return false;
             }
-            else
+
             {
-                var valid = filter.GetValid(view.Game, itemContext).ToArray();
+                var itemContext = view.Game.GetItemInteractionContextForCurrentPlayer(itemIndex);
+                filter.GetValid(view.Game, itemContext).Overwrite(itemH.ValidTargets);
 
                 string Subject()
                 {
@@ -231,50 +240,155 @@ namespace Zayats.Unity.View
                 }
 
                 // Payload in this case means cell count
-                if (valid.Length < activatedItem.Count)
+                if (itemH.ValidTargets.Count < activatedItem.RequiredTargetCount)
                 {
-                    view.DisplayTip($"Not enough {Subject()} (required {activatedItem.Count}, available {valid.Length}).");
+                    view.DisplayTip($"Not enough {Subject()} (required {activatedItem.RequiredTargetCount}, available {itemH.ValidTargets.Count}).");
                     return false;
                 }
 
-                switch (targetKind)
-                {
-                    default: panic($"Unimplemented case: {targetKind}"); break;
-
-                    case TargetKind.Cell:
-                    {
-                        // TODO: enumerate into a reusable buffer.
-                        var cells = valid;
-                        view.HighlightObjects(cells.Select(c => view.UI.VisualCells[c]));
-                        break;
-                    }
-                    case TargetKind.Player:
-                    {
-                        var players = valid;
-                        Transform GetPlayerTransform(int playerIndex)
-                        {
-                            int id = view.Game.State.Players[playerIndex].ThingId;
-                            return view.UI.ThingGameObjects[id].transform;
-                        }
-                        view.HighlightObjects(players.Select(GetPlayerTransform));
-                        break;
-                    }
-                    case TargetKind.Thing:
-                    {
-                        view.HighlightObjects(valid.Select(id => view.UI.ThingGameObjects[id].transform));
-                        break;
-                    }
-                }
-                
-                itemH.ThingId = thingItemId;
                 itemH.Progress = 1;
-                itemH.Index = itemIndex;
-                itemH.ActivatedItem = activatedItem;
-
                 view.HandleEvent(ViewEvents.OnItemInteractionStarted, ref itemH);
             }
             
             return true;
+        }
+
+        public static void HighlightObjectsOfItemInteraction(this ViewContext view, ref ActivatedItemHandling itemH)
+        {
+            var targetKind = itemH.ActivatedItem.Filter.Kind;
+
+            switch (targetKind)
+            {
+                default: panic($"Unimplemented case: {targetKind}"); break;
+
+                case TargetKind.Cell:
+                {
+                    var cells = itemH.ValidTargets;
+                    view.HighlightObjects(cells.Select(c => view.UI.VisualCells[c]));
+                    break;
+                }
+                case TargetKind.Player:
+                {
+                    var players = itemH.ValidTargets;
+                    Transform GetPlayerTransform(int playerIndex)
+                    {
+                        int id = view.Game.State.Players[playerIndex].ThingId;
+                        return view.UI.ThingGameObjects[id].transform;
+                    }
+                    view.HighlightObjects(players.Select(GetPlayerTransform));
+                    break;
+                }
+                case TargetKind.Thing:
+                {
+                    view.HighlightObjects(itemH.ValidTargets.Select(id => view.UI.ThingGameObjects[id].transform));
+                    break;
+                }
+            }
+        }
+
+        public static void SelectObjectsForItemInteraction(this ViewContext view, Vector3 positionOfInteractionOnScreen)
+        {
+            assert(view.State.ItemHandling.InProgress, "Didn't get disabled??");
+
+            int layerMask = LayerBits.RaycastTarget;
+
+            RaycastHit hit;
+            Ray ray = Camera.main.ScreenPointToRay(positionOfInteractionOnScreen);
+
+            if (!Physics.Raycast(ray, out hit, layerMask))
+                return;
+
+            {
+                var t = hit.collider.transform.parent;
+                GameObject obj;
+                while ((obj = t.gameObject).GetComponent<Collider>() != null)
+                    t = t.parent;
+                
+                view.AddOrRemoveObjectToSelection(obj);
+            }
+        }
+
+        public static IEnumerable<GameObject> GetPlayerObjects(this ViewContext view)
+        {
+            return view.Game.State.Players.Select(p => view.UI.ThingGameObjects[p.ThingId]);
+        }
+
+        public static void AddOrRemoveObjectToSelection(this ViewContext view, GameObject hitObject)
+        {
+            ref var itemH = ref view.State.ItemHandling;
+            assert(itemH.InProgress);
+
+            int target;
+            var targetKind = itemH.ActivatedItem.Filter.Kind;
+            switch (targetKind)
+            {
+                case TargetKind.None:
+                {
+                    panic("Should not come to this");
+                    return;
+                }
+                default:
+                {
+                    panic($"Unimplemented case: {targetKind}.");
+                    return;
+                }
+                case TargetKind.Cell:
+                {
+                    target = Array.IndexOf(view.UI.VisualCells, hitObject.transform);
+                    break;
+                }
+                case TargetKind.Player:
+                {
+                    target = view.GetPlayerObjects().IndexOf(hitObject);
+                    break;
+                }
+                case TargetKind.Thing:
+                {
+                    target = Array.IndexOf(view.UI.ThingGameObjects, hitObject);
+                    break;
+                }
+            }
+
+            int targetIndex = itemH.ValidTargets.IndexOf(target);
+            assert(targetIndex != -1);
+
+            {
+                var selected = itemH.SelectedTargetIndices;
+                if (!selected.Contains(targetIndex))
+                {
+                    selected.Add(targetIndex);
+                    itemH.Progress++;
+                    view.HandleEvent(ViewEvents.OnItemInteractionProgress, ref itemH);
+                }
+            }
+
+            view.MaybeConfirmItemUse();
+        }
+
+        public static bool MaybeConfirmItemUse(this ViewContext view)
+        {
+            ref var itemH = ref view.State.ItemHandling;
+            if (itemH.SelectedTargetIndices.Count != itemH.ActivatedItem.RequiredTargetCount)
+                return false;
+
+            ConfirmItemUse(view);
+            return true;
+        }
+
+        public static void ConfirmItemUse(this ViewContext view)
+        {
+            ref var itemH = ref view.State.ItemHandling;
+            var validTargets = itemH.ValidTargets;
+
+            view.Game.UseItem(new()
+            {
+                Interaction = view.Game.GetItemInteractionContextForCurrentPlayer(itemH.Index),
+                Item = view.Game.GetComponentProxy(Components.ActivatedItemId, itemH.ThingId),
+                SelectedTargets = itemH.SelectedTargetIndices.Select(i => validTargets[i]).ToArray(),
+            });
+
+            view.HandleEvent(ViewEvents.OnItemInteractionFinalized, ref itemH);
+            itemH.Progress = 0;
         }
 
         public static void CancelHandlingCurrentItemInteraction(this ViewContext context)
@@ -326,20 +440,6 @@ namespace Zayats.Unity.View
             }
         }
 
-        public static Bounds GetCellOrThingBounds(Transform thing)
-        {
-            assert(thing.localScale == Vector3.one);
-            var (modelTransform, model) = thing.GetObject(ObjectHierarchy.Model);
-            var meshFilter = model.GetComponent<MeshFilter>();
-            var mesh = meshFilter.sharedMesh;
-            var bounds = mesh.bounds;
-            var localScale = modelTransform.localScale;
-            var b = new Bounds(
-                Vector3.Scale(bounds.center, localScale) + modelTransform.localPosition,
-                Vector3.Scale(bounds.size, localScale));
-            return b;
-        }
-
         [Serializable]
         public struct VisualInfo
         {
@@ -355,20 +455,6 @@ namespace Zayats.Unity.View
         public static VisualInfo GetInfo(Transform outerObject)
         {
             var (modelTransform, model) = outerObject.GetObject(ObjectHierarchy.Model);
-            // var meshFilter = model.GetComponent<MeshFilter>();
-            // var mesh = meshFilter.sharedMesh;
-            // var bounds = mesh.bounds;
-
-            // var scale = modelTransform.localScale;
-            // Vector3 Invert(Vector3 a)
-            // {
-            //     Vector3 result;
-            //     result.x = 1 / a.x;
-            //     result.y = 1 / a.y;
-            //     result.z = 1 / a.z;
-            //     return result;
-            // }
-
             var bounds = model.bounds;
             var normal = outerObject.up;
 
@@ -409,7 +495,10 @@ namespace Zayats.Unity.View
             };
 
             view.UI.ItemBuyButtons = new List<GameObject>();
-            view.UI.ItemContainers = new ItemContainers(view, ui.ItemHolderPrefab, ui.ItemScrollRect.content); 
+            view.UI.ItemContainers = new ItemContainers(view, ui.ItemHolderPrefab, ui.ItemScrollRect.content);
+            view.State.HighlightMaterial = new BatchedMaterial();
+            view.State.ItemHandling.ValidTargets = new List<int>();
+            view.State.ItemHandling.SelectedTargetIndices = new List<int>();
 
             return view;
         }
@@ -445,6 +534,7 @@ namespace Zayats.Unity.View
 
         public static readonly TypedIdentifier<MeshRenderer> Model = new(0);
         public static readonly TypedIdentifier<ModelInfo> ModelInfo = new(0);
+        public static readonly TypedIdentifier<Collider> Collider = new(1);
     }
     
     public static partial class ViewEvents
@@ -454,6 +544,16 @@ namespace Zayats.Unity.View
         public static readonly TypedIdentifier<ActivatedItemHandling> OnItemInteractionStarted = new(0);
         public static readonly TypedIdentifier<ActivatedItemHandling> OnItemInteractionProgress = new(1);
         public static readonly TypedIdentifier<ActivatedItemHandling> OnItemInteractionCancelled = new(2);
-        public const int Count = 3;
+        public static readonly TypedIdentifier<ActivatedItemHandling> OnItemInteractionFinalized = new(3);
+
+        public struct PointerEvent : Events.IContinue
+        {
+            public void Consume() => Continue = false;
+            public bool Continue { get; set; }
+            public PointerEventData Data;
+        }
+        public static readonly TypedIdentifier<PointerEvent> OnPointerClick = new(4);
+
+        public const int Count = 5;
     }
 }

@@ -1,6 +1,7 @@
 using Common.Unity;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using Zayats.Core;
 
 namespace Zayats.Unity.View
 {
@@ -26,7 +27,25 @@ namespace Zayats.Unity.View
                     return;
                 }
             }
-            eventData.Bubble(ExecuteEvents.pointerClickHandler, gameObject);
+            else if (eventData.button == Left)
+            {
+                if (_viewContext.State.ItemHandling.InProgress)
+                {
+                    _viewContext.SelectObjectsForItemInteraction(eventData.position);
+                    return;
+                }
+            }
+
+            var context = new ViewEvents.PointerEvent
+            {
+                Continue = true,
+                Data = eventData,
+            };
+            _viewContext.GetEventProxy(ViewEvents.OnPointerClick)
+                .HandleWithContinueCheck(_viewContext, ref context);
+
+            if (context.Continue)
+                eventData.Bubble(ExecuteEvents.pointerClickHandler, gameObject);
         }
     }
 }

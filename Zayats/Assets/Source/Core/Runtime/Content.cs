@@ -141,20 +141,20 @@ namespace Zayats.Core
         }
         public static ThingCreationProxy EternalMine(this ThingCreationProxy p)
         {
-            p.AddComponent(Components.PickupId) = MinePickup.Eternal;
+            p.AddComponent(Components.PickupId) = Pickups.EternalMine;
             p.AddComponent(Components.FlagsId) = ThingFlags.Solid;
             return p;
         }
         public static ThingCreationProxy RegularMine(this ThingCreationProxy p)
         {
-            p.AddComponent(Components.PickupId) = MinePickup.Regular;
+            p.AddComponent(Components.PickupId) = Pickups.RegularMine;
             p.AddComponent(Components.FlagsId) = ThingFlags.Solid;
             return p;
         }
         public static ThingCreationProxy Coin(this ThingCreationProxy p)
         {
             p.AddComponent(Components.CurrencyId) = 1;
-            p.AddComponent(Components.PickupId) = PlayerInventoryPickup.Instance;
+            p.AddComponent(Components.PickupId) = DoNothingPickupEffect.Instance.AsPickup();
             return p;
         }
         public static ThingCreationProxy RespawnPoint(this ThingCreationProxy p, int position)
@@ -164,28 +164,28 @@ namespace Zayats.Core
         }
         public static ThingCreationProxy Totem(this ThingCreationProxy p)
         {
-            p.AddComponent(Components.PickupId) = TotemPickup.Instance;
+            p.AddComponent(Components.PickupId) = Pickups.Totem;
             p.AddComponent(Components.AttachedPickupDelegateId);
             return p;
         }
 
-        public static readonly AddStatPickup RabbitPickup = new AddStatPickup(Stats.RollAdditiveBonus, 1);
+        public static readonly AddStatPickupEffect RabbitPickupEffect = new AddStatPickupEffect(Stats.RollAdditiveBonus, 1);
         public static ThingCreationProxy Rabbit(this ThingCreationProxy p)
         {
-            p.AddComponent(Components.PickupId) = RabbitPickup;
+            p.AddComponent(Components.PickupId) = RabbitPickupEffect.AsPickup();
             return p;
         }
         public static ThingCreationProxy Tower(this ThingCreationProxy p)
         {
-            p.AddComponent(Components.PickupId) = TowerPickup.Instance;
+            p.AddComponent(Components.PickupId) = Pickups.Tower;
             p.AddComponent(Components.RespawnPointIdId);
             return p;
         }
 
-        public static readonly AddStatPickup HorsePickup = new AddStatPickup(Stats.JumpAfterMoveCapacity, 1);
+        public static readonly AddStatPickupEffect HorsePickup = new AddStatPickupEffect(Stats.JumpAfterMoveCapacity, 1);
         public static ThingCreationProxy Horse(this ThingCreationProxy p)
         {
-            p.AddComponent(Components.PickupId) = HorsePickup;
+            p.AddComponent(Components.PickupId) = HorsePickup.AsPickup();
             return p;
         }
 
@@ -196,11 +196,11 @@ namespace Zayats.Core
             {
                 Filter = NearbyOtherPlayersFilter.Instance,
                 Action = KillPlayersWithPoisonAction,
-                Count = 1,
+                RequiredTargetCount = 1,
                 InitialUses = short.MaxValue,
                 UsesLeft = short.MaxValue,
             };
-            p.AddComponent(Components.PickupId) = PlayerInventoryPickup.Instance;
+            p.AddComponent(Components.PickupId) = DoNothingPickupEffect.Instance.AsPickup();
             return p;
         }
 
