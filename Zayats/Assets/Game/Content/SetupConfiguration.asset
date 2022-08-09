@@ -24,7 +24,7 @@ MonoBehaviour:
       - {r: 0, g: 0, b: 0, a: 0}
       - {r: 1, g: 0.95084643, b: 0, a: 1}
       - {r: 0.0027144956, g: 0.5754717, b: 0.027960142, a: 1}
-    HighlightEmissionIntensity: 0.7
+    HighlightEmissionIntensity: 0.4
   Game:
     PrefabsToSpawn:
       Values:

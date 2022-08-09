@@ -288,7 +288,7 @@ namespace Zayats.Unity.View
                     {
                         var playerVisualInfo = _view.GetThingVisualInfo(player.ThingId);
                         int direction = Math.Sign(context.TargetPosition - context.InitialPosition);
-                        for (int i = context.InitialPosition + 1; i != context.TargetPosition; i += direction)
+                        for (int i = context.InitialPosition + direction; i != context.TargetPosition; i += direction)
                         {
                             var cell = UI.VisualCells[i];
                             var t = playerTransform.DOJump(

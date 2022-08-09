@@ -5,6 +5,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using Zayats.Core;
 using DG.Tweening;
+using Common.Unity;
 
 namespace Zayats.Unity.View
 {
@@ -92,17 +93,14 @@ namespace Zayats.Unity.View
             {
                 foreach (var (_, item) in itemsToStore)
                 {
-                    item.GetComponentsInChildren<Transform>(_GetChildrenCache);
-                    foreach (var ch in _GetChildrenCache)
-                        ch.gameObject.layer = LayerIndex.UI;
-
                     var holder = MaybeInitializeAt(i++);
                     var itemFrame = holder.ItemFrameTransform;
-                    itemFrame.GetWorldCorners(_WorldCornersCache);
-                    var center = (_WorldCornersCache[0] + _WorldCornersCache[2]) * 0.5f;
-
+                    var (itemFrameCenter, itemFrameSize) = itemFrame.GetWorldSpaceRect();
                     var info = ViewLogic.GetInfo(item);
-                    var position = center + info.Center + info.Size.z * -itemFrame.forward;
+                    float smallerFactor = Vector2.Scale(info.Size.xy().Inverse(), itemFrameSize).Min();
+                    Vector3 adjustedModelCenterOffset = info.Center * -smallerFactor;
+                    Vector3 bringModelForwardOffset = info.Size.z * -smallerFactor * itemFrame.forward;
+                    var position = itemFrameCenter + adjustedModelCenterOffset + bringModelForwardOffset;
                     var tween = item.DOMove(position, animationSpeed);
                     animationSequence.Join(tween);
                 }
@@ -117,6 +115,10 @@ namespace Zayats.Unity.View
 
                 foreach (var (isUsable, item) in itemsToStore)
                 {
+                    item.GetComponentsInChildren<Transform>(_GetChildrenCache);
+                    foreach (var ch in _GetChildrenCache)
+                        ch.gameObject.layer = LayerIndex.UI;
+
                     var h = _uiHolderInfos[i++];
                     item.SetParent(h.ItemFrameTransform, worldPositionStays: true);
                     h.OuterObject.SetActive(true);
