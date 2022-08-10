@@ -7,22 +7,27 @@ namespace Common.Unity
     {
         public static Vector2 Inverse(this Vector2 v)
         {
-            v.x = 1 / v.x;
-            v.y = 1 / v.y;
+            v.x = 1.0f / v.x;
+            v.y = 1.0f / v.y;
             return v;
         }
 
         public static Vector2 Inverse(this Vector3 v)
         {
-            v.x = 1 / v.x;
-            v.y = 1 / v.y;
-            v.z = 1 / v.z;
+            v.x = 1.0f / v.x;
+            v.y = 1.0f / v.y;
+            v.z = 1.0f / v.z;
             return v;
         }
 
         public static float Min(this Vector2 v)
         {
             return Mathf.Min(v.x, v.y);
+        }
+
+        public static float Max(this Vector2 v)
+        {
+            return Mathf.Max(v.x, v.y);
         }
 
         public static float Min(this Vector3 v)

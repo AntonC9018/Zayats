@@ -831,7 +831,7 @@ namespace Zayats.Core
         Events.Storage Events { get; }
     }
 
-    public static class Helper
+    public static class GameHelper
     {
         public static IEnumerable<ListItemComponentProxy<T>> GetItemInList<T>(List<int> list, ComponentStorage<T> componentStorage)
         {
@@ -1378,7 +1378,9 @@ namespace Zayats.Core
         public const int PoisonId = 3;
         public const int BuyingId = 4;
         public const int PlayerMovementOffset = 5;
-        public const int DebugId = PlayerMovementOffset + (int) MovementKind.Count;
+        private const int Waypoint0 = PlayerMovementOffset + (int) MovementKind.Count;
+        public const int DebugId = Waypoint0 + 0;
+        public const int ItemPlacementId = Waypoint0 + 1;
 
         public static Data.Reason Unknown => new Data.Reason { Id = UnknownId };
         public static Data.Reason Explosion(int explodedThingId) => new Data.Reason { Id = ExplosionId, Payload = explodedThingId };
@@ -1395,6 +1397,7 @@ namespace Zayats.Core
         }
 
         public static Data.Reason Debug => new Data.Reason { Id = DebugId };
+        public static Data.Reason ItemPlacement => new Data.Reason { Id = ItemPlacementId };
     }
 
     [Serializable]

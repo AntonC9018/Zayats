@@ -243,7 +243,12 @@ namespace Zayats.Unity.View
                 foreach (var thingId in things)
                 {
                     var thingInfo = _view.GetThingVisualInfo(thingId);
-                    var tween = thingInfo.OuterObject.DOMove(currentPos, _view.Visual.AnimationSpeed.Game);
+                    var tween = thingInfo.OuterObject.DOMove(currentPos - thingInfo.Center + thingInfo.Size.y / 2 * cellInfo.Normal, _view.Visual.AnimationSpeed.Game);
+
+                    var thingObject = thingInfo.OuterObject;
+                    var cellObject = cellInfo.OuterObject;
+                    tween.OnComplete(() => thingObject.parent = cellObject);
+
                     animationSequence.Insert(lastTime, tween);
 
                     currentPos += thingInfo.Size.y * cellInfo.Normal;
@@ -330,7 +335,7 @@ namespace Zayats.Unity.View
                 {
                     UI.ItemContainers.RemoveItemAt(
                         context.ItemIndex,
-                        _view.LastAnimationSequence,
+                        _view.MaybeBeginAnimationEpoch(),
                         _view.Visual.AnimationSpeed.UI);
                 });
 
@@ -435,9 +440,13 @@ namespace Zayats.Unity.View
 
             buttons.Restart.onClick.AddListener(() =>
             {
+                // TODO: move into an event to clean this up?
+                _view.UI.ItemContainers.ItemCount = 0;
+
                 _view.SkipAnimations();
                 foreach (var thing in UI.ThingGameObjects)
                     Destroy(thing);
+
                 Seed = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
                 InitializeGame();
             });
@@ -508,7 +517,7 @@ namespace Zayats.Unity.View
                     // view.BeginAnimationEpoch();
                     // view.LastAnimationSequence.Join(t);
 
-                    var scrollRect = view.UI.ItemScrollRect;
+                    var scrollRect = view.UI.Static.ItemScrollUI.ScrollRect;
                     var targetPos = scrollRect.GetContentLocalPositionToScrollChildIntoView(itemH.Index);
                     var t = scrollRect.content.DOLocalMove(targetPos, view.Visual.AnimationSpeed.UI);
                 });

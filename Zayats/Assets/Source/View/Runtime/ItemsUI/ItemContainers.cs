@@ -6,6 +6,7 @@ using UnityEngine.UI;
 using Zayats.Core;
 using DG.Tweening;
 using Common.Unity;
+using Common;
 
 namespace Zayats.Unity.View
 {
@@ -22,28 +23,28 @@ namespace Zayats.Unity.View
 
     public class ItemContainers : IPointerEnterIndex, IPointerExitIndex, IPointerClickIndex
     {
+        public int ItemCount;
+
         private List<UIHolderInfo> _uiHolderInfos;
-        private UIHolderInfo _prefab;
-        private Transform _content;
-        private int _itemCount;
         private int _currentlyHoveredItem;
         private ViewContext _viewContext;
+        private ItemScrollUIReferences _ui;
+        
         // private List<Tween> _rotationTweens;
         // private List<Tween> _usableGraphicFade;
         // private GameObject _buttonOverlay;
         // private Action<int> _overlayButtonClickedAction;
 
-        public ItemContainers(ViewContext viewContext, UIHolderInfo holderPrefab, Transform content
+        public ItemContainers(
+            ViewContext viewContext,
+            ItemScrollUIReferences ui
                 // , ButtonOverlay buttonOverlay, Action<int> overlayButtonClickedAction
         )
         {
+            _ui = ui;
             assert(viewContext != null);
-            assert(content != null);
-            assert(holderPrefab != null);
 
             _viewContext = viewContext;
-            _content = content;
-            _prefab = holderPrefab;
             _uiHolderInfos = new();
 
             // viewContext.GetEventProxy(ViewEvents.OnItemInteractionCancelled)
@@ -57,7 +58,7 @@ namespace Zayats.Unity.View
             UIHolderInfo holder;
             if (_uiHolderInfos.Count <= i)
             {
-                holder = GameObject.Instantiate(_prefab, parent: _content);
+                holder = GameObject.Instantiate(_ui.HolderPrefab, parent: _ui.ScrollRect.content);
                 {
                     var handler = holder.ItemFrameObject.AddComponent<PointerEnter>();
                     handler.Initialize(i, this);
@@ -72,6 +73,7 @@ namespace Zayats.Unity.View
                 }
                 _uiHolderInfos.Add(holder);
                 holder.OuterObject.SetActive(false);
+                holder.InitializeAnimatedContainer(_ui.ContainerTransform, i);
             }
             else
             {
@@ -83,6 +85,20 @@ namespace Zayats.Unity.View
         private static readonly Vector3[] _WorldCornersCache = new Vector3[4];
         private static readonly List<Transform> _GetChildrenCache = new();
 
+        private (Vector3 CCenter, float MinRatio, Vector3 CenterOffset, float ZOffset) CalculateOffsets(Transform item, UIHolderInfo holder)
+        {
+            var info = ViewLogic.GetInfo(item);
+            var size = info.Size;
+            var (ccenter, csize) = holder.ItemFrameTransform.GetWorldSpaceRect();
+            var minRatio = Vector2.Scale(csize, size.xy().Inverse()).Min();
+            var targetCenterOffset = info.Center * minRatio;
+
+            // Must be a child of ItemFrameTransform
+            var offset = - targetCenterOffset;
+
+            return (ccenter, minRatio, offset, -1f);
+        }
+
         public void ChangeItems(
             IEnumerable<Transform> itemsToStore,
             Sequence animationSequence,
@@ -93,15 +109,20 @@ namespace Zayats.Unity.View
                 foreach (var item in itemsToStore)
                 {
                     var holder = MaybeInitializeAt(i++);
-                    var itemFrame = holder.ItemFrameTransform;
-                    var (itemFrameCenter, itemFrameSize) = itemFrame.GetWorldSpaceRect();
-                    var info = ViewLogic.GetInfo(item);
-                    float smallerFactor = Vector2.Scale(info.Size.xy().Inverse(), itemFrameSize).Min();
-                    Vector3 adjustedModelCenterOffset = info.Size.y / 2 * -smallerFactor * itemFrame.up;
-                    Vector3 bringModelForwardOffset = info.Size.z * -smallerFactor * itemFrame.forward;
-                    var position = itemFrameCenter + adjustedModelCenterOffset + bringModelForwardOffset;
-                    var tween = item.DOMove(position, animationSpeed);
-                    animationSequence.Join(tween);
+                    var o = CalculateOffsets(item, holder);
+
+                    var ct = holder.CenteringTransform;
+                    {
+                        var t = o.CCenter + o.CenterOffset;
+                        t.z += o.ZOffset;
+                        var tween = item.DOMove(t, animationSpeed);
+                        animationSequence.Join(tween);
+                    }
+                    {
+                        // var scale = Vector3.one * o.MinRatio;
+                        // var tween = item.DOScale(scale, animationSpeed);
+                        // animationSequence.Join(tween);
+                    }
                 }
             }
 
@@ -109,8 +130,8 @@ namespace Zayats.Unity.View
             {
                 int i = 0;
 
-                for (int j = 0; j < _itemCount; j++)
-                    _uiHolderInfos[j].ItemFrameTransform.GetChild(0).parent = _viewContext.UI.ParentForOldItems;
+                for (int j = 0; j < ItemCount; j++)
+                    _uiHolderInfos[j].StoredItem.parent = _ui.ParentForOldItems;
 
                 foreach (var item in itemsToStore)
                 {
@@ -118,19 +139,31 @@ namespace Zayats.Unity.View
                     foreach (var ch in _GetChildrenCache)
                         ch.gameObject.layer = LayerIndex.UI;
 
-                    var h = _uiHolderInfos[i++];
-                    item.SetParent(h.ItemFrameTransform, worldPositionStays: true);
-                    h.OuterObject.SetActive(true);
-                }
-                _itemCount = i;
-            });
+                    var holder = _uiHolderInfos[i++];
+                    var o = CalculateOffsets(item, holder);
+                    
+                    {
+                        var centering = holder.CenteringTransform;
+                        item.parent = centering;
+                        centering.localPosition = o.CenterOffset;
 
-            animationSequence.AppendCallback(() =>
-            {
+                        centering.localScale = Vector3.one * o.MinRatio;
+                        item.localScale = Vector3.one;
+                        item.localPosition = Vector3.zero;
+                    }
+                    {
+                        var lp = holder.AnimatedTransform.localPosition;
+                        lp.z = o.ZOffset;
+                        holder.AnimatedTransform.localPosition = lp;
+                    }
+
+                    holder.OuterObject.SetActive(true);
+                }
+                ItemCount = i;
+
                 for (int j = i; j < _uiHolderInfos.Count; j++)
                     _uiHolderInfos[j].OuterObject.SetActive(false);
             });
-                
         }
 
         public void OnPointerEnter(int index, PointerEventData eventData)
@@ -165,13 +198,23 @@ namespace Zayats.Unity.View
         {
             animationSequence.AppendCallback(() =>
             {
-                _uiHolderInfos[itemIndex].StoredItem.parent = _viewContext.UI.ParentForOldItems;
-                for (int i = itemIndex + 1; i < _itemCount; i++)
-                    _uiHolderInfos[i].StoredItem.parent = _uiHolderInfos[i - 1].ItemFrameTransform;
-                _uiHolderInfos[_itemCount - 1].OuterObject.SetActive(false);
+                var first = _uiHolderInfos[itemIndex];
+                var last = _uiHolderInfos[ItemCount - 1];
 
-                assert(_uiHolderInfos[_itemCount - 1].StoredItem == null);
-                _itemCount--;
+                var storedItem = first.StoredItem;
+                storedItem.parent = _ui.ParentForOldItems;
+                storedItem.localScale = Vector3.one;
+                
+                var ft = first.AnimatedTransform;
+
+                for (int i = itemIndex + 1; i < ItemCount; i++)
+                    _uiHolderInfos[i - 1].AnimatedTransform = _uiHolderInfos[i].AnimatedTransform;
+                    
+                last.OuterObject.SetActive(false);
+
+                last.AnimatedTransform = ft;
+                assert(!last.HasStoredItem);
+                ItemCount--;
             });
         }
 
@@ -184,7 +227,7 @@ namespace Zayats.Unity.View
                 int i = 0;
                 foreach (var color in colors)
                 {
-                    assert(i < _itemCount);
+                    assert(i < ItemCount, i + " " + ItemCount);
                     _uiHolderInfos[i].UsabilityGraphic.color = color;
                     i++;
                 }

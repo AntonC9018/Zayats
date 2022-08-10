@@ -3,8 +3,15 @@ using System.Collections.Generic;
 
 namespace Common
 {
-    public static class HelperThing
+    public static class Helper
     {
+        public static void Swap<T>(ref T a, ref T b)
+        {
+            T c = a;
+            a = b;
+            b = c;
+        }
+
         public static T? MaybeFirst<T>(this IEnumerable<T> e, System.Predicate<T> func) where T : struct
         {
             foreach (T el in e)

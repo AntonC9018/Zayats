@@ -149,6 +149,13 @@ namespace Zayats.Core
         {
             p.AddComponent(Components.PickupId) = Pickups.RegularMine;
             p.AddComponent(Components.FlagsId) = ThingFlags.Solid;
+            p.AddComponent(Components.ActivatedItemId) = new()
+            {
+                Action = PlaceItemFromInventoryAction.Instance,
+                Filter = UnoccupiedCellFilter.Instance,
+                InitialUses = 1,
+                RequiredTargetCount = 1,
+            };
             return p;
         }
         public static ThingCreationProxy Coin(this ThingCreationProxy p)

@@ -7,6 +7,7 @@ namespace Zayats.Core
 {
     using static GameEvents;
     using static ForwardOptions;
+    using static Assert;
 
     public class AttachEventOnPickupEffect<TEventData> : IPickupEffect where TEventData : struct
     {
@@ -441,7 +442,27 @@ namespace Zayats.Core
             return ItemUsability.Usable;
         }
     }
-    
+
+    public class PlaceItemFromInventoryAction : ITargetedActivatedAction
+    {
+        public static readonly PlaceItemFromInventoryAction Instance = new();
+        private PlaceItemFromInventoryAction(){}
+        public void DoAction(GameContext game, ItemInterationContext context, IEnumerable<int> targets)
+        {
+            assert(targets.Count() == 1);
+            var t = targets.First();
+
+            var itemId = context.ItemId;
+            var playerIndex = context.PlayerIndex;
+
+            game.RemoveItemFromInventory(context);
+            game.PlaceThing(itemId).At(t);
+
+            // TODO: integrate this into the placement logic.
+            game.TriggerSingleThingAddedToCellEvent(itemId, t, Reasons.ItemPlacement);
+        }
+    }
+
     // public class ActivatedItemConfig
     // {
     //     public IActivatedAction Action { get; }

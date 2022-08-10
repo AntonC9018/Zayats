@@ -88,16 +88,23 @@ namespace Zayats.Unity.View
     }
 
     [Serializable]
+    public struct ItemScrollUIReferences
+    {
+        public ScrollRect ScrollRect;
+        public Transform ParentForOldItems;
+        public UIHolderInfo HolderPrefab;
+        public Transform ContainerTransform;
+    }
+
+    [Serializable]
     public struct UIReferences
     {
         public Transform[] VisualCells;
         public GameplayButtonArray<Button> GameplayButtons;
         public GameplayTextArray<TMP_Text> GameplayText;
-        public ScrollRect ItemScrollRect;
         public GameObject BuyButtonPrefab;
-        public UIHolderInfo ItemHolderPrefab;
-        public Transform ParentForOldItems;
         public GameObject ScreenOverlayObject;
+        public ItemScrollUIReferences ItemScrollUI;
     }
 
     [Serializable]
@@ -114,9 +121,7 @@ namespace Zayats.Unity.View
         public readonly Transform[] VisualCells { get => Static.VisualCells; }
         public readonly GameplayButtonArray<Button> GameplayButtons { get => Static.GameplayButtons; }
         public readonly GameplayTextArray<TMP_Text> GameplayText { get => Static.GameplayText; }
-        public readonly ScrollRect ItemScrollRect { get => Static.ItemScrollRect; }
         public readonly GameObject BuyButtonPrefab { get => Static.BuyButtonPrefab; }
-        public readonly Transform ParentForOldItems { get => Static.ParentForOldItems; }
         public readonly GameObject ScreenOverlayObject { get => Static.ScreenOverlayObject; }
     }
 
@@ -429,19 +434,25 @@ namespace Zayats.Unity.View
         }
 
         public static void SkipAnimations(this ViewContext view)
-        {
+        {            
             var s = view.AnimationSequences.First;
             while (s is not null)
             {
                 var t = s.Value;
 
                 // Stopping the sequence will delete the first node,
-                // which will set Next to null. (I checked).
+                // which will set Next to null. (I have checked).
                 s = s.Next;
 
                 // It will not run the callback of the next sequence if it's empty,
-                // unless it's killed first. We do have manual control here. (I checked).
-                t.Kill(complete: true);
+                // unless it's killed first. We do have manual control here. (I have checked).
+                var k = s?.Next;
+                t.Complete(withCallbacks: true);
+
+                // autokill is on
+                // t.Kill();
+
+                assert(k == s?.Next);
             }
         }
 
@@ -453,22 +464,27 @@ namespace Zayats.Unity.View
             public Vector3 Size;
             public Vector3 Center;
             public Vector3 Normal;
-            public readonly Vector3 GetTopOffset() => Center + Normal * Size.y / 2;
+            public readonly Vector3 GetTopOffset() => -Center + Size.y / 2 * Normal;
             public readonly Vector3 GetTop() => OuterObject.position + GetTopOffset();
         }
 
         public static VisualInfo GetInfo(Transform outerObject)
         {
             var (modelTransform, model) = outerObject.GetObject(ObjectHierarchy.Model);
-            var bounds = model.bounds;
+            var bounds = model.localBounds;
             var normal = outerObject.up;
+
+            var trs = Matrix4x4.TRS(
+                modelTransform.localPosition,
+                modelTransform.localRotation,
+                modelTransform.localScale);
 
             return new VisualInfo
             {
                 OuterObject = outerObject,
                 MeshRenderer = model,
-                Size = bounds.size,
-                Center = bounds.center - modelTransform.position,
+                Size = Vector3.Scale(bounds.size, modelTransform.localScale),
+                Center = trs.MultiplyPoint3x4(bounds.center),
                 Normal = normal,
             };
         }
@@ -500,7 +516,7 @@ namespace Zayats.Unity.View
             };
 
             view.UI.ItemBuyButtons = new List<GameObject>();
-            view.UI.ItemContainers = new ItemContainers(view, ui.ItemHolderPrefab, ui.ItemScrollRect.content);
+            view.UI.ItemContainers = new ItemContainers(view, ui.ItemScrollUI);
             view.State.HighlightMaterial = new BatchedMaterial();
             view.State.ItemHandling.ValidTargets = new List<int>();
             view.State.ItemHandling.SelectedTargetIndices = new List<int>();
