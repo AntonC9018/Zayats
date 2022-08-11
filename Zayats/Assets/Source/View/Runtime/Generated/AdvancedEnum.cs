@@ -12,7 +12,7 @@ namespace Zayats.Unity.View.Generated
     {
         public /*readonly*/ T[] Values;
         private AnimationArray(T[] values) => Values = values;
-        public static AnimationArray<T> Create() => new AnimationArray<T>(new T[2]);
+        public static AnimationArray<T> Create() => new AnimationArray<T>(new T[3]);
         public readonly ref T GetRef(Zayats.Unity.View.AnimationKind key)
         {
             return ref Values[(int) key];
@@ -37,11 +37,17 @@ namespace Zayats.Unity.View.Generated
             readonly get => Values[(int) Zayats.Unity.View.AnimationKind.Game];
             set => Values[(int) Zayats.Unity.View.AnimationKind.Game] = value;
         }
+        public readonly ref T InitialThingSpawningRef => ref Values[(int) Zayats.Unity.View.AnimationKind.InitialThingSpawning];
+        public T InitialThingSpawning
+        {
+            readonly get => Values[(int) Zayats.Unity.View.AnimationKind.InitialThingSpawning];
+            set => Values[(int) Zayats.Unity.View.AnimationKind.InitialThingSpawning] = value;
+        }
         public static implicit operator T[](AnimationArray<T> a) => a.Values;
         public readonly T[] Array => Values;
         public readonly ref T this[Zayats.Unity.View.AnimationKind key] => ref GetRef(key);
         public readonly ref T this[int index] => ref Values[index];
-        public readonly int Length => 2;
+        public readonly int Length => 3;
         public static bool operator==(AnimationArray<T> a, AnimationArray<T> b)
         {
             for (int i = 0; i < a.Length; i++)

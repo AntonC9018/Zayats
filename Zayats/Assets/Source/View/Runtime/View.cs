@@ -61,14 +61,19 @@ namespace Zayats.Unity.View
     [Serializable]
     public struct ActivatedItemHandling
     {
-        public readonly bool InProgress => Progress > 0;
-        public int Progress;
+        public readonly bool InProgress => ThingId != -1;
         public int Index;
         public int ThingId;
         public Components.ActivatedItem ActivatedItem;
+    }
+
+    [Serializable]
+    public struct SelectionState
+    {
+        public readonly bool InProgress => TargetKind != TargetKind.None;
+        public TargetKind TargetKind;
         public List<int> ValidTargets;
-        public List<int> SelectedTargetIndices;
-        public readonly TargetKind TargetKind => ActivatedItem.Filter.Kind;
+        public List<int> TargetIndices;
     }
 
     [Serializable]
@@ -76,6 +81,7 @@ namespace Zayats.Unity.View
     {
         public ActivatedItemHandling ItemHandling;
         public BatchedMaterial HighlightMaterial;
+        public SelectionState Selection;
         // public List<GameObject> HighlightedUIObjects;
     }
 
@@ -178,16 +184,16 @@ namespace Zayats.Unity.View
 
         public static bool MaybeTryStartHandlingItemInteraction(this ViewContext view, int itemIndex)
         {
-            if (!view.State.ItemHandling.InProgress)
+            if (!view.State.Selection.InProgress)
                 return TryStartHandlingItemInteraction(view, itemIndex);
             return false;
         }
 
         public static bool TryStartHandlingItemInteraction(this ViewContext view, int itemIndex)
         {
-            ref var itemH = ref view.State.ItemHandling;
-            assert(!itemH.InProgress);
+            assert(!view.State.Selection.InProgress);
 
+            ref var itemH = ref view.State.ItemHandling;
             var items = view.Game.State.CurrentPlayer.Items;
             if (items.Count <= itemIndex)
                 return false;
@@ -200,8 +206,10 @@ namespace Zayats.Unity.View
             var filter = activatedItem.Filter;
             var targetKind = filter.Kind;
 
-            itemH.SelectedTargetIndices.Clear();
-            itemH.ValidTargets.Clear();
+            ref var selection = ref view.State.Selection;
+            selection.TargetKind = targetKind;
+            selection.TargetIndices.Clear();
+            selection.ValidTargets.Clear();
 
             itemH.ThingId = thingItemId;
             itemH.Index = itemIndex;
@@ -209,7 +217,6 @@ namespace Zayats.Unity.View
 
             if (targetKind == TargetKind.None)
             {
-                itemH.Progress = 1;
                 view.ConfirmItemUse();
 
                 // Makes sense for it to not return true,
@@ -219,7 +226,7 @@ namespace Zayats.Unity.View
 
             {
                 var itemContext = view.Game.GetItemInteractionContextForCurrentPlayer(itemIndex);
-                filter.GetValid(view.Game, itemContext).Overwrite(itemH.ValidTargets);
+                filter.GetValid(view.Game, itemContext).Overwrite(selection.ValidTargets);
 
                 string Subject()
                 {
@@ -233,36 +240,36 @@ namespace Zayats.Unity.View
                 }
 
                 // Payload in this case means cell count
-                if (itemH.ValidTargets.Count < activatedItem.RequiredTargetCount)
+                if (selection.ValidTargets.Count < activatedItem.RequiredTargetCount)
                 {
-                    view.DisplayTip($"Not enough {Subject()} (required {activatedItem.RequiredTargetCount}, available {itemH.ValidTargets.Count}).");
+                    view.DisplayTip($"Not enough {Subject()} (required {activatedItem.RequiredTargetCount}, available {selection.ValidTargets.Count}).");
                     return false;
                 }
 
-                itemH.Progress = 1;
-                view.HandleEvent(ViewEvents.OnItemInteractionStarted, ref itemH);
+                view.HandleEvent(ViewEvents.OnItemInteractionStarted, new()
+                {
+                    Item = itemH,
+                    Selection = view.State.Selection,
+                });
             }
             
             return true;
         }
 
-        public static IEnumerable<Transform> GetObjectsValidForInteraction(this ViewContext view, ref ActivatedItemHandling itemH)
+        public static IEnumerable<Transform> GetObjectsValidForSelection(this ViewContext view, TargetKind targetKind, List<int> validTargets)
         {
-            assert(itemH.InProgress);
-            var targetKind = itemH.TargetKind;
-
             switch (targetKind)
             {
                 default: panic($"Unimplemented case: {targetKind}"); return null;
 
                 case TargetKind.Cell:
                 {
-                    var cells = itemH.ValidTargets;
+                    var cells = validTargets;
                     return cells.Select(c => view.UI.VisualCells[c]);
                 }
                 case TargetKind.Player:
                 {
-                    var players = itemH.ValidTargets;
+                    var players = validTargets;
                     Transform GetPlayerTransform(int playerIndex)
                     {
                         int id = view.Game.State.Players[playerIndex].ThingId;
@@ -272,31 +279,41 @@ namespace Zayats.Unity.View
                 }
                 case TargetKind.Thing:
                 {
-                    return itemH.ValidTargets.Select(id => view.UI.ThingGameObjects[id].transform);
+                    return validTargets.Select(id => view.UI.ThingGameObjects[id].transform);
                 }
             }
         }
 
-        public static void HighlightObjectsOfItemInteraction(this ViewContext view, ref ActivatedItemHandling itemH)
+        public static void HighlightObjectsOfItemInteraction(this ViewContext view, in SelectionState selection)
         {
-            view.HighlightObjects(view.GetObjectsValidForInteraction(ref itemH));
+            view.HighlightObjects(
+                view.GetObjectsValidForSelection(selection.TargetKind, selection.ValidTargets));
         }
 
-        public static void ChangeLayerOnValidTargetsForRaycasts(this ViewContext view, ref ActivatedItemHandling itemH)
+        public static void ChangeLayerOnTargets(IEnumerable<Transform> targets, int layer)
         {
-            foreach (var t in view.GetObjectsValidForInteraction(ref itemH))
-                t.GetChild(ObjectHierarchy.Collider.Id).gameObject.layer = LayerIndex.RaycastTarget;
+            foreach (var t in targets)
+                t.GetChild(ObjectHierarchy.Collider.Id).gameObject.layer = layer;
         }
 
-        public static void ChangeLayerOnValidTargetsToDefault(this ViewContext view, ref ActivatedItemHandling itemH)
+        public static void ChangeLayerOnValidTargets(this ViewContext view, TargetKind targetKind, List<int> validTargets, int layer)
         {
-            foreach (var t in view.GetObjectsValidForInteraction(ref itemH))
-                t.GetChild(ObjectHierarchy.Collider.Id).gameObject.layer = LayerIndex.Default;
+            ChangeLayerOnTargets(view.GetObjectsValidForSelection(targetKind, validTargets), layer);
         }
 
-        public static void SelectObjectsForItemInteraction(this ViewContext view, Vector3 positionOfInteractionOnScreen)
+        public static void ChangeLayerOnValidTargetsForRaycasts(this ViewContext view, TargetKind targetKind, List<int> validTargets)
         {
-            assert(view.State.ItemHandling.InProgress, "Didn't get disabled??");
+            ChangeLayerOnValidTargets(view, targetKind, validTargets, LayerIndex.RaycastTarget);
+        }
+
+        public static void ChangeLayerOnValidTargetsToDefault(this ViewContext view, TargetKind targetKind, List<int> validTargets)
+        {
+            ChangeLayerOnValidTargets(view, targetKind, validTargets, LayerIndex.Default);
+        }
+
+        public static void SelectObject(this ViewContext view, Vector3 positionOfInteractionOnScreen)
+        {
+            assert(view.State.Selection.InProgress, "Didn't get disabled??");
 
             int layerMask = LayerBits.RaycastTarget;
 
@@ -323,12 +340,11 @@ namespace Zayats.Unity.View
 
         public static void AddOrRemoveObjectToSelection(this ViewContext view, GameObject hitObject)
         {
-            ref var itemH = ref view.State.ItemHandling;
-            assert(itemH.InProgress);
+            ref var selection = ref view.State.Selection;
+            assert(view.State.Selection.InProgress);
 
             int target;
-            var targetKind = itemH.ActivatedItem.Filter.Kind;
-            switch (targetKind)
+            switch (selection.TargetKind)
             {
                 case TargetKind.None:
                 {
@@ -337,7 +353,7 @@ namespace Zayats.Unity.View
                 }
                 default:
                 {
-                    panic($"Unimplemented case: {targetKind}.");
+                    panic($"Unimplemented case: {selection.TargetKind}.");
                     return;
                 }
                 case TargetKind.Cell:
@@ -357,16 +373,16 @@ namespace Zayats.Unity.View
                 }
             }
 
-            int targetIndex = itemH.ValidTargets.IndexOf(target);
+            int targetIndex = selection.ValidTargets.IndexOf(target);
             assert(targetIndex != -1);
 
             {
-                var selected = itemH.SelectedTargetIndices;
+                var selected = selection.TargetIndices;
                 if (!selected.Contains(targetIndex))
                 {
                     selected.Add(targetIndex);
-                    itemH.Progress++;
-                    view.HandleEvent(ViewEvents.OnItemInteractionProgress, ref itemH);
+
+                    view.HandleEvent(ViewEvents.OnSelectionProgress, ref selection);
                 }
             }
 
@@ -376,7 +392,7 @@ namespace Zayats.Unity.View
         public static bool MaybeConfirmItemUse(this ViewContext view)
         {
             ref var itemH = ref view.State.ItemHandling;
-            if (itemH.SelectedTargetIndices.Count != itemH.ActivatedItem.RequiredTargetCount)
+            if (view.State.Selection.TargetIndices.Count != itemH.ActivatedItem.RequiredTargetCount)
                 return false;
 
             ConfirmItemUse(view);
@@ -386,27 +402,37 @@ namespace Zayats.Unity.View
         public static void ConfirmItemUse(this ViewContext view)
         {
             ref var itemH = ref view.State.ItemHandling;
-            var validTargets = itemH.ValidTargets;
+            var selection = view.State.Selection;
+            var validTargets = selection.ValidTargets;
 
             view.Game.UseItem(new()
             {
                 Interaction = view.Game.GetItemInteractionContextForCurrentPlayer(itemH.Index),
                 Item = view.Game.GetComponentProxy(Components.ActivatedItemId, itemH.ThingId),
-                SelectedTargets = itemH.SelectedTargetIndices.Select(i => validTargets[i]).ToArray(),
+                SelectedTargets = selection.TargetIndices.Select(i => validTargets[i]).ToArray(),
             });
 
-            view.HandleEvent(ViewEvents.OnItemInteractionFinalized, ref itemH);
-            view.HandleEvent(ViewEvents.OnItemInteractionCancelledOrFinalized, ref itemH);
-            itemH.Progress = 0;
+            var context = new ViewEvents.ItemHandlingContext
+            {
+                Item = itemH,
+                Selection = view.State.Selection,
+            };
+            view.HandleEvent(ViewEvents.OnItemInteractionFinalized, ref context);
+            view.HandleEvent(ViewEvents.OnItemInteractionCancelledOrFinalized, ref context);
         }
 
         public static void CancelHandlingCurrentItemInteraction(this ViewContext view)
         {
             ref var itemH = ref view.State.ItemHandling;
-            assert(itemH.Progress != 0);
-            view.HandleEvent(ViewEvents.OnItemInteractionCancelled, ref itemH);
-            view.HandleEvent(ViewEvents.OnItemInteractionCancelledOrFinalized, ref itemH);
-            itemH.Progress = 0;
+            assert(itemH.InProgress);
+            
+            var context = new ViewEvents.ItemHandlingContext
+            {
+                Item = itemH,
+                Selection = view.State.Selection,
+            };
+            view.HandleEvent(ViewEvents.OnItemInteractionCancelled, ref context);
+            view.HandleEvent(ViewEvents.OnItemInteractionCancelledOrFinalized, ref context);
         }
 
         public static Sequence MaybeBeginAnimationEpoch(this ViewContext view)
@@ -474,10 +500,7 @@ namespace Zayats.Unity.View
             var bounds = model.localBounds;
             var normal = outerObject.up;
 
-            var trs = Matrix4x4.TRS(
-                modelTransform.localPosition,
-                modelTransform.localRotation,
-                modelTransform.localScale);
+            var trs = modelTransform.GetLocalTRS();
 
             return new VisualInfo
             {
@@ -518,8 +541,8 @@ namespace Zayats.Unity.View
             view.UI.ItemBuyButtons = new List<GameObject>();
             view.UI.ItemContainers = new ItemContainers(view, ui.ItemScrollUI);
             view.State.HighlightMaterial = new BatchedMaterial();
-            view.State.ItemHandling.ValidTargets = new List<int>();
-            view.State.ItemHandling.SelectedTargetIndices = new List<int>();
+            view.State.Selection.ValidTargets = new List<int>();
+            view.State.Selection.TargetIndices = new List<int>();
 
             return view;
         }
@@ -541,6 +564,34 @@ namespace Zayats.Unity.View
             }
 
             return obj;
+        }
+
+        public static void ArrangeThingsOnCell(
+            this ViewContext view,
+            int cellIndex,
+            Sequence animationSequence,
+            float animationSpeed)
+        {
+            var things = view.Game.State.Cells[cellIndex];
+            var cellInfo = view.GetCellVisualInfo(cellIndex);
+            Vector3 currentPos = cellInfo.GetTop();
+
+            var lastTime = animationSequence.Duration();
+
+            foreach (var thingId in things)
+            {
+                var thingInfo = view.GetThingVisualInfo(thingId);
+                var p = currentPos - thingInfo.Center + thingInfo.Size.y / 2 * cellInfo.Normal;
+                var tween = thingInfo.OuterObject.DOMove(p, animationSpeed);
+
+                var thingObject = thingInfo.OuterObject;
+                var cellObject = cellInfo.OuterObject;
+                tween.OnComplete(() => thingObject.parent = cellObject);
+
+                animationSequence.Insert(lastTime, tween);
+
+                currentPos += thingInfo.Size.y * cellInfo.Normal;
+            }
         }
     }
     
@@ -576,11 +627,17 @@ namespace Zayats.Unity.View
     {
         public static Events.Storage CreateStorage() => new(Count);
 
-        public static readonly TypedIdentifier<ActivatedItemHandling> OnItemInteractionStarted = new(0);
-        public static readonly TypedIdentifier<ActivatedItemHandling> OnItemInteractionProgress = new(1);
-        public static readonly TypedIdentifier<ActivatedItemHandling> OnItemInteractionCancelled = new(2);
-        public static readonly TypedIdentifier<ActivatedItemHandling> OnItemInteractionFinalized = new(3);
-        public static readonly TypedIdentifier<ActivatedItemHandling> OnItemInteractionCancelledOrFinalized = new(4);
+        public struct ItemHandlingContext
+        {
+            public ActivatedItemHandling Item;
+            public SelectionState Selection;
+        }
+        public static readonly TypedIdentifier<ItemHandlingContext> OnItemInteractionStarted = new(0);
+        // public static readonly TypedIdentifier<ItemHandlingContext> OnItemInteractionProgress = new(1);
+        public static readonly TypedIdentifier<ItemHandlingContext> OnItemInteractionCancelled = new(2);
+        public static readonly TypedIdentifier<ItemHandlingContext> OnItemInteractionFinalized = new(3);
+        public static readonly TypedIdentifier<ItemHandlingContext> OnItemInteractionCancelledOrFinalized = new(4);
+
 
         public struct PointerEvent : Events.IContinue
         {
@@ -589,7 +646,8 @@ namespace Zayats.Unity.View
             public PointerEventData Data;
         }
         public static readonly TypedIdentifier<PointerEvent> OnPointerClick = new(5);
+        public static readonly TypedIdentifier<SelectionState> OnSelectionProgress = new(6);
 
-        public const int Count = 6;
+        public const int Count = 7;
     }
 }

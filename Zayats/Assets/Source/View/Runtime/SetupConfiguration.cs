@@ -11,6 +11,7 @@ namespace Zayats.Unity.View
     {
         UI,
         Game,
+        InitialThingSpawning,
     }
 
     [Serializable]

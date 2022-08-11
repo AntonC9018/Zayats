@@ -10,7 +10,7 @@ namespace Zayats.Unity.View.Editor.Generated
     [CustomPropertyDrawer(typeof(Zayats.Unity.View.Generated.AnimationArray<>))]
     public class AnimationKindPropertyDrawer : Kari.Plugins.AdvancedEnum.Editor.EnumArrayDrawer
     {
-        private static readonly string[] _Names = new[] {"UI", "Game"};
+        private static readonly string[] _Names = new[] {"UI", "Game", "InitialThingSpawning"};
         protected override string[] Names => _Names;
     }
 }

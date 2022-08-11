@@ -55,5 +55,10 @@ namespace Common.Unity
             t.localRotation = from.localRotation;
             t.localPosition = from.localPosition;
         }
+
+        public static Matrix4x4 GetLocalTRS(this Transform t)
+        {
+            return Matrix4x4.TRS(t.localPosition, t.localRotation, t.localScale);
+        }
     }
 }

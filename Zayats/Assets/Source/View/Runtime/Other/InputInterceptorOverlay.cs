@@ -31,7 +31,7 @@ namespace Zayats.Unity.View
             {
                 if (_viewContext.State.ItemHandling.InProgress)
                 {
-                    _viewContext.SelectObjectsForItemInteraction(eventData.position);
+                    _viewContext.SelectObject(eventData.position);
                     return;
                 }
             }

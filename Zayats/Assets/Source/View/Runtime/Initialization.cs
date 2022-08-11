@@ -232,32 +232,9 @@ namespace Zayats.Unity.View
                 Core.Initialization.AssociateRespawnPointIdsOneToOne(Game);
             }
 
-            void ArrangeThings(int position, Sequence animationSequence)
-            {
-                var things = _view.Game.State.Cells[position];
-                var cellInfo = _view.GetCellVisualInfo(position);
-                Vector3 currentPos = cellInfo.GetTop();
-
-                var lastTime = animationSequence.Duration();
-
-                foreach (var thingId in things)
-                {
-                    var thingInfo = _view.GetThingVisualInfo(thingId);
-                    var tween = thingInfo.OuterObject.DOMove(currentPos - thingInfo.Center + thingInfo.Size.y / 2 * cellInfo.Normal, _view.Visual.AnimationSpeed.Game);
-
-                    var thingObject = thingInfo.OuterObject;
-                    var cellObject = cellInfo.OuterObject;
-                    tween.OnComplete(() => thingObject.parent = cellObject);
-
-                    animationSequence.Insert(lastTime, tween);
-
-                    currentPos += thingInfo.Size.y * cellInfo.Normal;
-                }
-            }
-
             var s = _view.BeginAnimationEpoch();
             for (int cellIndex = 0; cellIndex < UI.VisualCells.Length; cellIndex++)
-                ArrangeThings(cellIndex, s);
+                _view.ArrangeThingsOnCell(cellIndex, s, _view.Visual.AnimationSpeed.InitialThingSpawning / 3);   
 
             Vector3 GetCellTopPosition(int cellIndex)
             {
@@ -371,10 +348,10 @@ namespace Zayats.Unity.View
                         return;
                     }
 
-                    {
-                        // This is ok, because it will be eventually animated.
-                        ArrangeThings(context.CellPosition, _view.LastAnimationSequence);
-                    }
+                    _view.ArrangeThingsOnCell(
+                        context.CellPosition,
+                        _view.LastAnimationSequence,
+                        _view.Visual.AnimationSpeed.Game);
                 });
 
             Game.GetEventProxy(GameEvents.OnAmountRolled).Add(
@@ -512,28 +489,39 @@ namespace Zayats.Unity.View
 
             _view.GetEventProxy(ViewEvents.OnItemInteractionStarted).Add(
                 // Scroll the item into view on the scrollview.
-                (ViewContext view, ref ActivatedItemHandling itemH) =>
+                (ViewContext view, ref ViewEvents.ItemHandlingContext context) =>
                 {
                     // view.BeginAnimationEpoch();
                     // view.LastAnimationSequence.Join(t);
 
                     var scrollRect = view.UI.Static.ItemScrollUI.ScrollRect;
-                    var targetPos = scrollRect.GetContentLocalPositionToScrollChildIntoView(itemH.Index);
+                    var targetPos = scrollRect.GetContentLocalPositionToScrollChildIntoView(context.Item.Index);
                     var t = scrollRect.content.DOLocalMove(targetPos, view.Visual.AnimationSpeed.UI);
                 });
 
-            _view.GetEventProxy(ViewEvents.OnItemInteractionStarted)
-                .Add(ViewLogic.HighlightObjectsOfItemInteraction);
+            _view.GetEventProxy(ViewEvents.OnItemInteractionStarted).Add(
+                (ViewContext view, ref ViewEvents.ItemHandlingContext context) =>
+                {
+                    view.HighlightObjectsOfItemInteraction(context.Selection);
+                });
             _view.GetEventProxy(ViewEvents.OnItemInteractionCancelledOrFinalized).Add(
-                (ViewContext view, ref ActivatedItemHandling itemH) =>
+                (ViewContext view) =>
                 {
                     view.CancelHighlighting();
                 });
 
-            _view.GetEventProxy(ViewEvents.OnItemInteractionStarted)
-                .Add(ViewLogic.ChangeLayerOnValidTargetsForRaycasts);
-            _view.GetEventProxy(ViewEvents.OnItemInteractionCancelledOrFinalized)
-                .Add(ViewLogic.ChangeLayerOnValidTargetsForRaycasts);
+            _view.GetEventProxy(ViewEvents.OnItemInteractionStarted).Add(
+                (ViewContext view, ref ViewEvents.ItemHandlingContext context) =>
+                {
+                    view.ChangeLayerOnValidTargetsForRaycasts(
+                        context.Selection.TargetKind, context.Selection.ValidTargets);
+                });
+            _view.GetEventProxy(ViewEvents.OnItemInteractionCancelledOrFinalized).Add(
+                (ViewContext view, ref ViewEvents.ItemHandlingContext context) =>
+                {
+                    view.ChangeLayerOnValidTargetsToDefault(
+                        context.Selection.TargetKind, context.Selection.ValidTargets);
+                });
         }
     
         void OnDestroy()

@@ -72,7 +72,8 @@ public class Stuff : MonoBehaviour
             }
 
             var holder = UIHolders[i];
-            if (thing.gameObject.activeInHierarchy)
+            if (thing.gameObject.activeInHierarchy
+                && false)
             {
                 var itemFrame = holder.ItemFrameTransform;
                 var (ccenter, csize) = itemFrame.GetWorldSpaceRect();
@@ -115,9 +116,11 @@ public class Stuff : MonoBehaviour
             static Vector3 PlaceWithBottomAt(Vector3 position, Vector3 up, Transform parent)
             {
                 var (t, model) = parent.GetObject(ObjectHierarchy.Model);
-                var bounds = model.bounds;
-                var offsetToCenter = bounds.center - parent.position;
-                return position - offsetToCenter + bounds.size.y / 2 * up;
+                var bounds = model.localBounds;
+                var trs = t.GetLocalTRS();
+                var offsetToCenter = trs.MultiplyPoint3x4(bounds.center);
+                var size = Vector3.Scale(t.localScale, bounds.size);
+                return position - offsetToCenter + size.y / 2 * up;
             }
         }
     }
