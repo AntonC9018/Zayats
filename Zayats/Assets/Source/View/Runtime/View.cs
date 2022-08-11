@@ -68,6 +68,12 @@ namespace Zayats.Unity.View
     }
 
     [Serializable]
+    public struct ForcedItemDropHandling
+    {
+        public readonly bool InProgress => false;
+    }
+
+    [Serializable]
     public struct SelectionState
     {
         public readonly bool InProgress => TargetKind != TargetKind.None;
@@ -80,6 +86,7 @@ namespace Zayats.Unity.View
     public struct ViewState
     {
         public ActivatedItemHandling ItemHandling;
+        public ForcedItemDropHandling ForcedItemDropHandling;
         public BatchedMaterial HighlightMaterial;
         public SelectionState Selection;
         // public List<GameObject> HighlightedUIObjects;
@@ -419,6 +426,23 @@ namespace Zayats.Unity.View
             };
             view.HandleEvent(ViewEvents.OnItemInteractionFinalized, ref context);
             view.HandleEvent(ViewEvents.OnItemInteractionCancelledOrFinalized, ref context);
+        }
+
+        public static void CancelCurrentSelectionInteraction(this ViewContext view)
+        {
+            assert(view.State.Selection.InProgress);
+
+            // Might want an enum + switch for this, or an interface.
+            if (view.State.ItemHandling.InProgress)
+            {
+                view.CancelHandlingCurrentItemInteraction();
+            }
+            else if (view.State.ForcedItemDropHandling.InProgress)
+            {
+                // view.State.
+            }
+            else panic("Unimplemented?");
+
         }
 
         public static void CancelHandlingCurrentItemInteraction(this ViewContext view)

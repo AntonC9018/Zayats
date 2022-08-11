@@ -21,7 +21,7 @@ namespace Zayats.Unity.View
         {
             if (eventData.button == Right)
             {
-                if (_viewContext.State.ItemHandling.InProgress)
+                if (_viewContext.State.Selection.InProgress)
                 {
                     _viewContext.CancelHandlingCurrentItemInteraction();
                     return;
@@ -29,7 +29,7 @@ namespace Zayats.Unity.View
             }
             else if (eventData.button == Left)
             {
-                if (_viewContext.State.ItemHandling.InProgress)
+                if (_viewContext.State.Selection.InProgress)
                 {
                     _viewContext.SelectObject(eventData.position);
                     return;
