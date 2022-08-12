@@ -142,9 +142,6 @@ namespace Zayats.Unity.View
                 {
                     var t = o.CCenter + o.CenterOffset;
                     t.z += o.ZOffset;
-                    Debug.Log($"Center: {o.CCenter} MinRatio: {o.MinRatio} CenterOffset: {o.CenterOffset} ZOffset: {o.ZOffset}.");
-                    Debug.Log($"Position of holder {holder.ItemFrameTransform.position}.");
-                    Debug.Log($"Item: {item.name}; Before: {item.position}, After: {t}.");
                     var tween = item.DOMove(t, animationSpeed);
                     animationSequence.Join(tween);
                 }

@@ -42,7 +42,10 @@ namespace Zayats.Unity.View
                 s,
                 animationSpeed: view.Visual.AnimationSpeed.UI);
             view.ResetUsabilityColors(playerIndex, s);
-            view.LastAnimationSequence.Append(s);
+            
+            // This could fail if ChangeItems is called twice in a row, which would make the calls overlap.
+            // I don't think it would crash or anything, but it would look funky for sure.
+            view.LastAnimationSequence.Join(s);
         }
 
         public static void ResetUsabilityColors(this ViewContext view, int playerIndex, Sequence s)
