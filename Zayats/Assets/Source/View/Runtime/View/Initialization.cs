@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Common;
 using static Zayats.Core.GameEvents;
 using DG.Tweening;
+using Newtonsoft.Json;
 
 namespace Zayats.Unity.View
 {
@@ -41,6 +42,11 @@ namespace Zayats.Unity.View
         public void Debug(string message)
         {
             UnityEngine.Debug.Log(message);
+        }
+
+        public void Dump(object obj)
+        {
+            UnityEngine.Debug.Log(JsonConvert.SerializeObject(obj, Formatting.Indented));
         }
 
         public void Debug(string format, object value)
@@ -234,17 +240,20 @@ namespace Zayats.Unity.View
 
             var s = _view.BeginAnimationEpoch();
             for (int cellIndex = 0; cellIndex < UI.VisualCells.Length; cellIndex++)
-                _view.ArrangeThingsOnCell(cellIndex, s, _view.Visual.AnimationSpeed.InitialThingSpawning / 3);   
+                _view.ArrangeThingsOnCell(cellIndex, s,
+                    (view, _, transform, pos) => transform.DOMove(pos, view.Visual.AnimationSpeed.InitialThingSpawning));   
 
             Vector3 GetCellTopPosition(int cellIndex)
             {
                 var things = _view.Game.State.Cells[cellIndex];
                 var cellInfo = _view.GetCellVisualInfo(cellIndex);
-                var top = cellInfo.GetTop();
+                var up = cellInfo.OuterObject.up;
+                var top = cellInfo.GetTop(up);
+
                 foreach (var thingId in things)
                 {
                     var thingInfo = _view.GetThingVisualInfo(thingId);
-                    top += thingInfo.Size.y * cellInfo.Normal;
+                    top += thingInfo.Size.y * up;
                 }
                 return top;
             }
@@ -273,19 +282,17 @@ namespace Zayats.Unity.View
                         for (int i = context.InitialPosition + direction; i != context.TargetPosition; i += direction)
                         {
                             var cell = UI.VisualCells[i];
-                            var t = playerTransform.DOJump(
-                                GetCellTopPosition(i),
-                                duration: _view.Visual.AnimationSpeed.Game,
-                                jumpPower: _view.Visual.MovementJumpPower,
-                                numJumps: 1);
+                            var pos = GetCellTopPosition(i);
+                            var t = _view.JumpAnimation(playerTransform, pos);
                             t.OnComplete(() => playerTransform.SetParent(cell, worldPositionStays: true));
                             moveSequence.Append(t);
                         }
                     }
                     {
                         var s = _view.LastAnimationSequence;
-                        s.Join(moveSequence);
-                        s.AppendInterval(0);
+                        // s.Join(moveSequence);
+                        moveSequence.Pause();
+                        // s.AppendInterval(0);
                     }
                 });
 
@@ -298,7 +305,7 @@ namespace Zayats.Unity.View
                     win.alpha = 0.0f;
                     var fade = win.DOFade(255.0f, _view.Visual.AnimationSpeed.UI);
 
-                    _view.LastAnimationSequence.Join(fade);
+                    _view.LastAnimationSequence.Append(fade);
                 });
 
             Game.GetEventProxy(GameEvents.OnItemAddedToInventory).Add(
@@ -337,7 +344,12 @@ namespace Zayats.Unity.View
             Game.GetEventProxy(GameEvents.OnCellContentChanged).Add(
                 (GameContext game, ref CellContentChangedContext context) =>
                 {
+                    assert(game.State.Cells[context.CellPosition].ContainsAll(context.AddedThings));
+                    assert(game.State.Cells[context.CellPosition].ContainsNone(context.RemovedThings));
+
                     var playerMovement = context.Reason.MatchPlayerMovement();
+
+                    var animationSequence = DOTween.Sequence();
 
                     if (playerMovement.HasValue
                         && context.AddedThings.Count == 1
@@ -345,13 +357,29 @@ namespace Zayats.Unity.View
                         // Death does not have an animation for now, so we just teleport the player in this case.
                         && playerMovement.Value.Kind != MovementKind.Death)
                     {
+                        int playerId = context.AddedThings[0];
+
+                        _view.ArrangeThingsOnCell(
+                            context.CellPosition,
+                            animationSequence,
+                            (view, thingId, transform, position) =>
+                            {
+                                if (playerId == thingId)
+                                    return view.JumpAnimation(transform, position);
+                                return view.MoveAnimation(transform, position);
+                            });
+                        animationSequence.OnComplete(() => Debug.Log("Cell content changed (player)"));
                         return;
                     }
-
-                    _view.ArrangeThingsOnCell(
-                        context.CellPosition,
-                        _view.LastAnimationSequence,
-                        _view.Visual.AnimationSpeed.Game);
+                    else
+                    {
+                        _view.ArrangeThingsOnCell(
+                            context.CellPosition,
+                            animationSequence,
+                            ViewLogic.MoveAnimationAdapter);
+                        animationSequence.OnComplete(() => Debug.Log("Cell content changed complete (normal)"));
+                    }
+                    _view.LastAnimationSequence.Append(animationSequence);
                 });
 
             Game.GetEventProxy(GameEvents.OnAmountRolled).Add(
@@ -370,7 +398,7 @@ namespace Zayats.Unity.View
             Game.GetEventProxy(GameEvents.OnPositionChanged).Add(
                 (GameContext game, ref PlayerPositionChangedContext context) =>
                 {
-                    _view.ResetUsabilityColors(game.State.CurrentPlayerIndex);
+                    _view.ResetUsabilityColors(game.State.CurrentPlayerIndex, _view.LastAnimationSequence);
                 });
 
             UI.GameplayText.Win.gameObject.SetActive(false);
@@ -393,6 +421,9 @@ namespace Zayats.Unity.View
                 recycleAllByDefault: true,
                 useSafeMode: false,
                 logBehaviour: LogBehaviour.Verbose);
+
+            DOTween.defaultAutoPlay = AutoPlay.None;
+
             _view = ViewLogic.CreateView(_config, _ui);
             _toDestroy = new();
 
@@ -487,6 +518,12 @@ namespace Zayats.Unity.View
 
             UI.ScreenOverlayObject.AddComponent<InputInterceptorOverlay>().Initialize(_view);
 
+            _view.GetEventProxy(ViewEvents.OnSelectionProgress).Add(
+                (ViewContext view, ref SelectionState state) =>
+                {
+                    view.MaybeConfirmItemUse();
+                });
+
             _view.GetEventProxy(ViewEvents.OnItemInteractionStarted).Add(
                 // Scroll the item into view on the scrollview.
                 (ViewContext view, ref ViewEvents.ItemHandlingContext context) =>
@@ -522,6 +559,14 @@ namespace Zayats.Unity.View
                     view.ChangeLayerOnValidTargetsToDefault(
                         context.Selection.TargetKind, context.Selection.ValidTargets);
                 });
+            _view.GetEventProxy(ViewEvents.OnItemInteractionCancelledOrFinalized).Add(
+                (ViewContext view) =>
+                {
+                    view.State.Selection.TargetKind = TargetKind.None;
+                    view.State.ItemHandling.ThingId = -1;
+                });
+
+            GetComponent<AnimationStart>().Initialize(_view);
         }
     
         void OnDestroy()

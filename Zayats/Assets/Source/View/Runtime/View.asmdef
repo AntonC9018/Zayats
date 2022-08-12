@@ -6,7 +6,8 @@
         "Common",
         "Unity.TextMeshPro",
         "DOTween.Modules",
-        "Common.Unity"
+        "Common.Unity",
+        "Newtonsoft.Json"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

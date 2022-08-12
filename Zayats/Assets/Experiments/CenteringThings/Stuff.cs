@@ -65,9 +65,9 @@ public class Stuff : MonoBehaviour
             if (thing.gameObject.activeInHierarchy)
             {
                 var top = GetTop(cell);
-                // _markers.Add((top, Vector3.one, Color.black));
+                _markers.Add((top, Vector3.one * 0.3f, Color.black));
                 var bottom = PlaceWithBottomAt(top, cell.up, thing);
-                // _markers.Add((bottom, Vector3.one, Color.white));
+                _markers.Add((bottom, Vector3.one * 0.3f, Color.white));
                 Things2[i].position = bottom;
             }
 
@@ -113,13 +113,24 @@ public class Stuff : MonoBehaviour
                 return (worldSpaceBounds.size.y / 2) * parent.up + worldSpaceBounds.center; 
             }
 
-            static Vector3 PlaceWithBottomAt(Vector3 position, Vector3 up, Transform parent)
+            Vector3 PlaceWithBottomAt(Vector3 position, Vector3 up, Transform parent)
             {
                 var (t, model) = parent.GetObject(ObjectHierarchy.Model);
-                var bounds = model.localBounds;
+
+                // {
+                //     bounds = model.gameObject.GetComponent<MeshFilter>().sharedMesh.bounds;
+                //     Debug.Log("Bounds center " + bounds.center);
+                // }
+
+
                 var trs = t.GetLocalTRS();
+
+                var bounds = model.localBounds;
                 var offsetToCenter = trs.MultiplyPoint3x4(bounds.center);
-                var size = Vector3.Scale(t.localScale, bounds.size);
+                var size = trs.MultiplyVector(bounds.size);
+
+                _markers.Add((parent.position + offsetToCenter, Vector3.one * 0.2f, Color.black));
+                
                 return position - offsetToCenter + size.y / 2 * up;
             }
         }
@@ -129,7 +140,6 @@ public class Stuff : MonoBehaviour
     {
         if (_markers is null)
             return;
-        Debug.Log(_markers.Count);
         foreach (var (pos, size, color) in _markers)
         {
             Gizmos.color = color;

@@ -348,6 +348,9 @@ namespace Zayats.Core
             var pickupsInCell = game.GetDataInCell(Components.PickupId, position);
             var pickupInfos = pickupsInCell.Select(a => (Pickup: a.Value, a.ListIndex, a.ThingId)).Reverse().ToArray();
 
+            if (pickupInfos.Length == 0)
+                return;
+
             ItemInterationContext info;
             info.PlayerIndex = playerIndex;
             info.Position = position;
@@ -799,6 +802,7 @@ namespace Zayats.Core
     public interface ILogger
     {
         void Debug(string message);
+        void Dump(object obj);
         void Debug(string format, object value);
     }
 
@@ -1170,19 +1174,16 @@ namespace Zayats.Core
 
             public readonly void Add(Action<G, T> handler)
             {
-                ref var h = ref EventHandlers.Handlers[EventIndex];
                 Add((G g, ref T t) => handler(g, t));
             } 
 
             public readonly void Add(Action<G> handler)
             {
-                ref var h = ref EventHandlers.Handlers[EventIndex];
                 Add((G g, ref T t) => handler(g));
             }
 
             public readonly void Add(Action handler)
             {
-                ref var h = ref EventHandlers.Handlers[EventIndex];
                 Add((G g, ref T t) => handler());
             }
 

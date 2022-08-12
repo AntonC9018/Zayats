@@ -23,7 +23,17 @@ namespace Zayats.Unity.View
 
     public class ItemContainers : IPointerEnterIndex, IPointerExitIndex, IPointerClickIndex
     {
-        public int ItemCount;
+        private int _itemCount;
+        public int ItemCount
+        {
+            get => _itemCount;
+            set
+            {
+                for (int i = value; i < _itemCount; i++)
+                    _uiHolderInfos[i].OuterObject.SetActive(false);
+                _itemCount = value;
+            }
+        }
 
         private List<UIHolderInfo> _uiHolderInfos;
         private int _currentlyHoveredItem;
@@ -116,7 +126,7 @@ namespace Zayats.Unity.View
                         var t = o.CCenter + o.CenterOffset;
                         t.z += o.ZOffset;
                         var tween = item.DOMove(t, animationSpeed);
-                        animationSequence.Join(tween);
+                        animationSequence.Append(tween);
                     }
                     {
                         // var scale = Vector3.one * o.MinRatio;
@@ -128,9 +138,10 @@ namespace Zayats.Unity.View
 
             animationSequence.AppendCallback(() =>
             {
+                Debug.Log("ChangeItems");
                 int i = 0;
 
-                for (int j = 0; j < ItemCount; j++)
+                for (int j = 0; j < _itemCount; j++)
                     _uiHolderInfos[j].StoredItem.parent = _ui.ParentForOldItems;
 
                 foreach (var item in itemsToStore)
@@ -160,9 +171,6 @@ namespace Zayats.Unity.View
                     holder.OuterObject.SetActive(true);
                 }
                 ItemCount = i;
-
-                for (int j = i; j < _uiHolderInfos.Count; j++)
-                    _uiHolderInfos[j].OuterObject.SetActive(false);
             });
         }
 
@@ -198,6 +206,7 @@ namespace Zayats.Unity.View
         {
             animationSequence.AppendCallback(() =>
             {
+                Debug.Log("RemoveItemAt");
                 var first = _uiHolderInfos[itemIndex];
                 var last = _uiHolderInfos[ItemCount - 1];
 
@@ -207,14 +216,14 @@ namespace Zayats.Unity.View
                 
                 var ft = first.AnimatedTransform;
 
-                for (int i = itemIndex + 1; i < ItemCount; i++)
+                for (int i = itemIndex + 1; i < _itemCount; i++)
                     _uiHolderInfos[i - 1].AnimatedTransform = _uiHolderInfos[i].AnimatedTransform;
                     
                 last.OuterObject.SetActive(false);
 
                 last.AnimatedTransform = ft;
                 assert(!last.HasStoredItem);
-                ItemCount--;
+                _itemCount--;
             });
         }
 
@@ -224,10 +233,11 @@ namespace Zayats.Unity.View
         {
             animationSequence.AppendCallback(() =>
             {
+                Debug.Log("ResetUsabilityColors");
                 int i = 0;
                 foreach (var color in colors)
                 {
-                    assert(i < ItemCount, i + " " + ItemCount);
+                    assert(i < _itemCount, i + " " + _itemCount);
                     _uiHolderInfos[i].UsabilityGraphic.color = color;
                     i++;
                 }

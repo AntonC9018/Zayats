@@ -576,7 +576,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1103568112806798101, guid: b264283c3c9c4eb4da391c992c35a8da, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -3.2042089
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1103568112806798101, guid: b264283c3c9c4eb4da391c992c35a8da, type: 3}
       propertyPath: m_LocalPosition.y
@@ -584,23 +584,23 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1103568112806798101, guid: b264283c3c9c4eb4da391c992c35a8da, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0.9745735
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1103568112806798101, guid: b264283c3c9c4eb4da391c992c35a8da, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0.7118443
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 1103568112806798101, guid: b264283c3c9c4eb4da391c992c35a8da, type: 3}
       propertyPath: m_LocalRotation.x
-      value: -0
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1103568112806798101, guid: b264283c3c9c4eb4da391c992c35a8da, type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0.7023373
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1103568112806798101, guid: b264283c3c9c4eb4da391c992c35a8da, type: 3}
       propertyPath: m_LocalRotation.z
-      value: -0
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1103568112806798101, guid: b264283c3c9c4eb4da391c992c35a8da, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -608,7 +608,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1103568112806798101, guid: b264283c3c9c4eb4da391c992c35a8da, type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
-      value: 89.23
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1103568112806798101, guid: b264283c3c9c4eb4da391c992c35a8da, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
@@ -1313,8 +1313,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1244707762}
   m_HandleRect: {fileID: 1244707761}
   m_Direction: 2
-  m_Value: 0.99999905
-  m_Size: 0.5494883
+  m_Value: 0.9999988
+  m_Size: 0.6444548
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:

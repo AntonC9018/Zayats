@@ -9,6 +9,7 @@ namespace Zayats.Unity.View.Editor
 {
     public class GameplayHelperWindow : EditorWindow
     {
+        private View.Initialization _initialization;
         private ViewContext _view;
         private SerializedObject _viewHolderSerializedObject;
         private SerializedProperty _viewSerializedProperty;
@@ -16,10 +17,12 @@ namespace Zayats.Unity.View.Editor
 
         public void Initialize()
         {
-            var v = GameObject.FindObjectOfType<Initialization>();
-            _viewHolderSerializedObject = new(v);
-            _viewSerializedProperty = _viewHolderSerializedObject.FindProperty(nameof(v._view));
-            _view = v._view;
+            _initialization = GameObject.FindObjectOfType<Initialization>();
+            if (_initialization == null)
+                return;
+            _viewHolderSerializedObject = new(_initialization);
+            _viewSerializedProperty = _viewHolderSerializedObject.FindProperty(nameof(_initialization._view));
+            _view = _initialization._view;
             _diagnostics ??= new();
         }
 
@@ -35,15 +38,32 @@ namespace Zayats.Unity.View.Editor
 
         void OnGUI()
         {
-            if (_viewSerializedProperty is null)
+            if (_initialization == null
+                || _viewHolderSerializedObject == null
+                || _viewSerializedProperty == null)
+            {
                 Initialize();
-            EditorGUILayout.PropertyField(_viewSerializedProperty, new GUIContent("View"));
+            }
+
+            if (_initialization == null)
+            {
+                EditorGUILayout.LabelField("View context not found");
+                return;
+            }
+
+            if (_viewHolderSerializedObject == null || _viewSerializedProperty == null)
+            {
+                EditorGUILayout.LabelField("???");
+                return;
+            }
 
             if (!Application.isPlaying)
             {
                 EditorGUILayout.LabelField("Enter play mode");
                 return;
             }
+
+            EditorGUILayout.PropertyField(_viewSerializedProperty, new GUIContent("View"));
 
             var selectedObjects = Selection.gameObjects;
             for (int i = 0; i < selectedObjects.Length; i++)

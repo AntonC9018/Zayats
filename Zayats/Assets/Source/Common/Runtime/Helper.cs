@@ -135,5 +135,21 @@ namespace Common
                     outResult.Add(span[i]);
             }
         }
+
+        public static bool ContainsAll<T>(this List<T> list, IEnumerable<T> e)
+        {
+            foreach (var i in e)
+                if (!list.Contains(i))
+                    return false;
+            return true;
+        }
+
+        public static bool ContainsNone<T>(this List<T> list, IEnumerable<T> e)
+        {
+            foreach (var i in e)
+                if (list.Contains(i))
+                    return false;
+            return true;
+        }
     }
 }
