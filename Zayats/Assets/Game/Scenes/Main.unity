@@ -830,6 +830,7 @@ GameObject:
   m_Component:
   - component: {fileID: 198451647}
   - component: {fileID: 198451646}
+  - component: {fileID: 198451648}
   m_Layer: 0
   m_Name: View
   m_TagString: Untagged
@@ -898,11 +899,13 @@ MonoBehaviour:
   _view:
     State:
       ItemHandling:
-        Progress: 0
         Index: 0
         ThingId: 0
+      Selection:
+        TargetKind: 0
         ValidTargets: 
-        SelectedTargetIndices: 
+        TargetIndices: 
+      AnimationEpoch: 0
     Game:
       State:
         TurnLock: 0
@@ -947,6 +950,18 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 1
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &198451648
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 198451645}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e4ffbcad829beec419a31ec11994ea64, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &221702599
 GameObject:
   m_ObjectHideFlags: 0

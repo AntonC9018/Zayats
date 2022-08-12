@@ -38,11 +38,10 @@ namespace Zayats.Unity.View
             var s = DOTween.Sequence();
             view.UI.ItemContainers.ChangeItems(
                 view.Game.State.Players[playerIndex].Items.Select(
-                    id => view.UI.ThingGameObjects[id].transform),
+                    id => view.UI.ThingGameObjects[id].transform).ToArray(),
                 s,
                 animationSpeed: view.Visual.AnimationSpeed.UI);
             view.ResetUsabilityColors(playerIndex, s);
-            s.OnComplete(() => Debug.Log("Change items sequence ended"));
             view.LastAnimationSequence.Append(s);
         }
 

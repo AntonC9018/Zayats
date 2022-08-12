@@ -23,19 +23,17 @@ namespace Zayats.Unity.View
         public static Sequence BeginAnimationEpoch(this ViewContext view)
         {
             view.State.AnimationEpoch++;
-            
+
             var sequences = view.AnimationSequences;
             var s = DOTween.Sequence()
                 .OnComplete(() =>
                 {
-                    Debug.Log("Epoch ended.");
-
                     sequences.RemoveFirst();
                     if (sequences.Count > 0)
                         sequences.First.Value.Play();
                 });
-            if (sequences.Count != 0)
-                s.Pause();
+            // if (sequences.Count != 0)
+            //     s.Pause();
             sequences.AddLast(s);
             return s;
         }

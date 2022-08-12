@@ -290,8 +290,7 @@ namespace Zayats.Unity.View
                     }
                     {
                         var s = _view.LastAnimationSequence;
-                        // s.Join(moveSequence);
-                        moveSequence.Pause();
+                        s.Join(moveSequence);
                         // s.AppendInterval(0);
                     }
                 });
@@ -311,7 +310,8 @@ namespace Zayats.Unity.View
             Game.GetEventProxy(GameEvents.OnItemAddedToInventory).Add(
                 (GameContext game, ref ItemInterationContext context) =>
                 {
-                    _view.SetItemsForPlayer(game.State.CurrentPlayerIndex);
+                    if (context.PlayerIndex == game.State.CurrentPlayerIndex)
+                        _view.SetItemsForPlayer(context.PlayerIndex);
                 });
 
             Game.GetEventProxy(GameEvents.OnItemRemovedFromInventory).Add(
@@ -349,8 +349,6 @@ namespace Zayats.Unity.View
 
                     var playerMovement = context.Reason.MatchPlayerMovement();
 
-                    var animationSequence = DOTween.Sequence();
-
                     if (playerMovement.HasValue
                         && context.AddedThings.Count == 1
                         && context.AddedThings[0] == playerMovement.Value.PlayerId
@@ -361,25 +359,21 @@ namespace Zayats.Unity.View
 
                         _view.ArrangeThingsOnCell(
                             context.CellPosition,
-                            animationSequence,
+                            _view.LastAnimationSequence,
                             (view, thingId, transform, position) =>
                             {
                                 if (playerId == thingId)
                                     return view.JumpAnimation(transform, position);
                                 return view.MoveAnimation(transform, position);
                             });
-                        animationSequence.OnComplete(() => Debug.Log("Cell content changed (player)"));
-                        return;
                     }
                     else
                     {
                         _view.ArrangeThingsOnCell(
                             context.CellPosition,
-                            animationSequence,
+                            _view.LastAnimationSequence,
                             ViewLogic.MoveAnimationAdapter);
-                        animationSequence.OnComplete(() => Debug.Log("Cell content changed complete (normal)"));
                     }
-                    _view.LastAnimationSequence.Append(animationSequence);
                 });
 
             Game.GetEventProxy(GameEvents.OnAmountRolled).Add(

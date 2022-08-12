@@ -356,6 +356,7 @@ namespace Zayats.Core
             info.Position = position;
             
             var things = game.State.Cells[position];
+            var removed = new List<int>();
             
             // They have to be removed before their effect is executed,
             // because the effect may mess with the cell's content.
@@ -364,10 +365,15 @@ namespace Zayats.Core
             {
                 info.ThingId = pickupInfo.ThingId;
                 if (pickupInfo.Pickup.Interaction.ShouldRemoveFromCellOnPickup(game, info))
+                {
                     things.RemoveAt(pickupInfo.ListIndex);
+                    removed.Add(pickupInfo.ThingId);
+                }
             }
-
-            game.TriggerThingsRemovedFromCellEvent(pickupInfos.Select(i => i.ThingId), pickupInfos.Length, position);
+            
+            // TODO: don't allocate and copy here.
+            if (removed.Count > 0)
+                game.TriggerThingsRemovedFromCellEvent(removed, removed.Count, position);
 
             foreach (var pickupInfo in pickupInfos)
             {

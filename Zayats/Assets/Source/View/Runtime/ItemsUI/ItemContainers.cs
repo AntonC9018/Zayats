@@ -7,6 +7,8 @@ using Zayats.Core;
 using DG.Tweening;
 using Common.Unity;
 using Common;
+using Newtonsoft.Json;
+using UnityEditor;
 
 namespace Zayats.Unity.View
 {
@@ -29,8 +31,8 @@ namespace Zayats.Unity.View
             get => _itemCount;
             set
             {
-                for (int i = value; i < _itemCount; i++)
-                    _uiHolderInfos[i].OuterObject.SetActive(false);
+                // for (int i = value; i < _itemCount; i++)
+                //     _uiHolderInfos[i].OuterObject.SetActive(false);
                 _itemCount = value;
             }
         }
@@ -68,7 +70,7 @@ namespace Zayats.Unity.View
             UIHolderInfo holder;
             if (_uiHolderInfos.Count <= i)
             {
-                holder = GameObject.Instantiate(_ui.HolderPrefab, parent: _ui.ScrollRect.content);
+                holder = GameObject.Instantiate(_ui.HolderPrefab);
                 {
                     var handler = holder.ItemFrameObject.AddComponent<PointerEnter>();
                     handler.Initialize(i, this);
@@ -83,6 +85,22 @@ namespace Zayats.Unity.View
                 }
                 _uiHolderInfos.Add(holder);
                 holder.OuterObject.SetActive(false);
+                holder.OuterTransform.SetParent(parent: _ui.ScrollRect.content, worldPositionStays: false);
+                
+                // Scroll rects only update on the next frame,
+                // so we need to calculate the position of the next child manually...
+                if (i > 0)
+                {
+                    var t = _uiHolderInfos[i - 1].OuterTransform;
+                    var p = t.localPosition;
+                    if (_ui.ScrollRect.horizontal)
+                        p.x += t.rect.width;
+                    else if (_ui.ScrollRect.vertical)
+                        p.y -= t.rect.height;
+                
+                    holder.OuterTransform.localPosition = p;
+                }
+                
                 holder.InitializeAnimatedContainer(_ui.ContainerTransform, i);
             }
             else
@@ -110,47 +128,46 @@ namespace Zayats.Unity.View
         }
 
         public void ChangeItems(
-            IEnumerable<Transform> itemsToStore,
+            Transform[] itemsToStore,
             Sequence animationSequence,
             float animationSpeed)
         {
-            int i = 0;
+            for (int i = 0; i < itemsToStore.Length; i++)
             {
-                foreach (var item in itemsToStore)
-                {
-                    var holder = MaybeInitializeAt(i++);
-                    var o = CalculateOffsets(item, holder);
+                var item = itemsToStore[i];
+                var holder = MaybeInitializeAt(i);
+                var o = CalculateOffsets(item, holder);
 
-                    var ct = holder.CenteringTransform;
-                    {
-                        var t = o.CCenter + o.CenterOffset;
-                        t.z += o.ZOffset;
-                        var tween = item.DOMove(t, animationSpeed);
-                        animationSequence.Append(tween);
-                    }
-                    {
-                        // var scale = Vector3.one * o.MinRatio;
-                        // var tween = item.DOScale(scale, animationSpeed);
-                        // animationSequence.Join(tween);
-                    }
+                var ct = holder.CenteringTransform;
+                {
+                    var t = o.CCenter + o.CenterOffset;
+                    t.z += o.ZOffset;
+                    Debug.Log($"Center: {o.CCenter} MinRatio: {o.MinRatio} CenterOffset: {o.CenterOffset} ZOffset: {o.ZOffset}.");
+                    Debug.Log($"Position of holder {holder.ItemFrameTransform.position}.");
+                    Debug.Log($"Item: {item.name}; Before: {item.position}, After: {t}.");
+                    var tween = item.DOMove(t, animationSpeed);
+                    animationSequence.Join(tween);
+                }
+                {
+                    // var scale = Vector3.one * o.MinRatio;
+                    // var tween = item.DOScale(scale, animationSpeed);
+                    // animationSequence.Join(tween);
                 }
             }
 
             animationSequence.AppendCallback(() =>
             {
-                Debug.Log("ChangeItems");
-                int i = 0;
-
                 for (int j = 0; j < _itemCount; j++)
                     _uiHolderInfos[j].StoredItem.parent = _ui.ParentForOldItems;
 
-                foreach (var item in itemsToStore)
+                for (int i = 0; i < itemsToStore.Length; i++)
                 {
+                    var item = itemsToStore[i];
                     item.GetComponentsInChildren<Transform>(_GetChildrenCache);
                     foreach (var ch in _GetChildrenCache)
                         ch.gameObject.layer = LayerIndex.UI;
 
-                    var holder = _uiHolderInfos[i++];
+                    var holder = _uiHolderInfos[i];
                     var o = CalculateOffsets(item, holder);
                     
                     {
@@ -170,7 +187,8 @@ namespace Zayats.Unity.View
 
                     holder.OuterObject.SetActive(true);
                 }
-                ItemCount = i;
+                
+                ItemCount = itemsToStore.Length;
             });
         }
 
@@ -206,7 +224,6 @@ namespace Zayats.Unity.View
         {
             animationSequence.AppendCallback(() =>
             {
-                Debug.Log("RemoveItemAt");
                 var first = _uiHolderInfos[itemIndex];
                 var last = _uiHolderInfos[ItemCount - 1];
 
@@ -233,7 +250,6 @@ namespace Zayats.Unity.View
         {
             animationSequence.AppendCallback(() =>
             {
-                Debug.Log("ResetUsabilityColors");
                 int i = 0;
                 foreach (var color in colors)
                 {
