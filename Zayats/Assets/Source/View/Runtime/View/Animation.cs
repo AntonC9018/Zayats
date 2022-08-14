@@ -72,6 +72,7 @@ namespace Zayats.Unity.View
             public Matrix4x4 ModelTRSInParent;
             public readonly Vector3 GetTopOffset(Vector3 up) => -Center + Size.y / 2 * up;
             public readonly Vector3 GetTop(Vector3 up) => OuterObject.position + GetTopOffset(up);
+            public readonly Vector3 GetTop() => GetTop(OuterObject.up);
             public readonly Vector3 GetBottomOffset(Vector3 up) => -Center - Size.y / 2 * up;
             public readonly Vector3 GetBottom(Vector3 up) => OuterObject.position + GetBottomOffset(up);
         }

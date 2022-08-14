@@ -5,6 +5,8 @@ using Zayats.Core;
 using System.Linq;
 using Common;
 using Common.Unity;
+using Common.Editor;
+using System;
 
 namespace Zayats.Unity.View.Editor
 {
@@ -33,6 +35,12 @@ namespace Zayats.Unity.View.Editor
             if (GUILayout.Button("Add material infos"))
             {
                 int group = Undo.GetCurrentGroup();
+
+                var meshRenderers = new List<MeshRenderer>();
+                var sharedMaterials = new List<Material>();
+                var allSharedMaterials = new HashSet<Material>();
+                var temp = new List<MaterialMapping>();
+                
                 foreach (var t in Selection.transforms)
                 {
                     Debug.Log(t.name);
@@ -46,17 +54,67 @@ namespace Zayats.Unity.View.Editor
                         EditorUtility.SetDirty(child);
                     }
 
-                    ref var matPaths = ref modelInfo.MaterialPaths;
-                    if (matPaths == null || matPaths.Length == 0)
+                    Undo.RegisterCompleteObjectUndo(modelInfo, "change model info");
+                    modelInfo.gameObject.GetComponentsInChildren<MeshRenderer>(meshRenderers);
+                    modelInfo.MeshRenderers = meshRenderers.ToArray();
+
+                    if (modelInfo.Config == null)
                     {
-                        Undo.RegisterCompleteObjectUndo(modelInfo, "change model info");
-                        matPaths = t.GetComponentsInChildren<MeshRenderer>()
-                            // for now, just take the first material.
-                            .Select(m => new MaterialPath(m, 0))
-                            .ToArray();
-                        EditorUtility.SetDirty(modelInfo);
-                        EditorUtility.SetDirty(child);
+                        modelInfo.Config = AssetDatabaseHelper.CreateObjectWithDefaults<ModelInfoScriptableObject>();
+                        Undo.RegisterCreatedObjectUndo(modelInfo.Config, "config creation");
                     }
+
+                    var modelConfig = modelInfo.Config;
+                    Undo.RegisterCompleteObjectUndo(modelConfig, "Setting stuff");
+
+                    modelConfig.Materials.FixSize();
+
+                    foreach (var renderer in meshRenderers)
+                    {
+                        renderer.GetSharedMaterials(sharedMaterials);
+                        foreach (var sharedMaterial in sharedMaterials)
+                            allSharedMaterials.Add(sharedMaterial);
+                    }
+
+                    var allMaterials = allSharedMaterials.OrderBy(t => t.name).ToArray();
+                    // Useful for setting stuff in the editor, doesn't exist at runtime.
+                    modelConfig.AllMaterials = allMaterials;
+
+                    int i = (int) MaterialKind.Default;
+                    
+                    SetPaths();
+                    void SetPaths()
+                    {
+                        var material = modelConfig.Materials[i];
+                        if (material == null)
+                        {
+                            if (allMaterials.Length == 0)
+                                return;
+                            int index = Math.Min(i, allMaterials.Length - 1);
+                            modelConfig.Materials[i] = allMaterials[index];
+                        }
+
+                        temp.Clear();
+                        for (int ri = 0; ri < meshRenderers.Count; ri++)
+                        {
+                            meshRenderers[ri].GetSharedMaterials(sharedMaterials);
+
+                            // TODO: what happens if it's found multiple times withing the same mesh renderer??
+                            int indexOfMaterial = sharedMaterials.IndexOf(material);
+                            if (indexOfMaterial == -1)
+                                return;
+                            temp.Add(new()
+                            {
+                                MaterialIndex = indexOfMaterial,
+                                MeshRendererIndex = ri,
+                            });
+                        }
+                        
+                        modelConfig.MaterialMappings = temp.ToArray();
+                    }
+
+                    EditorUtility.SetDirty(modelConfig);
+                    EditorUtility.SetDirty(modelInfo);
                 }
                 Undo.CollapseUndoOperations(group);
             }

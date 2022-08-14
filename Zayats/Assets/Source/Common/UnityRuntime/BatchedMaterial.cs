@@ -28,12 +28,10 @@ namespace Common.Unity
         EmissionColor,
     }
 
-    public class BatchedMaterial
+    public static class ShaderHelper
     {
-        public static readonly List<Material> _Cache = new();
-
         public static readonly ShaderPropertyArray<string> DefaultPropertyNames;
-        static BatchedMaterial()
+        static ShaderHelper()
         {
             var a = ShaderPropertyArray<string>.Create();
             a.MainColor = "_BaseColor";
@@ -41,40 +39,68 @@ namespace Common.Unity
             a.EmissionColor = "_EmissionColor";
             DefaultPropertyNames = a;
         }
+    }
 
+    [Serializable]
+    public struct BatchedMaterialBlock
+    {
+        public static readonly List<Material> _Cache = new();
 
-        private ShaderPropertyArray<string> _propertyNames;
-        private MaterialPath[] _materialPaths;
+        public ShaderPropertyArray<string> PropertyNames { get; set; }
+        private List<MaterialPath> _materialPaths;
         private MaterialPropertyBlock _materialPropertyBlock;
 
-
-        public BatchedMaterial()
+        public static BatchedMaterialBlock Create()
         {
-            _materialPropertyBlock = new();
-            _materialPaths = Array.Empty<MaterialPath>();
+            return new()
+            {
+                _materialPropertyBlock = new(),
+                _materialPaths = new List<MaterialPath>(),
+                PropertyNames = ShaderHelper.DefaultPropertyNames,
+            };
+        }
+
+        public void ClearPaths()
+        {
+            _materialPaths.Clear();
         }
         
         public void Reset()
         {
             foreach (var p in _materialPaths)
                 p.MeshRenderer.SetPropertyBlock(null, p.Index);
-            _materialPaths = Array.Empty<MaterialPath>();
+            _materialPaths.Clear();
         }
 
-        public void Reset(MaterialPath[] materialPaths, ShaderPropertyArray<string> propertyNames)
+        public void AddPaths(MaterialPath[] materialPaths)
+        {
+            foreach (var path in materialPaths)
+                _materialPaths.Add(path);
+        }
+
+        public void AddPath(MaterialPath materialPath)
+        {
+            _materialPaths.Add(materialPath);
+        }
+
+        public void AddPaths(IEnumerable<MaterialPath> materialPaths)
+        {
+            _materialPaths.AddRange(materialPaths);
+        }
+
+        public void Reset(IEnumerable<MaterialPath> materialPaths)
         {
             foreach (var p in _materialPaths)
                 p.MeshRenderer.SetPropertyBlock(null, p.Index);
-            Initialize(materialPaths, propertyNames);
+            Initialize(materialPaths);
         }
 
-        private void Initialize(MaterialPath[] materialPaths, ShaderPropertyArray<string> propertyNames)
+        private void Initialize(IEnumerable<MaterialPath> materialPaths)
         {
-            _propertyNames = propertyNames;
-            _materialPaths = materialPaths;
-            if (materialPaths.Length > 0)
+            materialPaths.Overwrite(_materialPaths);
+            if (_materialPaths.Count > 0)
             {
-                var path = materialPaths[0];
+                var path = _materialPaths[0];
                 path.MeshRenderer.GetPropertyBlock(_materialPropertyBlock, path.Index);
             }
         }
@@ -90,7 +116,7 @@ namespace Common.Unity
         {
             get
             {
-                Assert.IsTrue(_materialPaths.Length >= 1,
+                Assert.IsTrue(_materialPaths.Count >= 1,
                     "At least one material path must be assigned in order to use this.");
                     
                 var firstPath = _materialPaths[0];
@@ -104,7 +130,7 @@ namespace Common.Unity
         {
             get
             {
-                var a = _propertyNames.MainColor;
+                var a = PropertyNames.MainColor;
                 if (_materialPropertyBlock.HasColor(a))
                     return _materialPropertyBlock.GetColor(a);
 
@@ -112,7 +138,7 @@ namespace Common.Unity
             }
             set
             {
-                _materialPropertyBlock.SetColor(_propertyNames.MainColor, value);
+                _materialPropertyBlock.SetColor(PropertyNames.MainColor, value);
             }
         }
 
@@ -120,7 +146,7 @@ namespace Common.Unity
         {
             get
             {
-                var a = _propertyNames.EmissionColor;
+                var a = PropertyNames.EmissionColor;
                 if (_materialPropertyBlock.HasColor(a))
                     return _materialPropertyBlock.GetColor(a);
 
@@ -128,7 +154,7 @@ namespace Common.Unity
             }
             set
             {
-                var a = _propertyNames.EmissionColor;
+                var a = PropertyNames.EmissionColor;
                 _materialPropertyBlock.SetColor(a, value);
             }
         }
@@ -136,7 +162,95 @@ namespace Common.Unity
         public void Apply()
         {
             foreach (var path in _materialPaths)
-                path.MeshRenderer.SetPropertyBlock(_materialPropertyBlock, path.Index);
+                ApplyTo(path);
+        }
+
+        public void ApplyTo(MaterialPath path)
+        {
+            path.MeshRenderer.SetPropertyBlock(_materialPropertyBlock, path.Index);
+        }
+
+        public void ApplyTo(MaterialPath[] paths)
+        {
+            foreach (var path in paths)
+                ApplyTo(path);
+        }
+    }
+
+    // [Serializable]
+    // public struct MaterialSubstitutePath
+    // {
+    //     public MaterialPath[] Paths;
+    //     public Material[] Materials;
+    // }
+
+    // [Serializable]
+    // public struct BatchedMaterial
+    // {
+    //     public List<MaterialSubstitutePath> Values;
+    // }
+
+    public static class MaterialHelper
+    {
+        private static readonly List<Material> _SharedMaterialsCache = new();
+        private static Material[][] _MaterialArraysCache = Array.Empty<Material[]>();
+
+        public static Material[] GetCacheOfSize(int size)
+        {
+            // In order for this not to allocate too much memory,
+            // we reuse buffers of different lengths.
+            var cacheIndex = size - 2;
+            if (_MaterialArraysCache.Length <= cacheIndex)
+            {
+                Array.Resize(ref _MaterialArraysCache, cacheIndex + 1);
+                _MaterialArraysCache[cacheIndex] = new Material[size];
+            }
+            else if (_MaterialArraysCache[cacheIndex] == null)
+            {
+                _MaterialArraysCache[cacheIndex] = new Material[size];
+            }
+            var materialCache = _MaterialArraysCache[cacheIndex];
+            return materialCache;
+        }
+
+        public readonly ref struct TempCache
+        {
+            internal readonly List<Material> _cache;
+
+            public TempCache(List<Material> list)
+            {
+                _cache = list;
+            }
+
+            public int Length => _cache.Count;
+
+            public Material this[int index]
+            {
+                get => _cache[index];
+                set => _cache[index] = value;
+            }
+        }
+
+        public static TempCache GetSharedMaterialsTemp(this MeshRenderer meshRenderer)
+        {
+            meshRenderer.GetSharedMaterials(_SharedMaterialsCache);
+            return new (_SharedMaterialsCache);
+        }
+
+        public static void SetSharedMaterials(this TempCache cache, MeshRenderer meshRenderer)
+        {
+            var materials = GetCacheOfSize(cache.Length);
+            cache._cache.CopyTo(materials);
+            meshRenderer.sharedMaterials = materials;
+        }
+
+        public static void SetSharedMaterialAtIndex(this MeshRenderer meshRenderer, int index, Material sharedMaterial)
+        {
+            meshRenderer.GetSharedMaterials(_SharedMaterialsCache);
+            var materials = GetCacheOfSize(_SharedMaterialsCache.Count);
+            _SharedMaterialsCache.CopyTo(materials);
+            materials[index] = sharedMaterial;
+            meshRenderer.sharedMaterials = materials;
         }
     }
 }

@@ -27,10 +27,9 @@ namespace Zayats.Unity.View
         public static void HighlightObjects(this ViewContext view, IEnumerable<Transform> objs)
         {
             ref var highlightMaterial = ref view.State.HighlightMaterial;
-            var materialPaths = objs.SelectMany(c => c.GetObject(ObjectHierarchy.ModelInfo).Value.MaterialPaths).ToArray();
-            var propertyNames = BatchedMaterial.DefaultPropertyNames;
+            var materialPaths = objs.SelectMany(c => c.GetObject(ObjectHierarchy.ModelInfo).Value.MaterialPaths);
             
-            highlightMaterial.Reset(materialPaths, propertyNames);
+            highlightMaterial.Reset(materialPaths);
 
             var intensity = view.Visual.HighlightEmissionIntensity;
             highlightMaterial.EmissionColor = new Color(intensity, intensity, intensity, 1);

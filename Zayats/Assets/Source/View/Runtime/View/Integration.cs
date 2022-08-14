@@ -54,18 +54,13 @@ namespace Zayats.Unity.View
         CoinCounter,
         RollValue,
     }
-    [Serializable]
-    public struct ForcedItemDropHandling
-    {
-        public readonly bool InProgress => false;
-    }
 
     [Serializable]
     public struct ViewState
     {
         public ActivatedItemHandling ItemHandling;
         public ForcedItemDropHandling ForcedItemDropHandling;
-        public BatchedMaterial HighlightMaterial;
+        public BatchedMaterialBlock HighlightMaterial;
         public SelectionState Selection;
         public int AnimationEpoch;
         // public List<GameObject> HighlightedUIObjects;
@@ -141,9 +136,14 @@ namespace Zayats.Unity.View
 
             view.UI.ItemBuyButtons = new List<GameObject>();
             view.UI.ItemContainers = new ItemContainers(view, ui.ItemScrollUI);
-            view.State.HighlightMaterial = new BatchedMaterial();
+            view.State.HighlightMaterial = BatchedMaterialBlock.Create();
             view.State.Selection.ValidTargets = new List<int>();
             view.State.Selection.TargetIndices = new List<int>();
+
+            view.State.ForcedItemDropHandling.RemovedItems = new();
+            view.State.ForcedItemDropHandling.PreviewObjects = new();
+            view.State.ForcedItemDropHandling.SelectedPositions = new List<int>();
+            view.State.ForcedItemDropHandling.PreviewBatchedMaterial = new();
 
             return view;
         }
@@ -195,9 +195,29 @@ namespace Zayats.Unity.View
         public static readonly TypedIdentifier<Collider> Collider = new(1);
         public const int ChildCount = 2;
     }
+
     
     public static partial class ViewEvents
     {
+        public class InteractionEventSet<T>
+        {
+            public readonly TypedIdentifier<T> Started;
+            public readonly TypedIdentifier<T> Cancelled;
+            public readonly TypedIdentifier<T> Finalized;
+            public readonly TypedIdentifier<T> CancelledOrFinalized;
+            internal readonly int _Waypoint;
+            internal int EventCount => 4;
+
+            public InteractionEventSet(int currentCount)
+            {
+                Started = new(currentCount + 0);
+                Cancelled = new(currentCount + 1);
+                Finalized = new(currentCount + 2);
+                CancelledOrFinalized = new(currentCount + 3);
+                _Waypoint = currentCount + EventCount;
+            }
+        }
+
         public static Events.Storage CreateStorage() => new(Count);
 
         public struct ItemHandlingContext
@@ -205,12 +225,8 @@ namespace Zayats.Unity.View
             public ActivatedItemHandling Item;
             public SelectionState Selection;
         }
-        public static readonly TypedIdentifier<ItemHandlingContext> OnItemInteractionStarted = new(0);
-        // public static readonly TypedIdentifier<ItemHandlingContext> OnItemInteractionProgress = new(1);
-        public static readonly TypedIdentifier<ItemHandlingContext> OnItemInteractionCancelled = new(2);
-        public static readonly TypedIdentifier<ItemHandlingContext> OnItemInteractionFinalized = new(3);
-        public static readonly TypedIdentifier<ItemHandlingContext> OnItemInteractionCancelledOrFinalized = new(4);
 
+        public static readonly InteractionEventSet<ItemHandlingContext> OnItemInteraction = new(0);
 
         public struct PointerEvent : Events.IContinue
         {
@@ -218,10 +234,14 @@ namespace Zayats.Unity.View
             public bool Continue { get; set; }
             public PointerEventData Data;
         }
-        public static readonly TypedIdentifier<PointerEvent> OnPointerClick = new(5);
-        public static readonly TypedIdentifier<SelectionState> OnSelectionProgress = new(6);
-        public static readonly TypedIdentifier<SelectionState> OnSelectionCancelledOrFinalized = new(7);
 
-        public const int Count = 8;
+        private static readonly int _Waypoint0 = OnItemInteraction._Waypoint;
+        public static readonly TypedIdentifier<PointerEvent> OnPointerClick = new(_Waypoint0);
+        public static readonly TypedIdentifier<SelectionState> OnSelectionProgress = new(_Waypoint0 + 1);
+        public static readonly TypedIdentifier<SelectionState> OnSelectionCancelledOrFinalized = new(_Waypoint0 + 2);
+        public static readonly InteractionEventSet<ForcedItemDropHandling> OnForcedItemDrop = new(_Waypoint0 + 3);
+        private static readonly int _Waypoint1 = OnForcedItemDrop._Waypoint;
+
+        public static readonly int Count = _Waypoint1;
     }
 }

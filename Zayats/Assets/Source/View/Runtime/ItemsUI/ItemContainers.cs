@@ -59,7 +59,7 @@ namespace Zayats.Unity.View
             _viewContext = viewContext;
             _uiHolderInfos = new();
 
-            // viewContext.GetEventProxy(ViewEvents.OnItemInteractionCancelled)
+            // viewContext.GetEventProxy(ViewEvents.OnItemInteraction.Cancelled)
 
             // _buttonOverlay = buttonOverlay.OuterObject;
             // buttonOverlay.Button.onClick.AddListener(() => _overlayButtonClickedAction(_currentlyHoveredItem));
@@ -168,7 +168,7 @@ namespace Zayats.Unity.View
                     // 4. Use the item frame positions within the canvas in a custom shader with that texture as input to draw the corresponding items.
                     // 5. Could do it even cooler. Set the camera at the center of the scroll rect's viewport, such that it sees only the viewport's rectangle.
                     //    Render the thing there, then in the custom shader calculate the position within viewport.
-                    item.GetChild(ObjectHierarchy.Model).gameObject.layer = LayerIndex.UI;
+                    item.GetChild(ObjectHierarchy.Model.Id).gameObject.layer = LayerIndex.UI;
 
                     var holder = _uiHolderInfos[i];
                     var o = CalculateOffsets(item, holder);

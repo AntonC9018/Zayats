@@ -251,6 +251,58 @@ namespace Zayats.Unity.View.Generated
                 System.Array.Resize(ref Values, Length);
         }
     }
+    [Serializable]
+    public partial struct MaterialArray<T>
+    {
+        public /*readonly*/ T[] Values;
+        private MaterialArray(T[] values) => Values = values;
+        public static MaterialArray<T> Create() => new MaterialArray<T>(new T[2]);
+        public readonly ref T GetRef(Zayats.Unity.View.MaterialKind key)
+        {
+            return ref Values[(int) key];
+        }
+        public readonly T Get(Zayats.Unity.View.MaterialKind key)
+        {
+            return Values[(int) key];
+        }
+        public readonly void Set(Zayats.Unity.View.MaterialKind key, T value)
+        {
+            Values[(int) key] = value;
+        }
+        public readonly ref T DefaultRef => ref Values[(int) Zayats.Unity.View.MaterialKind.Default];
+        public T Default
+        {
+            readonly get => Values[(int) Zayats.Unity.View.MaterialKind.Default];
+            set => Values[(int) Zayats.Unity.View.MaterialKind.Default] = value;
+        }
+        public readonly ref T PreviewRef => ref Values[(int) Zayats.Unity.View.MaterialKind.Preview];
+        public T Preview
+        {
+            readonly get => Values[(int) Zayats.Unity.View.MaterialKind.Preview];
+            set => Values[(int) Zayats.Unity.View.MaterialKind.Preview] = value;
+        }
+        public static implicit operator T[](MaterialArray<T> a) => a.Values;
+        public readonly T[] Array => Values;
+        public readonly ref T this[Zayats.Unity.View.MaterialKind key] => ref GetRef(key);
+        public readonly ref T this[int index] => ref Values[index];
+        public readonly int Length => 2;
+        public static bool operator==(MaterialArray<T> a, MaterialArray<T> b)
+        {
+            for (int i = 0; i < a.Length; i++)
+                if (!a.Values[i].Equals(b.Values[i]))
+                    return false;
+            return true;
+        }
+        public static bool operator!=(MaterialArray<T> a, MaterialArray<T> b)
+        {
+            return !(a == b);
+        }
+        public void FixSize()
+        {
+            if (Values is null || Values.Length != Length)
+                System.Array.Resize(ref Values, Length);
+        }
+    }
 }
 
 #pragma warning restore

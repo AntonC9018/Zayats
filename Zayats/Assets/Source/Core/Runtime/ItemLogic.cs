@@ -361,12 +361,7 @@ namespace Zayats.Core
         public TargetKind Kind => TargetKind.Cell;
         public IEnumerable<int> GetValid(GameContext game, ItemInterationContext context)
         {
-            var cells = game.State.Cells;
-            for (int i = 0; i < cells.Length; i++)
-            {
-                if (cells[i].Count == 0)
-                    yield return i;
-            }
+            return game.GetUnoccupiedCellIndices();
         }
     }
 

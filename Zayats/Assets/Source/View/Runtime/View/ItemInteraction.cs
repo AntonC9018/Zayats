@@ -118,7 +118,7 @@ namespace Zayats.Unity.View
                     return false;
                 }
 
-                view.HandleEvent(ViewEvents.OnItemInteractionStarted, new()
+                view.HandleEvent(ViewEvents.OnItemInteraction.Started, new()
                 {
                     Item = itemH,
                     Selection = view.State.Selection,
@@ -146,7 +146,7 @@ namespace Zayats.Unity.View
 
         public static void CancelOrFinalizeItemInteraction(this ViewContext view, ref ViewEvents.ItemHandlingContext context)
         {
-            view.HandleEvent(ViewEvents.OnItemInteractionCancelledOrFinalized, ref context);
+            view.HandleEvent(ViewEvents.OnItemInteraction.CancelledOrFinalized, ref context);
             view.CancelOrFinalizeSelection(ref context.Selection);
         }
 
@@ -169,7 +169,7 @@ namespace Zayats.Unity.View
                 Selection = view.State.Selection,
             };
             view.ResetItemInteraction();
-            view.HandleEvent(ViewEvents.OnItemInteractionFinalized, ref context);
+            view.HandleEvent(ViewEvents.OnItemInteraction.Finalized, ref context);
             view.CancelOrFinalizeItemInteraction(ref context);
         }
         
@@ -184,7 +184,7 @@ namespace Zayats.Unity.View
                 Selection = view.State.Selection,
             };
             view.ResetItemInteraction();
-            view.HandleEvent(ViewEvents.OnItemInteractionCancelled, ref context);
+            view.HandleEvent(ViewEvents.OnItemInteraction.Cancelled, ref context);
             view.CancelOrFinalizeItemInteraction(ref context);
         }
     }

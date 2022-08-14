@@ -622,18 +622,17 @@ namespace Zayats.Core
         {
             public int PlayerIndex;
             public int ThingShopIndex;
-            public readonly int GetThingId(GameContext game) => game.State.Shop.Items[ThingShopIndex];
         }
 
         public struct PurchaseContext
         {
-            public IList<(int Index, int ThingId)> Coins;
-            public int TotalCost;
+            public List<(int Index, int ThingId)> Coins;
+            public readonly int TotalCost => Coins.Count;
             public StartPurchaseContext Start;
 
             public void SetEmpty()
             {
-                Coins = Array.Empty<(int Index, int ThingId)>();
+                Coins = new();
             }
 
             public void SetNotEnoughCoins()
@@ -641,7 +640,7 @@ namespace Zayats.Core
                 Coins = null;
             }
 
-            public void SetIndices(IList<(int Index, int ThingId)> indices)
+            public void SetIndices(List<(int Index, int ThingId)> indices)
             {
                 Coins = indices;
             }
@@ -652,16 +651,30 @@ namespace Zayats.Core
             public readonly int ThingShopIndex => Start.ThingShopIndex;
         }
 
+        public static IEnumerable<int> GetUnoccupiedCellIndices(this GameContext game)
+        {
+            var cells = game.State.Cells;
+            for (int i = 0; i < cells.Length; i++)
+            {
+                if (cells[i].Count == 0)
+                    yield return i;
+            }
+        }
+
         public static PurchaseContext StartBuyingThingFromShop(this GameContext game, StartPurchaseContext context)
         {
             ref var player = ref game.State.Players[context.PlayerIndex];
+
+            var shopItems = game.State.Shop.Items;
+            assert(context.ThingShopIndex < shopItems.Count);
             
-            if (!game.TryGetComponentValue(Components.CurrencyCostId, context.GetThingId(game), out int cost))
+            int itemId = shopItems[context.ThingShopIndex];
+            if (!game.TryGetComponentValue(Components.CurrencyCostId, itemId, out int cost))
                 cost = 0;
 
             PurchaseContext buying = new();
             buying.Start = context;
-            buying.TotalCost = cost;
+            // buying.TotalCost = cost;
 
             if (cost == 0)
             {
@@ -691,15 +704,22 @@ namespace Zayats.Core
             return buying;
         }
 
-        public static void EndBuyingThingFromShop(this GameContext game, in PurchaseContext context, List<int> selectedCoinPlacementPositions)
+        public static void EndBuyingThingFromShop(this GameContext game, in PurchaseContext context, IList<int> selectedCoinPlacementPositions)
         {
             assert(context.Coins.Count == selectedCoinPlacementPositions.Count);
 
             int coinCount = context.Coins.Count;
             for (int i = coinCount - 1; i >= 0; i--)
+            {
                 game.RemoveItemFromInventory_AtIndex(context.PlayerIndex, context.Coins[i].Index);
+            }
             for (int i = 0; i < coinCount; i++)
-                game.AddNonPlayerThingToCell(context.Coins[i].ThingId, selectedCoinPlacementPositions[i], Reasons.Buying(context.PlayerIndex));
+            {
+                game.AddNonPlayerThingToCell(
+                    context.Coins[i].ThingId,
+                    selectedCoinPlacementPositions[i],
+                    Reasons.Buying(context.PlayerIndex));
+            }
 
             game.AddThingFromShopToInventory(context.ThingShopIndex, context.PlayerIndex);
         }

@@ -455,59 +455,7 @@ namespace Zayats.Unity.View
 
             buttons.TempBuy.onClick.AddListener(async () =>
             {
-                async Task DoBuying()
-                {
-                    _view.BeginAnimationEpoch();
-                    assert(Game.State.Shop.Items.Count > 0);
-                    
-                    int itemIndex = 0;
-                    var context = Game.StartBuyingThingFromShop(new()
-                    {
-                        PlayerIndex = Game.State.CurrentPlayerIndex,
-                        ThingShopIndex = itemIndex,
-                    });
-                    
-                    if (context.NotEnoughCoins)
-                    {
-                        Debug.Log("Not enough money");
-                        return;
-                    }
-
-                    var cellsSlice = Game.State.IntermediateCells;
-                    int availableCellCount = cellsSlice.Count(c => c.Count == 0);
-                    List<int> positions = new();
-                    if (availableCellCount == context.Coins.Count)
-                    {
-                        cellsSlice.Indices(c => c.Count == 0, positions);
-                    }
-                    else if (availableCellCount < context.Coins.Count)
-                    {
-                        panic("Unimplemented");
-                    }
-                    else if (availableCellCount == 0)
-                    {
-                        panic("Unimplemented");
-                    }
-                    else
-                    {
-                        int coinCount = context.Coins.Count;
-                        Task<int> PromptForCellPlacement(GameContext game)
-                        {
-                            return Task.FromResult(game.Random.GetUnoccupiedCellIndex(game));
-                        }
-                        for (int i = 0; i < coinCount; i++)
-                        {
-                            int result = await PromptForCellPlacement(Game);
-                            if (result == -1)
-                                panic("Unimplemented");
-                            positions.Add(result);
-                        }
-                    }
-
-                    _view.BeginAnimationEpoch();
-                    Game.EndBuyingThingFromShop(context, positions);
-                }
-                await DoBuying();
+                _view.MaybeTryInitiateBuying(shopItemIndex: 0);
             });
 
             UI.ScreenOverlayObject.AddComponent<InputInterceptorOverlay>().Initialize(_view);
@@ -518,7 +466,7 @@ namespace Zayats.Unity.View
                     view.MaybeConfirmItemUse();
                 });
 
-            _view.GetEventProxy(ViewEvents.OnItemInteractionStarted).Add(
+            _view.GetEventProxy(ViewEvents.OnItemInteraction.Started).Add(
                 // Scroll the item into view on the scrollview.
                 (ViewContext view, ref ViewEvents.ItemHandlingContext context) =>
                 {
@@ -530,30 +478,30 @@ namespace Zayats.Unity.View
                     var t = scrollRect.content.DOLocalMove(targetPos, view.Visual.AnimationSpeed.UI);
                 });
 
-            _view.GetEventProxy(ViewEvents.OnItemInteractionStarted).Add(
+            _view.GetEventProxy(ViewEvents.OnItemInteraction.Started).Add(
                 (ViewContext view, ref ViewEvents.ItemHandlingContext context) =>
                 {
                     view.HighlightObjectsOfItemInteraction(context.Selection);
                 });
-            _view.GetEventProxy(ViewEvents.OnItemInteractionCancelledOrFinalized).Add(
+            _view.GetEventProxy(ViewEvents.OnItemInteraction.CancelledOrFinalized).Add(
                 (ViewContext view) =>
                 {
                     view.CancelHighlighting();
                 });
 
-            _view.GetEventProxy(ViewEvents.OnItemInteractionStarted).Add(
+            _view.GetEventProxy(ViewEvents.OnItemInteraction.Started).Add(
                 (ViewContext view, ref ViewEvents.ItemHandlingContext context) =>
                 {
                     view.ChangeLayerOnValidTargetsForRaycasts(
                         context.Selection.TargetKind, context.Selection.ValidTargets);
                 });
-            _view.GetEventProxy(ViewEvents.OnItemInteractionCancelledOrFinalized).Add(
+            _view.GetEventProxy(ViewEvents.OnItemInteraction.CancelledOrFinalized).Add(
                 (ViewContext view, ref ViewEvents.ItemHandlingContext context) =>
                 {
                     view.ChangeLayerOnValidTargetsToDefault(
                         context.Selection.TargetKind, context.Selection.ValidTargets);
                 });
-            _view.GetEventProxy(ViewEvents.OnItemInteractionCancelledOrFinalized).Add(
+            _view.GetEventProxy(ViewEvents.OnItemInteraction.CancelledOrFinalized).Add(
                 (ViewContext view) =>
                 {
                     view.State.Selection.TargetKind = TargetKind.None;
