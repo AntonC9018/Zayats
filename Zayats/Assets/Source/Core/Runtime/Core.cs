@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using Common;
 using Kari.Plugins.AdvancedEnum;
 using Kari.Plugins.Forward;
 using Zayats.Core.Generated;
@@ -91,7 +92,7 @@ namespace Zayats.Core
             {
                 players[i] = new()
                 {
-                    Bonuses = new(),
+                    StatBonuses = new(),
                     Items = new(),
                     Position = 0,
                     Stats = Stats.CreateStorage(),
@@ -162,7 +163,7 @@ namespace Zayats.Core
             panic("Not implemented correctly");
         }
 
-        public static void AddNonPlayerThingToCell(this GameContext game, int thingId, int toPosition, Data.Reason reason)
+        public static void AddThingToCell_WithoutPlayerEvent(this GameContext game, int thingId, int toPosition, Data.Reason reason)
         {
             game.State.Cells[toPosition].Add(thingId);
             game.TriggerSingleThingAddedToCellEvent(thingId, toPosition, reason);
@@ -390,13 +391,13 @@ namespace Zayats.Core
             game.HandlePlayerEvent(GameEvents.OnThingPickedUp, info.PlayerIndex, ref info);
         }
 
-        public static void AddThingToShop(this GameContext game, int thingId)
+        public static void AddThingToShop(this GameContext game, GameEvents.ThingAddedToShopContext context)
         {
             var shopItems = game.State.Shop.Items;
-            if (shopItems.Contains(thingId))
-                panic($"Adding an item to shop even though it's already there. ID: {thingId}");
-            shopItems.Add(thingId);
-            game.HandleEvent(GameEvents.OnThingAddedToShop, thingId);
+            if (shopItems.Contains(context.ThingId))
+                panic($"Adding an item to shop even though it's already there. ID: {context.ThingId}");
+            shopItems.Add(context.ThingId);
+            game.HandleEvent(GameEvents.OnThingAddedToShop, ref context);
         }
 
         // public static void DoDefaultPickupEffectWithEvent(ItemInteractionInfo info)
@@ -583,6 +584,21 @@ namespace Zayats.Core
 
         public static void EndCurrentPlayersTurn(this GameContext game)
         {
+            // Tick the bonuses.
+            var bonuses = game.State.CurrentPlayer.StatBonuses;
+            for (int i = bonuses.Count - 1; i >= 0; i--)
+            {
+                ref var bonus = ref bonuses.GetRef(i);
+                bonus.LastsForTurns--;
+                if (bonus.LastsForTurns != 0)
+                    continue;
+
+                var boost = bonus.Boost;
+                game.State.CurrentPlayer.Stats.GetProxy(boost.Index).Value -= boost.Value;
+                bonuses.RemoveAt(i);
+            }
+
+            // Next player
             ref int a = ref game.State.CurrentPlayerIndex;
             int previousPlayer = a;
             a = (a + 1) % game.State.Players.Length;
@@ -593,7 +609,7 @@ namespace Zayats.Core
                 PreviousPlayerIndex = previousPlayer,
                 CurrentPlayerIndex = currentPlayer,
             });
-
+            
             // Clear all turn locks
             game.State.TurnLock = 0;
         }
@@ -616,6 +632,15 @@ namespace Zayats.Core
         {
             int position = game.State.Players[playerIndex].Position;
             return game.State.Shop.CellsWhereAccessible.Any(p => p == position);
+        }
+
+        public static void AddBonusToPlayer(this GameContext game, int playerIndex, Data.StatBonus bonus)
+        {
+            ref var player = ref game.State.Players[playerIndex];
+            player.StatBonuses.Add(bonus);
+
+            var boost = bonus.Boost;
+            player.Stats.GetProxy(boost.Index).Value += boost.Value;
         }
 
         public struct StartPurchaseContext
@@ -704,7 +729,7 @@ namespace Zayats.Core
             }
             for (int i = 0; i < coinCount; i++)
             {
-                game.AddNonPlayerThingToCell(
+                game.AddThingToCell_WithoutPlayerEvent(
                     context.CoinsToPayWith[i].ThingId,
                     context.SelectedCoinPlacementPositions[i],
                     Reasons.Buying(context.PlayerIndex));
@@ -758,9 +783,7 @@ namespace Zayats.Core
             
             ref var item = ref context.Item.Value;
 
-            // Update the referenced values first, because the proxy
-            // gets invalidated after any logic happens
-            // (even though right now no things can be added or removed after initialization)
+            // Update the referenced values first, because the proxy gets invalidated after any logic happens.
             bool shouldRemove = false;
             if (item.UsesLeft != short.MaxValue)
             {
@@ -783,8 +806,11 @@ namespace Zayats.Core
                 if (newItemIndex != -1)
                 {
                     player.Items.RemoveAt(itemId);
-                    // TODO: some more options of what's gonna happen after.
-                    game.AddThingToShop(itemId);
+                    game.AddThingToShop(new()
+                    {
+                        ThingId = itemId,
+                        Reason = Reasons.ItemUsedUp(context.Interaction.PlayerIndex),
+                    });
                 }
             }
         }
@@ -1329,7 +1355,12 @@ namespace Zayats.Core
         public static readonly TypedIdentifier<AmountRolledContext> OnAmountRolled = new(13);
         public static readonly TypedIdentifier<PlayerPositionChangedContext> OnPositionChanging = new(14);
         public static readonly TypedIdentifier<PlayerPositionChangedContext> OnPositionAboutToChange = new(15);
-        public static readonly TypedIdentifier<int> OnThingAddedToShop = new(16);
+        public struct ThingAddedToShopContext
+        {
+            public int ThingId;
+            public Data.Reason Reason;
+        }
+        public static readonly TypedIdentifier<ThingAddedToShopContext> OnThingAddedToShop = new(16);
 
         public const int Count = 17;
     }
@@ -1337,10 +1368,17 @@ namespace Zayats.Core
     public static class Data
     {
         [Serializable]
+        public struct StatBonus
+        {
+            public StatBoost Boost;
+            public int LastsForTurns;
+        }
+
+        [Serializable]
         public struct Player
         {
             public List<int> Items;
-            public List<int> Bonuses;
+            public List<StatBonus> StatBonuses;
             public int Position;
             public int ThingId;
             public Stats.Storage Stats;
@@ -1396,7 +1434,8 @@ namespace Zayats.Core
         public const int PlayerMovementOffset = 5;
         private const int Waypoint0 = PlayerMovementOffset + (int) MovementKind.Count;
         public const int DebugId = Waypoint0 + 0;
-        public const int ItemPlacementId = Waypoint0 + 1;
+        public const int PlacementId = Waypoint0 + 1;
+        public const int ItemUsedUpId = Waypoint0 + 2;
 
         public static Data.Reason Unknown => new Data.Reason { Id = UnknownId };
         public static Data.Reason Explosion(int explodedThingId) => new Data.Reason { Id = ExplosionId, Payload = explodedThingId };
@@ -1413,7 +1452,8 @@ namespace Zayats.Core
         }
 
         public static Data.Reason Debug => new Data.Reason { Id = DebugId };
-        public static Data.Reason ItemPlacement => new Data.Reason { Id = ItemPlacementId };
+        public static Data.Reason Placement => new Data.Reason { Id = PlacementId };
+        public static Data.Reason ItemUsedUp(int playerIndex) => new Data.Reason { Id = ItemUsedUpId, Payload = playerIndex };
     }
 
     [Serializable]
@@ -1530,23 +1570,6 @@ namespace Zayats.Core
             game.State.ComponentsByType[componentId.Id] = t;
             return t;
         }
-
-        // public static void InitializeStorages(GameContext game, ReadOnlySpan<int> initialSizes, int defaultSize = 4)
-        // {
-        //     int D(int s) => s > 0 ? s : defaultSize;
-
-        //     Components.InitializeStorage(game, Components.CurrencyCostId, D(initialSizes[Components.CurrencyCostId.Id]));
-        //     Components.InitializeStorage(game, Components.PlayerId, D(initialSizes[Components.PlayerId.Id]));
-        //     Components.InitializeStorage(game, Components.CurrencyId, D(initialSizes[Components.CurrencyId.Id]));
-        //     Components.InitializeStorage(game, Components.ThingSpecificEventsId, D(initialSizes[Components.ThingSpecificEventsId.Id]));
-        //     Components.InitializeStorage(game, Components.RespawnPointIdsId, D(initialSizes[Components.RespawnPointIdsId.Id]));
-        //     Components.InitializeStorage(game, Components.RespawnPositionId, D(initialSizes[Components.RespawnPositionId.Id]));
-        //     Components.InitializeStorage(game, Components.PickupId, D(initialSizes[Components.PickupId.Id]));
-        //     Components.InitializeStorage(game, Components.AttachedPickupDelegateId, D(initialSizes[Components.AttachedPickupDelegateId.Id]));
-        //     Components.InitializeStorage(game, Components.RespawnPointIdId, D(initialSizes[Components.RespawnPointIdId.Id]));
-        //     Components.InitializeStorage(game, Components.FlagsId, D(initialSizes[Components.FlagsId.Id]));
-        //     Components.InitializeStorage(game, Components.ActivatedItemId, D(initialSizes[Components.ActivatedItemId.Id]));
-        // }
 
         public static void InitializeComponentStorages(this GameContext game, int defaultSize = 4)
         {

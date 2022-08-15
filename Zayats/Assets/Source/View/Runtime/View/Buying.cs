@@ -132,6 +132,7 @@ namespace Zayats.Unity.View
             else // if (unoccupiedCellCount > drop.RemovedItems.Count)
             {
                 view.HandleEvent(ViewEvents.OnForcedItemDrop.Started, ref drop);
+                view.PreviewSpawnNextCoin(ref drop);
                 return true;
             }
         }
@@ -184,6 +185,31 @@ namespace Zayats.Unity.View
 
             drop.SelectedPositions[coinIndex] = cellIndex;
             return true;
+        }
+
+        public static void SetLastCoinPositionToLastSelectedPosition(
+            this ViewContext view,
+            ref ForcedItemDropHandling drop)
+        {
+            assert(drop.InProgress);
+            var coinIndex = drop.PreviewObjects.Count - 1;
+            var cellIndex = view.State.Selection.ValidTargets[^1];
+            var cellInfo = view.GetCellVisualInfo(cellIndex);
+            var coinPreviewObject = drop.PreviewObjects[coinIndex];
+            coinPreviewObject.parent = cellInfo.OuterObject;
+            coinPreviewObject.position = cellInfo.GetTop();
+            assert(drop.SelectedPositions.Contains(cellIndex));
+            drop.SelectedPositions[coinIndex] = cellIndex;
+        }
+
+        public static void HandleNextForcedItemDropStateMachineStep(this ViewContext view, ref ForcedItemDropHandling drop)
+        {
+            view.SetLastCoinPositionToLastSelectedPosition(ref drop);
+            
+            if (drop.PreviewObjects.Count != drop.RemovedItems.Count)
+                view.PreviewSpawnNextCoin(ref drop);
+            else
+                view.ConfirmBuyingItem(ref drop);
         }
 
         public static void SetLastCoinPositionOutsideCell(
@@ -328,9 +354,9 @@ namespace Zayats.Unity.View
             return alignment.GetPositionAtIndex(numItems + 1, grid);
         }
 
-        public static void OnItemAddedToShop(this ViewContext view, ref int thingId_)
+        public static void OnItemAddedToShop(this ViewContext view, ref GameEvents.ThingAddedToShopContext context)
         {
-            int thingId = thingId_;
+            int thingId = context.ThingId;
             
             var thing = view.UI.ThingGameObjects[thingId].transform;
             ref var grid = ref view.State.Shop.Grid;
@@ -338,7 +364,11 @@ namespace Zayats.Unity.View
 
             var s = view.MaybeBeginAnimationEpoch();
             var position = GetPositionForInventoryItem(grid, ref alignment, view.Game.State.Shop.Items.Count);
-            var tween = thing.DOMove(position, view.Visual.AnimationSpeed.Game);
+            var speeds = view.Visual.AnimationSpeed;
+            var tween = thing.DOMove(position,
+                duration: context.Reason.Id == Reasons.PlacementId
+                ? speeds.InitialThingSpawning
+                : speeds.Game);
             tween.OnComplete(() =>
             {
                 thing.ChangeLayer(LayerIndex.RaycastTarget);

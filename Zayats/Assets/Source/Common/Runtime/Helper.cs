@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 
 namespace Common
 {
@@ -150,6 +151,18 @@ namespace Common
                 if (list.Contains(i))
                     return false;
             return true;
+        }
+
+        private class ListReflection<T>
+        {
+            public static readonly FieldInfo _ItemsField = typeof(List<T>).GetField("_items",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+        }
+
+        public static ref T GetRef<T>(this List<T> list, int i)
+        {
+            var t = (T[]) ListReflection<T>._ItemsField.GetValue(list);
+            return ref t[i];
         }
     }
 }

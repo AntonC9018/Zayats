@@ -17,23 +17,21 @@ namespace Zayats.Unity.View
             _viewContext = viewContext;
         }
 
+        // TODO: Some more decoupled input system, but this works for now. 
         public void OnPointerClick(PointerEventData eventData)
         {
             if (eventData.button == Right)
             {
                 if (_viewContext.State.Selection.InProgress)
                 {
-                    _viewContext.CancelHandlingCurrentItemInteraction();
+                    _viewContext.CancelCurrentSelectionInteraction();
                     return;
                 }
             }
             else if (eventData.button == Left)
             {
-                if (_viewContext.State.Selection.InProgress)
-                {
-                    _viewContext.SelectObject(eventData.position);
+                if (_viewContext.MaybeSelectObject(eventData.position))
                     return;
-                }
             }
 
             var context = new ViewEvents.PointerEvent

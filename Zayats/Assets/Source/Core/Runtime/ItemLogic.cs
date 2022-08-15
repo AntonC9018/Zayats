@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Kari.Plugins.AdvancedEnum;
@@ -159,7 +160,11 @@ namespace Zayats.Core
         
         protected override void DoDrop(GameContext game, ItemInterationContext info)
         {
-            game.AddThingToShop(info.ThingId);
+            game.AddThingToShop(new()
+            {
+                ThingId = info.ThingId,
+                Reason = Reasons.ItemUsedUp(info.PlayerIndex),
+            });
         }
         protected override void DoEffect(GameContext game, ItemInterationContext info, ref SavePlayerContext eventData)
         {
@@ -204,7 +209,6 @@ namespace Zayats.Core
 
         public void DoDropEffect(GameContext game, ItemInterationContext info)
         {
-            game.AddThingToShop(info.ThingId);
         }
 
         public void DoPickupEffect(GameContext game, ItemInterationContext info)
@@ -219,32 +223,54 @@ namespace Zayats.Core
         }
     }
 
+    [Serializable]
+    public struct StatBoost
+    {
+        public float Value;
+        public int Index;
+
+        public StatBoost(TypedIdentifier<float> id, float value) : this(id.Id, value)
+        {
+        }
+        
+        public StatBoost(TypedIdentifier<int> id, int value) : this(id.Id, (float) value)
+        {
+        }
+        
+        public StatBoost(int id, float value)
+        {
+            Value = value;
+            Index = id;
+        }
+
+        public readonly Stats.Proxy GetProxy(GameContext game, int playerIndex)
+        {
+            return game.State.Players[playerIndex].Stats.GetProxy(Index);
+        }
+
+        public readonly void AddValue(GameContext game, int playerIndex)
+        {
+            GetProxy(game, playerIndex).Value += Value;
+        }
+
+        public readonly void SubtractValue(GameContext game, int playerIndex)
+        {
+            GetProxy(game, playerIndex).Value -= Value;
+        }
+    }
+
     public sealed class AddStatPickupEffect : IPickupEffect
     {
-        public AddStatPickupEffect(TypedIdentifier<float> id, float value) : this(id.Id, value)
-        {
-        }
+        public readonly StatBoost _boost;
         
-        public AddStatPickupEffect(TypedIdentifier<int> id, int value) : this(id.Id, (float) value)
+        public AddStatPickupEffect(StatBoost boost)
         {
-        }
-        
-        public AddStatPickupEffect(int id, float value)
-        {
-            StatValue = value;
-            StatIndex = id;
+            _boost = boost;
         }
 
-        public float StatValue { get; }
-        public int StatIndex { get; }
 
-        private Stats.Proxy GetProxy(GameContext game, in ItemInterationContext info)
-        {
-            return game.State.Players[info.PlayerIndex].Stats.GetProxy(StatIndex);
-        }
-
-        public void DoDropEffect(GameContext game, ItemInterationContext info) => GetProxy(game, info).Value -= StatValue;
-        public void DoPickupEffect(GameContext game, ItemInterationContext info) => GetProxy(game, info).Value += StatValue;
+        public void DoDropEffect(GameContext game, ItemInterationContext info) => _boost.AddValue(game, info.PlayerIndex);
+        public void DoPickupEffect(GameContext game, ItemInterationContext info) => _boost.SubtractValue(game, info.PlayerIndex);
     }
 
     public sealed class TowerPickupEffect : IPickupEffect
@@ -322,6 +348,18 @@ namespace Zayats.Core
             if (context.Position == 0)
                 yield break;
 
+            for (int i = 0; i < game.State.Players.Length; i++)
+            {
+                if (i == context.PlayerIndex)
+                    continue;
+                var p = game.State.Players[i].Position;
+                if (p == 0 || p == game.State.Cells.Length - 1)
+                    continue;
+                if (Math.Abs(p - context.Position) <= 1)
+                    yield return p; 
+            }
+            
+            #if false
             {
                 var pos = context.Position - 1;
                 if (pos > 0)
@@ -330,7 +368,7 @@ namespace Zayats.Core
                         yield return p.Value.PlayerIndex;
                 }
             }
-            // Even though the player over topples over other players,
+            // Even though the player topples over other players,
             // that mechanic might be disabled or different.
             {
                 var pos = context.Position;
@@ -352,6 +390,7 @@ namespace Zayats.Core
                         yield return p.Value.PlayerIndex;
                 }
             }
+            #endif
         }
     }
 
@@ -405,7 +444,23 @@ namespace Zayats.Core
         }
     }
 
-    
+    public sealed class AddStatBonusToUser_Action : ITargetedActivatedAction
+    {
+        private readonly Data.StatBonus _bonus;
+        public AddStatBonusToUser_Action(StatBoost boost, int lastsForTurns = 1)
+        {
+            _bonus.Boost = boost;
+            _bonus.LastsForTurns = lastsForTurns;
+        }
+
+        public void DoAction(GameContext game, ItemInterationContext context, IEnumerable<int> targets)
+        {
+            ref var player = ref game.State.Players[context.PlayerIndex];
+            player.StatBonuses.Add(_bonus);
+        }
+    }
+
+
     [GenerateArrayWrapper]
     public enum ItemUsability
     {
@@ -454,7 +509,7 @@ namespace Zayats.Core
             game.PlaceThing(itemId).At(t);
 
             // TODO: integrate this into the placement logic.
-            game.TriggerSingleThingAddedToCellEvent(itemId, t, Reasons.ItemPlacement);
+            game.TriggerSingleThingAddedToCellEvent(itemId, t, Reasons.Placement);
         }
     }
 

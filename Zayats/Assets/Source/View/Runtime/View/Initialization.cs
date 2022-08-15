@@ -462,7 +462,16 @@ namespace Zayats.Unity.View
             _view.GetEventProxy(ViewEvents.OnSelectionProgress).Add(
                 (ViewContext view, ref SelectionState state) =>
                 {
-                    view.MaybeConfirmItemUse();
+                    // TODO: maybe add/remove handlers when it starts/ends.
+                    if (view.State.ItemHandling.InProgress)
+                        view.MaybeConfirmItemUse();
+                });
+            _view.GetEventProxy(ViewEvents.OnSelectionProgress).Add(
+                (ViewContext view, ref SelectionState state) =>
+                {
+                    // Let's say we don't allow repeats for now, so we can use the selection system without modification.
+                    if (view.State.ForcedItemDropHandling.InProgress)
+                        view.HandleNextForcedItemDropStateMachineStep(ref view.State.ForcedItemDropHandling);
                 });
 
             _view.GetEventProxy(ViewEvents.OnItemInteraction.Started).Add(

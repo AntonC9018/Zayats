@@ -95,26 +95,53 @@ namespace Zayats.Unity.View
             ChangeLayerOnValidTargets(view, targetKind, validTargets, LayerIndex.Default);
         }
 
-        public static void SelectObject(this ViewContext view, Vector3 positionOfInteractionOnScreen)
+        public static (Transform, GameObject)? RaycastRaycastable(Vector3 positionOfInteractionOnScreen)
         {
-            assert(view.State.Selection.InProgress, "Didn't get disabled??");
-
             int layerMask = LayerBits.RaycastTarget;
 
             RaycastHit hit;
             Ray ray = Camera.main.ScreenPointToRay(positionOfInteractionOnScreen);
 
             if (!Physics.Raycast(ray, out hit, layerMask))
-                return;
-
-            {
-                var t = hit.collider.transform.parent;
-                GameObject obj;
-                while ((obj = t.gameObject).GetComponent<Collider>() != null)
-                    t = t.parent;
+                return null;
                 
-                view.AddOrRemoveObjectToSelection(obj);
+            var t = hit.collider.transform.parent;
+            GameObject obj;
+            while ((obj = t.gameObject).GetComponent<Collider>() != null)
+                t = t.parent;
+
+            return (t, obj);
+        }
+
+        public static bool MaybeSelectObject(this ViewContext view, Vector3 positionOfInteractionOnScreen)
+        {
+            var raycastResult = RaycastRaycastable(positionOfInteractionOnScreen);
+            if (!raycastResult.HasValue)
+                return false;
+            var (transform, obj) = raycastResult.Value;
+                
+            // Buying shop item.
+            // TODO: should be decoupled.
+            int GetIndexInShop()
+            {
+                var game = view.Game;
+                return game.IsShoppingAvailable(game.State.CurrentPlayerIndex)
+                    ? game.State.Shop.Items.Select(id => view.UI.ThingGameObjects[id]).IndexOf(obj)
+                    : -1;
             }
+
+            var shopItemIndex = GetIndexInShop();
+            bool isSelecting = view.State.Selection.InProgress;
+
+            if (shopItemIndex != -1 && isSelecting)
+                return false;
+
+            if (isSelecting)
+                view.AddOrRemoveObjectToSelection(obj);
+            else if (shopItemIndex != -1)
+                view.TryInitiateBuying(shopItemIndex);
+
+            return true;
         }
 
         public static IEnumerable<GameObject> GetPlayerObjects(this ViewContext view)
@@ -197,7 +224,8 @@ namespace Zayats.Unity.View
             }
             else if (view.State.ForcedItemDropHandling.InProgress)
             {
-                // view.State.
+                // Note: will need to abstract this more if the item drop gets used elsewhere.
+                view.CancelPurchase(ref view.State.ForcedItemDropHandling);
             }
             else panic("Unimplemented?");
 
