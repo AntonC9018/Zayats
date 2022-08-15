@@ -110,7 +110,7 @@ namespace Kari.Zayats.Exporter
                         var isInstance = f.Name == "Instance";
                         var name = isInstance ? f.ContainingType.Name : (f.Type.Name + "." + f.Name);
                         var fqn = f.GetFullyQualifiedName();
-                        builder.AppendLine($"(Name: {name}, Object: {fqn}),");
+                        builder.AppendLine($"(Name: \"{name}\", Object: {fqn}),");
                     }
 
                     builder.DecreaseIndent();

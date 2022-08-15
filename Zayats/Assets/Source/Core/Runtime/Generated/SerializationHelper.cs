@@ -14,31 +14,31 @@ namespace Zayats.Core.Generated
             var result = new (string Name, object Object)[4][];
             result[(int) PickupEffect] = new (string Name, object Object)[]
             {
-                (Name: DoNothingPickupEffect, Object: Zayats.Core.DoNothingPickupEffect.Instance),
-                (Name: AddStatPickupEffect.RabbitPickupEffect, Object: Zayats.Core.Initialization.RabbitPickupEffect),
-                (Name: AddStatPickupEffect.HorsePickup, Object: Zayats.Core.Initialization.HorsePickup),
-                (Name: MinePickupEffect.DestroysOnDetonation, Object: Zayats.Core.MinePickupEffect.DestroysOnDetonation),
-                (Name: MinePickupEffect.StaysOnDetonation, Object: Zayats.Core.MinePickupEffect.StaysOnDetonation),
-                (Name: TotemPickupEffect, Object: Zayats.Core.TotemPickupEffect.Instance),
-                (Name: TowerPickupEffect, Object: Zayats.Core.TowerPickupEffect.Instance),
+                (Name: "DoNothingPickupEffect", Object: Zayats.Core.DoNothingPickupEffect.Instance),
+                (Name: "AddStatPickupEffect.RabbitPickupEffect", Object: Zayats.Core.Initialization.RabbitPickupEffect),
+                (Name: "AddStatPickupEffect.HorsePickup", Object: Zayats.Core.Initialization.HorsePickup),
+                (Name: "MinePickupEffect.DestroysOnDetonation", Object: Zayats.Core.MinePickupEffect.DestroysOnDetonation),
+                (Name: "MinePickupEffect.StaysOnDetonation", Object: Zayats.Core.MinePickupEffect.StaysOnDetonation),
+                (Name: "TotemPickupEffect", Object: Zayats.Core.TotemPickupEffect.Instance),
+                (Name: "TowerPickupEffect", Object: Zayats.Core.TowerPickupEffect.Instance),
             };
             result[(int) PickupInteraction] = new (string Name, object Object)[]
             {
-                (Name: ConstantPickupInteration.DefaultInventoryInteraction, Object: Zayats.Core.Pickups.DefaultInventoryInteraction),
-                (Name: ConstantPickupInteration._EternalMineInteraction, Object: Zayats.Core.Pickups._EternalMineInteraction),
-                (Name: ConstantPickupInteration._RegularMineInteraction, Object: Zayats.Core.Pickups._RegularMineInteraction),
+                (Name: "ConstantPickupInteration.DefaultInventoryInteraction", Object: Zayats.Core.Pickups.DefaultInventoryInteraction),
+                (Name: "ConstantPickupInteration._EternalMineInteraction", Object: Zayats.Core.Pickups._EternalMineInteraction),
+                (Name: "ConstantPickupInteration._RegularMineInteraction", Object: Zayats.Core.Pickups._RegularMineInteraction),
             };
             result[(int) ActivatedAction] = new (string Name, object Object)[]
             {
-                (Name: KillPlayersAction.KillPlayersWithPoisonAction, Object: Zayats.Core.Initialization.KillPlayersWithPoisonAction),
-                (Name: AddStatBonusToUser_Action.BoozeAction, Object: Zayats.Core.Initialization.BoozeAction),
-                (Name: PlaceItemFromInventoryAction, Object: Zayats.Core.PlaceItemFromInventoryAction.Instance),
+                (Name: "KillPlayersAction.KillPlayersWithPoisonAction", Object: Zayats.Core.Initialization.KillPlayersWithPoisonAction),
+                (Name: "AddStatBonusToUser_Action.BoozeAction", Object: Zayats.Core.Initialization.BoozeAction),
+                (Name: "PlaceItemFromInventoryAction", Object: Zayats.Core.PlaceItemFromInventoryAction.Instance),
             };
             result[(int) TargetFilter] = new (string Name, object Object)[]
             {
-                (Name: NearbyOtherPlayersFilter, Object: Zayats.Core.NearbyOtherPlayersFilter.Instance),
-                (Name: NoTargetFilter, Object: Zayats.Core.NoTargetFilter.Instance),
-                (Name: UnoccupiedCellFilter, Object: Zayats.Core.UnoccupiedCellFilter.Instance),
+                (Name: "NearbyOtherPlayersFilter", Object: Zayats.Core.NearbyOtherPlayersFilter.Instance),
+                (Name: "NoTargetFilter", Object: Zayats.Core.NoTargetFilter.Instance),
+                (Name: "UnoccupiedCellFilter", Object: Zayats.Core.UnoccupiedCellFilter.Instance),
             };
             return result;
         }
