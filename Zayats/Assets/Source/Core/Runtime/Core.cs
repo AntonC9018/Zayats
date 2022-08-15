@@ -8,6 +8,7 @@ using Common;
 using Kari.Plugins.AdvancedEnum;
 using Kari.Plugins.Forward;
 using Zayats.Core.Generated;
+using Kari.Zayats.Exporter;
 
 namespace Zayats.Core
 {

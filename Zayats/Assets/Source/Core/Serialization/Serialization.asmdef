@@ -1,0 +1,14 @@
+{
+    "name": "Zayats.Serialization",
+    "rootNamespace": "Zayats.Serialization",
+    "references": ["Common", "Zayats.Core" ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

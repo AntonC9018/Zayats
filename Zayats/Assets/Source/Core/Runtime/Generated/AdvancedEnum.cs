@@ -70,7 +70,7 @@ namespace Zayats.Core.Generated
     {
         public /*readonly*/ T[] Values;
         private ThingArray(T[] values) => Values = values;
-        public static ThingArray<T> Create() => new ThingArray<T>(new T[10]);
+        public static ThingArray<T> Create() => new ThingArray<T>(new T[11]);
         public readonly ref T GetRef(Zayats.Core.ThingKind key)
         {
             return ref Values[(int) key];
@@ -143,11 +143,17 @@ namespace Zayats.Core.Generated
             readonly get => Values[(int) Zayats.Core.ThingKind.Snake];
             set => Values[(int) Zayats.Core.ThingKind.Snake] = value;
         }
+        public readonly ref T BoozeRef => ref Values[(int) Zayats.Core.ThingKind.Booze];
+        public T Booze
+        {
+            readonly get => Values[(int) Zayats.Core.ThingKind.Booze];
+            set => Values[(int) Zayats.Core.ThingKind.Booze] = value;
+        }
         public static implicit operator T[](ThingArray<T> a) => a.Values;
         public readonly T[] Array => Values;
         public readonly ref T this[Zayats.Core.ThingKind key] => ref GetRef(key);
         public readonly ref T this[int index] => ref Values[index];
-        public readonly int Length => 10;
+        public readonly int Length => 11;
         public static bool operator==(ThingArray<T> a, ThingArray<T> b)
         {
             for (int i = 0; i < a.Length; i++)

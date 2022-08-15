@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Kari.Plugins.AdvancedEnum;
 using Kari.Plugins.Flags;
 using static Zayats.Core.Assert;
+using Kari.Zayats.Exporter;
 
 namespace Zayats.Core
 {
@@ -179,6 +180,7 @@ namespace Zayats.Core
             return p;
         }
 
+        [Export]
         public static readonly AddStatPickupEffect RabbitPickupEffect = new(boost: new(Stats.RollAdditiveBonus, 1));
         public static ThingCreationProxy Rabbit(this ThingCreationProxy p)
         {
@@ -193,6 +195,7 @@ namespace Zayats.Core
             return p;
         }
 
+        [Export]
         public static readonly AddStatPickupEffect HorsePickup = new(boost: new(Stats.JumpAfterMoveCapacity, 1));
         public static ThingCreationProxy Horse(this ThingCreationProxy p)
         {
@@ -200,6 +203,7 @@ namespace Zayats.Core
             return p;
         }
 
+        [Export]
         public static readonly KillPlayersAction KillPlayersWithPoisonAction = new KillPlayersAction(Reasons.PoisonId);
         public static ThingCreationProxy Snake(this ThingCreationProxy p)
         {
@@ -215,6 +219,7 @@ namespace Zayats.Core
             return p;
         }
 
+        [Export]
         public static readonly AddStatBonusToUser_Action BoozeAction = new AddStatBonusToUser_Action(
             boost: new(Stats.RollAdditiveBonus, value: 1),
             lastsForTurns: 1); 

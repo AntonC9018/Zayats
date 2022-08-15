@@ -90,7 +90,7 @@ struct Plugins
 {
     @disable this();
     static immutable(string[]) kariInternal = ["Flags", "DataObject"];
-    static immutable(string[]) custom = ["AdvancedEnum", "Forward"];
+    static immutable(string[]) custom = ["AdvancedEnum", "Forward", "Zayats.Exporter"];
 }
 
 

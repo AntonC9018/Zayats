@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Kari.Plugins.AdvancedEnum;
 using Kari.Plugins.Forward;
+using Kari.Zayats.Exporter;
 
 namespace Zayats.Core
 {
@@ -149,6 +150,7 @@ namespace Zayats.Core
 
     public sealed class TotemPickupEffect : AttachEffectHandlerPickupEffectBase<SavePlayerContext>
     {
+        [Export]
         public static readonly TotemPickupEffect Instance = new(Reasons.ExplosionId);
 
         private TotemPickupEffect(int reasonFromWhichToProtect)
@@ -184,6 +186,7 @@ namespace Zayats.Core
 
     public sealed class DoNothingPickupEffect : IPickupEffect
     {
+        [Export]
         public static readonly DoNothingPickupEffect Instance = new();
         private DoNothingPickupEffect(){}
 
@@ -204,7 +207,9 @@ namespace Zayats.Core
             DestroyOnDetonation = destroyOnDetonation;
         }
 
+        [Export]
         public static readonly MinePickupEffect DestroysOnDetonation = new(true);
+        [Export]
         public static readonly MinePickupEffect StaysOnDetonation = new(false);
 
         public void DoDropEffect(GameContext game, ItemInterationContext info)
@@ -275,6 +280,7 @@ namespace Zayats.Core
 
     public sealed class TowerPickupEffect : IPickupEffect
     {
+        [Export]
         public static readonly TowerPickupEffect Instance = new();
         private TowerPickupEffect(){}
 
@@ -295,6 +301,7 @@ namespace Zayats.Core
 
     public static class Pickups
     {
+        [Export]
         public static readonly ConstantPickupInteration DefaultInventoryInteraction = new(shouldRemove: true, isInventory: true);
         public static readonly Components.Pickup Tower = new()
         {
@@ -302,14 +309,16 @@ namespace Zayats.Core
             Interaction = DefaultInventoryInteraction,
         };
 
-        private static readonly ConstantPickupInteration _EternalMineInteraction = new(shouldRemove: false, isInventory: false);
+        [Export]
+        public static readonly ConstantPickupInteration _EternalMineInteraction = new(shouldRemove: false, isInventory: false);
         public static readonly Components.Pickup EternalMine = new()
         {
             Effect = MinePickupEffect.StaysOnDetonation,
             Interaction = _EternalMineInteraction,
         };
 
-        private static readonly ConstantPickupInteration _RegularMineInteraction = DefaultInventoryInteraction;
+        [Export]
+        public static readonly ConstantPickupInteration _RegularMineInteraction = DefaultInventoryInteraction;
         public static readonly Components.Pickup RegularMine = new()
         {
             Effect = MinePickupEffect.StaysOnDetonation,
@@ -341,6 +350,7 @@ namespace Zayats.Core
 
     public sealed class NearbyOtherPlayersFilter : ITargetFilter
     {
+        [Export]
         public static readonly NearbyOtherPlayersFilter Instance = new();
         public TargetKind Kind => TargetKind.Player;
         public IEnumerable<int> GetValid(GameContext game, ItemInterationContext context)
@@ -396,6 +406,7 @@ namespace Zayats.Core
 
     public sealed class UnoccupiedCellFilter : ITargetFilter
     {
+        [Export]
         public static readonly UnoccupiedCellFilter Instance = new();
         public TargetKind Kind => TargetKind.Cell;
         public IEnumerable<int> GetValid(GameContext game, ItemInterationContext context)
@@ -406,6 +417,7 @@ namespace Zayats.Core
 
     public sealed class NoTargetFilter : ITargetFilter
     {
+        [Export]
         public static readonly NoTargetFilter Instance = new();
         public TargetKind Kind => TargetKind.None;
         public IEnumerable<int> GetValid(GameContext game, ItemInterationContext context)
@@ -495,6 +507,7 @@ namespace Zayats.Core
 
     public class PlaceItemFromInventoryAction : ITargetedActivatedAction
     {
+        [Export]
         public static readonly PlaceItemFromInventoryAction Instance = new();
         private PlaceItemFromInventoryAction(){}
         public void DoAction(GameContext game, ItemInterationContext context, IEnumerable<int> targets)
