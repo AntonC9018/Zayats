@@ -72,7 +72,12 @@ namespace Zayats.Unity.View
         public static void ChangeLayerOnTargets(IEnumerable<Transform> targets, int layer)
         {
             foreach (var t in targets)
-                t.GetChild(ObjectHierarchy.Collider.Id).gameObject.layer = layer;
+                ChangeLayer(t, layer);
+        }
+
+        public static void ChangeLayer(this Transform t, int layer)
+        {
+            t.GetChild(ObjectHierarchy.Collider.Id).gameObject.layer = layer;
         }
 
         public static void ChangeLayerOnValidTargets(this ViewContext view, TargetKind targetKind, List<int> validTargets, int layer)

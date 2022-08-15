@@ -5,7 +5,6 @@ using System.Linq;
 using System;
 using System.Collections.Generic;
 using static Zayats.Core.Events;
-using System.Threading.Tasks;
 using Common;
 using static Zayats.Core.GameEvents;
 using DG.Tweening;

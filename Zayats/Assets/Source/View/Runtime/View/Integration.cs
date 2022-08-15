@@ -64,6 +64,8 @@ namespace Zayats.Unity.View
         public SelectionState Selection;
         public int AnimationEpoch;
         // public List<GameObject> HighlightedUIObjects;
+        public Logic.StartPurchaseContext CurrentPurchase;
+        public ShopState Shop;
     }
 
     [Serializable]
@@ -92,6 +94,7 @@ namespace Zayats.Unity.View
         public GameObject BuyButtonPrefab;
         public GameObject ScreenOverlayObject;
         public ItemScrollUIReferences ItemScrollUI;
+        public ShopUIReferences ShopUI;
     }
 
     [Serializable]
@@ -143,7 +146,6 @@ namespace Zayats.Unity.View
             view.State.ForcedItemDropHandling.RemovedItems = new();
             view.State.ForcedItemDropHandling.PreviewObjects = new();
             view.State.ForcedItemDropHandling.SelectedPositions = new List<int>();
-            view.State.ForcedItemDropHandling.PreviewBatchedMaterial = new();
 
             return view;
         }

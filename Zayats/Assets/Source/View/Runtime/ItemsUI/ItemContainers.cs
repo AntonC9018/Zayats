@@ -115,7 +115,7 @@ namespace Zayats.Unity.View
 
         private (Vector3 CCenter, float MinRatio, Vector3 CenterOffset, float ZOffset) CalculateOffsets(Transform item, UIHolderInfo holder)
         {
-            var info = ViewLogic.GetInfo(item);
+            var info = ViewLogic.GetVisualInfo(item);
             var size = info.Size;
             var (ccenter, csize) = holder.ItemFrameTransform.GetWorldSpaceRect();
             var minRatio = Vector2.Scale(csize, size.xy().Inverse()).Min();

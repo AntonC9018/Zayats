@@ -626,29 +626,22 @@ namespace Zayats.Core
 
         public struct PurchaseContext
         {
-            public List<(int Index, int ThingId)> Coins;
-            public readonly int TotalCost => Coins.Count;
+            public List<(int Index, int ThingId)> CoinsToPayWith;
             public StartPurchaseContext Start;
+            public IList<int> SelectedCoinPlacementPositions;
 
-            public void SetEmpty()
-            {
-                Coins = new();
-            }
-
-            public void SetNotEnoughCoins()
-            {
-                Coins = null;
-            }
-
-            public void SetIndices(List<(int Index, int ThingId)> indices)
-            {
-                Coins = indices;
-            }
-
-            public readonly bool Empty => Coins.Count == 0;
-            public readonly bool NotEnoughCoins => Coins == null;
+            public readonly int TotalCost => CoinsToPayWith.Count;
+            public readonly bool Empty => CoinsToPayWith.Count == 0;
+            public readonly bool NotEnoughCoins => CoinsToPayWith == null;
             public readonly int PlayerIndex => Start.PlayerIndex;
             public readonly int ThingShopIndex => Start.ThingShopIndex;
+        }
+
+        public enum StartPurchaseResult
+        {
+            NotEnoughCoins,
+            ItemIsFree,
+            RequiresToSpendCoins,
         }
 
         public static IEnumerable<int> GetUnoccupiedCellIndices(this GameContext game)
@@ -661,8 +654,14 @@ namespace Zayats.Core
             }
         }
 
-        public static PurchaseContext StartBuyingThingFromShop(this GameContext game, StartPurchaseContext context)
+        public static StartPurchaseResult StartBuyingThingFromShop(
+            this GameContext game,
+            StartPurchaseContext context,
+            List<(int Index, int ThingId)> outSpentCoins)
         {
+            assert(outSpentCoins is not null,
+                "The list will be used to output the coin id's that need to be removed, and, as such," +
+                "needs to be initialized before calling this function.");
             ref var player = ref game.State.Players[context.PlayerIndex];
 
             var shopItems = game.State.Shop.Items;
@@ -672,52 +671,42 @@ namespace Zayats.Core
             if (!game.TryGetComponentValue(Components.CurrencyCostId, itemId, out int cost))
                 cost = 0;
 
-            PurchaseContext buying = new();
-            buying.Start = context;
-            // buying.TotalCost = cost;
+            outSpentCoins.Clear();
 
             if (cost == 0)
-            {
-                buying.SetEmpty();
-                return buying;
-            }
+                return StartPurchaseResult.ItemIsFree;
 
             var coins = game.GetDataInItems(Components.CurrencyId, context.PlayerIndex);
-            var removedCoins = new List<(int Index, int ThingId)>();
 
             foreach (var coin in coins)
             {
                 assert(coin.Value == 1, "We don't allow other values (at least for now)");
                 cost--;
-                removedCoins.Add((coin.ListIndex, coin.ThingId));
+                outSpentCoins.Add((coin.ListIndex, coin.ThingId));
                 if (cost == 0)
                     break;
             }
 
             if (cost != 0)
-            {
-                buying.SetNotEnoughCoins();
-                return buying;
-            }
+                return StartPurchaseResult.NotEnoughCoins;
 
-            buying.SetIndices(removedCoins);
-            return buying;
+            return StartPurchaseResult.RequiresToSpendCoins;
         }
 
-        public static void EndBuyingThingFromShop(this GameContext game, in PurchaseContext context, IList<int> selectedCoinPlacementPositions)
+        public static void EndBuyingThingFromShop(this GameContext game, PurchaseContext context)
         {
-            assert(context.Coins.Count == selectedCoinPlacementPositions.Count);
+            assert(context.CoinsToPayWith.Count == context.SelectedCoinPlacementPositions.Count);
 
-            int coinCount = context.Coins.Count;
+            int coinCount = context.CoinsToPayWith.Count;
             for (int i = coinCount - 1; i >= 0; i--)
             {
-                game.RemoveItemFromInventory_AtIndex(context.PlayerIndex, context.Coins[i].Index);
+                game.RemoveItemFromInventory_AtIndex(context.PlayerIndex, context.CoinsToPayWith[i].Index);
             }
             for (int i = 0; i < coinCount; i++)
             {
                 game.AddNonPlayerThingToCell(
-                    context.Coins[i].ThingId,
-                    selectedCoinPlacementPositions[i],
+                    context.CoinsToPayWith[i].ThingId,
+                    context.SelectedCoinPlacementPositions[i],
                     Reasons.Buying(context.PlayerIndex));
             }
 

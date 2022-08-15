@@ -48,6 +48,7 @@ namespace Common.Unity
         }
 
         public static Vector2 xy(this Vector3 v) => new(v.x, v.y);
+        public static Vector2 xz(this Vector3 v) => new(v.x, v.z);
 
         public static void SetLocalTransform(this Transform t, Transform from)
         {

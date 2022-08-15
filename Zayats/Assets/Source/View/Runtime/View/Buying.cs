@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using Zayats.Core;
 using System.Linq;
 using Common;
+using Zayats.Unity.View.Generated;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -14,6 +15,8 @@ using UnityEditor;
 
 namespace Zayats.Unity.View
 {
+    using static Logic.StartPurchaseResult;
+
     [Serializable]
     public struct ForcedItemDropHandling
     {
@@ -28,6 +31,19 @@ namespace Zayats.Unity.View
         public List<Transform> PreviewObjects;
     }
 
+    [Serializable]
+    public struct ShopUIReferences
+    {
+        public Transform ShopRoot;
+    }
+
+    [Serializable]
+    public struct ShopState
+    {
+        public ViewLogic.GridCornersInfo Grid;
+        public ViewLogic.SquareGridAlignmentInfo Alignment;
+    }
+
     public static partial class ViewLogic
     {
         public static void MaybeTryInitiateBuying(this ViewContext view, int shopItemIndex)
@@ -37,38 +53,60 @@ namespace Zayats.Unity.View
             view.TryInitiateBuying(shopItemIndex);
         }
 
+        private static void ConfirmBuying(this ViewContext view, ref ForcedItemDropHandling drop)
+        {
+            view.Game.EndBuyingThingFromShop(new()
+            {
+                CoinsToPayWith = drop.RemovedItems,
+                Start = view.State.CurrentPurchase,
+                SelectedCoinPlacementPositions = drop.SelectedPositions,
+            });
+        }
+
         public static bool TryInitiateBuying(this ViewContext view, int shopItemIndex)
         {
-            assert(!view.State.Selection.InProgress);
+            ref var selection = ref view.State.Selection;
+
+            assert(!selection.InProgress);
             assert(shopItemIndex > 0);
 
             var shopItems = view.Game.State.Shop.Items;
             assert(shopItems.Count > shopItemIndex);
 
             var itemId = shopItems[shopItemIndex];
-            var context = view.Game.StartBuyingThingFromShop(new()
-            {
-                PlayerIndex = view.Game.State.CurrentPlayerIndex,
-                ThingShopIndex = shopItemIndex,
-            });
-
-            if (context.NotEnoughCoins)
-            {
-                view.DisplayTip("Not enough coins");
-                return false;
-            }
+            
+            ref var start = ref view.State.CurrentPurchase;
+            start.PlayerIndex = view.Game.State.CurrentPlayerIndex;
+            start.ThingShopIndex = shopItemIndex;
 
             ref var drop = ref view.State.ForcedItemDropHandling;
-            // context.Coins.Overwrite(drop.RemovedItems);
-            drop.RemovedItems = context.Coins;
             drop.SelectedPositions.Clear();
             drop.PreviewObjects.Clear();
             drop.InProgress = true;
 
-            int targetCellCount = context.Coins.Count;
+            {
+                var result = view.Game.StartBuyingThingFromShop(start, outSpentCoins: drop.RemovedItems);
+
+                if (result == NotEnoughCoins)
+                {
+                    view.DisplayTip("Not enough coins");
+                    return false;
+                }
+
+                if (result == ItemIsFree)
+                {
+                    
+                    ConfirmBuyingItem(view, ref drop);
+                    // Started + ended, so need not change anything (I guess).
+                    return false;
+                }
+
+                assert(result == RequiresToSpendCoins);
+            }
+
+            int targetCellCount = drop.RemovedItems.Count;
             var unoccupiedCells = view.Game.GetUnoccupiedCellIndices();
 
-            ref var selection = ref view.State.Selection;
             assert(!selection.InProgress);
                 
             selection.TargetKind = TargetKind.Cell;
@@ -81,7 +119,7 @@ namespace Zayats.Unity.View
             // Resolve immediately
             if (unoccupiedCellCount == drop.RemovedItems.Count)
             {
-                ConfirmBuyingItem(view, ref drop, ref context);
+                ConfirmBuying(view, ref drop);
                 return true;
             }
 
@@ -98,26 +136,23 @@ namespace Zayats.Unity.View
             }
         }
 
-        public static void PreviewPlaceNextCoin(this ViewContext view, ref ForcedItemDropHandling drop, int cellIndex)
+        public static void PreviewSpawnNextCoin(this ViewContext view, ref ForcedItemDropHandling drop)
         {
             assert(drop.InProgress);
-            assert(!drop.SelectedPositions.Contains(cellIndex));
 
             int coinsPlacedSoFar = drop.SelectedPositions.Count;
             assert(coinsPlacedSoFar < drop.RemovedItems.Count);
+            
+            if (coinsPlacedSoFar > 0)
+                assert(drop.SelectedPositions[^1] != -1);
 
             var nextCoinId = drop.RemovedItems[coinsPlacedSoFar].ThingId;
-            var nextCoinPrefab = view.UI.ThingGameObjects[nextCoinId].gameObject;
-            var cellInfo = view.GetCellVisualInfo(cellIndex);
-            var nextCoinPreviewObject = GameObject.Instantiate(
-                original: nextCoinPrefab,
-                position: cellInfo.GetTop(),
-                rotation: Quaternion.identity,
-                parent: cellInfo.OuterObject).transform;
+            var nextCoinPrefab = view.UI.ThingGameObjects[nextCoinId];
+            var nextCoinPreviewObject = GameObject.Instantiate(original: nextCoinPrefab).transform;
             
             drop.PreviewObjects.Add(nextCoinPreviewObject);
-            drop.SelectedPositions.Add(cellIndex);
-            
+            drop.SelectedPositions.Add(-1);
+
             static void SetMaterial(Transform obj, MaterialKind kind)
             {
                 var (_, modelInfo) = obj.GetObject(ObjectHierarchy.ModelInfo);
@@ -135,13 +170,13 @@ namespace Zayats.Unity.View
             assert(drop.InProgress);
             assert(drop.PreviewObjects.Count > coinIndex);
 
-            if (!view.State.Selection.ValidTargets.Contains(cellIndex))
-                return false;
-
             var cellInfo = view.GetCellVisualInfo(cellIndex);
             var coinPreviewObject = drop.PreviewObjects[coinIndex];
             coinPreviewObject.parent = cellInfo.OuterObject;
             coinPreviewObject.position = cellInfo.GetTop();
+
+            if (!view.State.Selection.ValidTargets.Contains(cellIndex))
+                return false;
 
             // This should probably also use a different material.            
             if (drop.SelectedPositions.Contains(cellIndex))
@@ -151,19 +186,33 @@ namespace Zayats.Unity.View
             return true;
         }
 
-        public static void SetCoinPosition(this ViewContext view, ref ForcedItemDropHandling drop, Vector3 p)
+        public static void SetLastCoinPositionOutsideCell(
+            this ViewContext view,
+            ref ForcedItemDropHandling drop,
+            Vector3 position)
         {
-            
+            assert(drop.InProgress);
+            var index = drop.PreviewObjects.Count - 1;
+            var lastCoin = drop.PreviewObjects[index];
+            lastCoin.position = position;
+            lastCoin.parent = null;
+            drop.SelectedPositions[index] = -1;
+        }
+
+        private static void DestroyPreviewObjects(this in ForcedItemDropHandling drop)
+        {
+            foreach (var coin in drop.PreviewObjects)
+                GameObject.Destroy(coin);
         }
 
         public static void CancelPurchase(this ViewContext view, ref ForcedItemDropHandling drop)
         {
             assert(drop.InProgress);
 
-            foreach (var coin in drop.PreviewObjects)
-                GameObject.Destroy(coin);
+            DestroyPreviewObjects(drop);
 
             view.HandleEvent(ViewEvents.OnForcedItemDrop.Cancelled, ref drop);
+            view.HandleEvent(ViewEvents.OnForcedItemDrop.CancelledOrFinalized, ref drop);
 
             drop.PreviewObjects.Clear();
             drop.SelectedPositions.Clear();
@@ -171,12 +220,151 @@ namespace Zayats.Unity.View
             drop.InProgress = false;
         }
 
+        public static void ConfirmCurrentCoinPlacement(this ref ForcedItemDropHandling drop)
+        {
+            assert(drop.InProgress);
+            assert(drop.SelectedPositions[^1] != -1);
+        }
+
+        public static bool HaveAllCoinsBeenPlacedBeforePurchase(in SelectionState selection, in ForcedItemDropHandling drop)
+        {
+            assert(drop.InProgress);
+            return drop.SelectedPositions.Count == drop.RemovedItems.Count
+                && drop.SelectedPositions[^1] != -1;
+        }
+
         public static void ConfirmBuyingItem(
             this ViewContext view,
-            ref ForcedItemDropHandling drop,
-            ref Logic.PurchaseContext purchase)
+            ref ForcedItemDropHandling drop)
         {
+            assert(HaveAllCoinsBeenPlacedBeforePurchase(view.State.Selection, drop));
 
+            DestroyPreviewObjects(drop);
+            ConfirmBuying(view, ref drop);
+
+            view.HandleEvent(ViewEvents.OnForcedItemDrop.CancelledOrFinalized, ref drop);
+            view.HandleEvent(ViewEvents.OnForcedItemDrop.Finalized, ref drop);
+        }
+
+
+        public struct GridCornersInfo
+        {
+            public Vector3 Origin;
+            public Vector3 VX;
+            public Vector3 VY;
+            public Vector2 Size;
+        }
+
+        public static GridCornersInfo GetGridInfoForCorners(CornersArray<Transform> corners)
+        {
+            GridCornersInfo grid;
+            Vector3 vwidth, vheight;
+            (grid.Origin, vwidth, vheight) = corners.GetCornersInfo();
+            grid.Size.x = vwidth.magnitude;
+            grid.Size.y = vheight.magnitude;
+            grid.VX = vwidth / grid.Size.x;
+            grid.VY = vheight / grid.Size.y;
+            return grid;
+        }
+
+
+        public struct SquareGridAlignmentInfo
+        {
+            public int WidthInBoxes;
+            public Vector2 GapSize;
+            public Vector2 BoxSize;
+
+            public readonly int MaxItemCapacity => WidthInBoxes * WidthInBoxes;
+
+            public readonly Vector3 GetPositionAt(Vector2 i, in GridCornersInfo grid)
+            {
+                var gap = Vector2.Scale(i, GapSize) + GapSize;
+                var offset = Vector2.Scale(i, BoxSize);
+                var position = gap + offset;
+                Vector3 result = grid.Origin + position.x * grid.VX + position.y * grid.VY;
+                return result;
+            }
+
+            public readonly Vector3 GetPositionAtIndex(int i, in GridCornersInfo grid)
+            {
+                int x = i % WidthInBoxes;
+                int y = i / WidthInBoxes;
+                return GetPositionAt(new Vector2(x, y), grid);
+            }
+        }
+
+        public static SquareGridAlignmentInfo AlignInSquareGrid(
+            in GridCornersInfo grid,
+            int itemCount,
+            float gapPercentage = 0.05f)
+        {
+            SquareGridAlignmentInfo alignment;
+
+            // I want to do a square space for the items this time.
+            int boxCount = itemCount;
+            var closestApproximationSizeLength = 0;
+            while (closestApproximationSizeLength * closestApproximationSizeLength < boxCount)
+                closestApproximationSizeLength++;
+
+            alignment.WidthInBoxes = closestApproximationSizeLength;
+
+            Vector2 desiredBoxSize = grid.Size / alignment.WidthInBoxes;             
+
+            int gapCount = closestApproximationSizeLength + 1;
+            alignment.GapSize = gapPercentage * desiredBoxSize;
+
+            alignment.BoxSize = (grid.Size - (alignment.WidthInBoxes + 1) * alignment.GapSize) / alignment.WidthInBoxes;
+
+            return alignment;
+        }
+
+        public static Vector3 GetPositionForInventoryItem(
+            in GridCornersInfo grid,
+            ref SquareGridAlignmentInfo alignment,
+            int numItems)
+        {
+            if (numItems + 1 > alignment.MaxItemCapacity)
+                alignment = AlignInSquareGrid(grid, numItems + 1);
+            return alignment.GetPositionAtIndex(numItems + 1, grid);
+        }
+
+        public static void OnItemAddedToShop(this ViewContext view, ref int thingId_)
+        {
+            int thingId = thingId_;
+            
+            var thing = view.UI.ThingGameObjects[thingId].transform;
+            ref var grid = ref view.State.Shop.Grid;
+            ref var alignment = ref view.State.Shop.Alignment;
+
+            var s = view.MaybeBeginAnimationEpoch();
+            var position = GetPositionForInventoryItem(grid, ref alignment, view.Game.State.Shop.Items.Count);
+            var tween = thing.DOMove(position, view.Visual.AnimationSpeed.Game);
+            tween.OnComplete(() =>
+            {
+                thing.ChangeLayer(LayerIndex.RaycastTarget);
+                thing.parent = view.UI.Static.ShopUI.ShopRoot;
+            });
+            s.Append(tween);
+        }
+
+        public static void RealignShopItems(this ViewContext view, Sequence animationSequence, float animationSpeed)
+        {
+            var shopRoot = view.UI.Static.ShopUI.ShopRoot;
+            ref var grid = ref view.State.Shop.Grid;
+
+            ref var alignment = ref view.State.Shop.Alignment;
+            var shopItems = view.Game.State.Shop.Items;
+            if (shopItems.Count > alignment.MaxItemCapacity)
+                alignment = AlignInSquareGrid(grid, shopItems.Count);
+
+            for (int i = 0; i < shopItems.Count; i++)
+            {
+                var itemId = shopItems[i];
+                var item = view.UI.ThingGameObjects[itemId].transform;
+                var position = alignment.GetPositionAtIndex(i, grid);
+                var tween = item.DOMove(position, animationSpeed);
+                animationSequence.Insert(0, tween);
+            }
         }
     }
 }

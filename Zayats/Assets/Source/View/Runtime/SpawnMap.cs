@@ -18,6 +18,17 @@ namespace Zayats.Unity.View
         BottomLeft,
     }
 
+    public static class CornersHelper
+    {
+        public static (Vector3 origin, Vector3 vwidth, Vector3 vheight) GetCornersInfo(this CornersArray<Transform> corners)
+        {
+            var origin = corners.BottomLeft.position;
+            var vheight = corners.TopLeft.position - origin;
+            var vwidth = corners.BottomRight.position - origin;
+            return (origin, vheight, vwidth);
+        }
+    }
+
     [Serializable]
     [DataObject]
     public partial struct SpawnMapStuff
@@ -61,9 +72,7 @@ namespace Zayats.Unity.View
             var size3 = Vector3.Scale(bounds.size, modelObject.localScale);
             var cellSize = new Vector2(size3.x, size3.z);
 
-            var origin = Corners.BottomLeft.position;
-            var vheight = Corners.TopLeft.position - origin;
-            var vwidth = Corners.BottomRight.position - origin;
+            var (origin, vwidth, vheight) = Corners.GetCornersInfo();
 
             var vx = vwidth.normalized;
             var vy = vheight.normalized;

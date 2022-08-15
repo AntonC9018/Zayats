@@ -77,7 +77,7 @@ namespace Zayats.Unity.View
             public readonly Vector3 GetBottom(Vector3 up) => OuterObject.position + GetBottomOffset(up);
         }
 
-        public static VisualInfo GetInfo(Transform outerObject)
+        public static VisualInfo GetVisualInfo(Transform outerObject)
         {
             var (modelTransform, model) = outerObject.GetObject(ObjectHierarchy.Model);
             var trs = modelTransform.GetLocalTRS();
@@ -97,13 +97,13 @@ namespace Zayats.Unity.View
         public static VisualInfo GetCellVisualInfo(this ViewContext context, int cellIndex)
         {
             var cell = context.UI.VisualCells[cellIndex];
-            return GetInfo(cell);
+            return GetVisualInfo(cell);
         }
 
         public static VisualInfo GetThingVisualInfo(this ViewContext context, int thingIndex)
         {
             var thing = context.UI.ThingGameObjects[thingIndex];
-            return GetInfo(thing.transform);
+            return GetVisualInfo(thing.transform);
         }
 
         public static Tween JumpAnimation(this ViewContext view, Transform t, Vector3 pos)
