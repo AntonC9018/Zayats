@@ -470,7 +470,7 @@ namespace Kari.Plugins.Forward
                                     variableDeclaration = (VariableDeclarationSyntax) variableDeclarator.Parent;
                                 }
                             }
-                            var fieldDeclaration = (FieldDeclarationSyntax) variableDeclaration.Parent;;
+                            var fieldDeclaration = (FieldDeclarationSyntax) variableDeclaration.Parent;
 
                             // f.m
                             var fieldNameExpression = MemberAccessExpression(

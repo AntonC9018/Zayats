@@ -4,9 +4,10 @@
 
 #pragma warning disable
 
-namespace Zayats.Core.Generated
+namespace Zayats.Serialization.Generated
 {
     using static Kari.Zayats.Exporter.ExportCategory;
+    using System.Collections.Generic;
     public static partial class SerializationHelper
     {
         public static (string Name, object Object)[][] CreateMap()
@@ -26,7 +27,6 @@ namespace Zayats.Core.Generated
             {
                 (Name: "ConstantPickupInteration.DefaultInventoryInteraction", Object: Zayats.Core.Pickups.DefaultInventoryInteraction),
                 (Name: "ConstantPickupInteration._EternalMineInteraction", Object: Zayats.Core.Pickups._EternalMineInteraction),
-                (Name: "ConstantPickupInteration._RegularMineInteraction", Object: Zayats.Core.Pickups._RegularMineInteraction),
             };
             result[(int) ActivatedAction] = new (string Name, object Object)[]
             {
@@ -40,6 +40,15 @@ namespace Zayats.Core.Generated
                 (Name: "NoTargetFilter", Object: Zayats.Core.NoTargetFilter.Instance),
                 (Name: "UnoccupiedCellFilter", Object: Zayats.Core.UnoccupiedCellFilter.Instance),
             };
+            return result;
+        }
+        public static Dictionary<System.Type, Kari.Zayats.Exporter.ExportCategory> GetInterfaceToCategoryMap()
+        {
+            var result = new Dictionary<System.Type, Kari.Zayats.Exporter.ExportCategory>(4);
+            result.Add(typeof(Zayats.Core.IPickupEffect), PickupEffect);
+            result.Add(typeof(Zayats.Core.IPickupInteraction), PickupInteraction);
+            result.Add(typeof(Zayats.Core.ITargetedActivatedAction), ActivatedAction);
+            result.Add(typeof(Zayats.Core.ITargetFilter), TargetFilter);
             return result;
         }
     }

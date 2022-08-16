@@ -37,6 +37,16 @@
             "type": "unity",
             "path": "${workspaceFolder}/Zayats/Library/EditorInstance.json",
             "request": "launch"
+        },
+        {
+            "name": "Serialization Playground run",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}\\Server\\LinkedProjects\\Playground\\bin\\Debug\\net6.0\\Playground.dll",
+            "args": [],
+            "stopAtEntry": false,
+            "console": "internalConsole",
+            "preLaunchTask": "build_serialization_playground"
         }
     ]
 }

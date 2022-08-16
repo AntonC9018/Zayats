@@ -317,7 +317,6 @@ namespace Zayats.Core
             Interaction = _EternalMineInteraction,
         };
 
-        [Export]
         public static readonly ConstantPickupInteration _RegularMineInteraction = DefaultInventoryInteraction;
         public static readonly Components.Pickup RegularMine = new()
         {

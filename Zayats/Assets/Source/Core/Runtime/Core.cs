@@ -1565,26 +1565,26 @@ namespace Zayats.Core
             };
         }
 
-        public static ComponentStorage<T> InitializeStorage<T>(GameContext game, TypedIdentifier<T> componentId, int initialSize = 4)
+        public static ComponentStorage<T> InitializeStorage<T>(ref Data.Game game, TypedIdentifier<T> componentId, int initialSize = 4)
         {
             var t = CreateStorage<T>(componentId, initialSize);
-            game.State.ComponentsByType[componentId.Id] = t;
+            game.ComponentsByType[componentId.Id] = t;
             return t;
         }
 
-        public static void InitializeComponentStorages(this GameContext game, int defaultSize = 4)
+        public static void InitializeComponentStorages(this ref Data.Game game, int defaultSize = 4)
         {
-            Components.InitializeStorage(game, Components.CurrencyCostId, defaultSize);
-            Components.InitializeStorage(game, Components.PlayerId, defaultSize);
-            Components.InitializeStorage(game, Components.CurrencyId, defaultSize);
-            Components.InitializeStorage(game, Components.ThingSpecificEventsId, defaultSize);
-            Components.InitializeStorage(game, Components.RespawnPointIdsId, defaultSize);
-            Components.InitializeStorage(game, Components.RespawnPositionId, defaultSize);
-            Components.InitializeStorage(game, Components.PickupId, defaultSize);
-            Components.InitializeStorage(game, Components.AttachedPickupDelegateId, defaultSize);
-            Components.InitializeStorage(game, Components.RespawnPointIdId, defaultSize);
-            Components.InitializeStorage(game, Components.FlagsId, defaultSize);
-            Components.InitializeStorage(game, Components.ActivatedItemId, defaultSize);
+            Components.InitializeStorage(ref game, Components.CurrencyCostId, defaultSize);
+            Components.InitializeStorage(ref game, Components.PlayerId, defaultSize);
+            Components.InitializeStorage(ref game, Components.CurrencyId, defaultSize);
+            Components.InitializeStorage(ref game, Components.ThingSpecificEventsId, defaultSize);
+            Components.InitializeStorage(ref game, Components.RespawnPointIdsId, defaultSize);
+            Components.InitializeStorage(ref game, Components.RespawnPositionId, defaultSize);
+            Components.InitializeStorage(ref game, Components.PickupId, defaultSize);
+            Components.InitializeStorage(ref game, Components.AttachedPickupDelegateId, defaultSize);
+            Components.InitializeStorage(ref game, Components.RespawnPointIdId, defaultSize);
+            Components.InitializeStorage(ref game, Components.FlagsId, defaultSize);
+            Components.InitializeStorage(ref game, Components.ActivatedItemId, defaultSize);
         }
 
         [Serializable]

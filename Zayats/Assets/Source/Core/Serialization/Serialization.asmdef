@@ -1,7 +1,11 @@
 {
     "name": "Zayats.Serialization",
     "rootNamespace": "Zayats.Serialization",
-    "references": ["Common", "Zayats.Core" ],
+    "references": [
+        "Common",
+        "Zayats.Core",
+        "Newtonsoft.Json"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": true,

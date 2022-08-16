@@ -15,6 +15,11 @@
             "label": "build_plugins",
             "command": "dev",
             "args": [ "kari", "build", "--allPlugins" ]
+        },
+        {
+            "label": "build_serialization_playground",
+            "command": "dotnet",
+            "args": [ "build", "${workspaceFolder}\\Server\\LinkedProjects\\Playground\\Playground.csproj" ]
         }
     ]
 }

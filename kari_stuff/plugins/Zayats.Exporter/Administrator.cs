@@ -14,20 +14,28 @@ namespace Kari.Zayats.Exporter
     using static Kari.Zayats.Exporter.ExportCategory;
     using static System.Diagnostics.Debug;
 
-    public class ForwardAdministrator : IAdministrator
+    public class ExporterAdministrator : IAdministrator
     {
+        private ProjectEnvironment _coreProject;
         private ProjectEnvironment _serializationProject;
         private string[] _interfaceNames;
 
         public void Initialize()
         {
             var master = MasterEnvironment.Instance;
-            const string serializationProjectName = "Zayats.Core";
-            var serializationProject = master.Projects.FirstOrDefault(p => p.Data.Name == serializationProjectName);
             var logger = new NamedLogger("Zayats.Exporter");
+
+            const string serializationProjectName = "Zayats.Serialization";
+            var serializationProject = master.Projects.FirstOrDefault(p => p.Data.Name == serializationProjectName);
             if (serializationProject is null)
                 logger.LogError("The exporter plugin could not find the serialization project " + serializationProjectName);
             _serializationProject = serializationProject;
+            
+            const string coreProjectName = "Zayats.Core";
+            var coreProject = master.Projects.FirstOrDefault(p => p.Data.Name == coreProjectName);
+            if (coreProject is null)
+                logger.LogError("The exporter plugin could not find the core project " + coreProjectName);
+            _coreProject = coreProject;
 
             var names = new string[4];
             names[(int) PickupEffect] = "Zayats.Core.IPickupEffect";
@@ -48,7 +56,7 @@ namespace Kari.Zayats.Exporter
             return Task.Run(() =>
             {
                 var master = MasterEnvironment.Instance;
-                var fieldsWithExport = _serializationProject.Types
+                var fieldsWithExport = _coreProject.Types
                     .SelectMany(t => t
                         .GetMembers()
                         .OfType<IFieldSymbol>()
@@ -78,7 +86,6 @@ namespace Kari.Zayats.Exporter
         
         public Task Generate()
         {
-            
             var t = Task.Run(() =>
             {
                 var builder = CodeBuilder.Create();
@@ -90,6 +97,7 @@ namespace Kari.Zayats.Exporter
                 builder.AppendLine("namespace ", _serializationProject.Data.GeneratedNamespaceName);
                 builder.StartBlock();
                 builder.AppendLine("using static Kari.Zayats.Exporter.ExportCategory;");
+                builder.AppendLine("using System.Collections.Generic;");
                 builder.AppendLine("public static partial class SerializationHelper");
                 builder.StartBlock();
 
@@ -118,6 +126,17 @@ namespace Kari.Zayats.Exporter
                 }
                 builder.AppendLine("return result;");
                 builder.EndBlock();
+
+                builder.AppendLine("public static Dictionary<System.Type, Kari.Zayats.Exporter.ExportCategory> GetInterfaceToCategoryMap()");
+                builder.StartBlock();
+                builder.AppendLine($"var result = new Dictionary<System.Type, Kari.Zayats.Exporter.ExportCategory>({_interfaceNames.Length});");
+                for (int i = 0; i < _interfaceNames.Length; i++)
+                {
+                    var categoryName = ((ExportCategory) i).ToString();
+                    builder.AppendLine($"result.Add(typeof({_interfaceNames[i]}), {categoryName});");
+                }
+                builder.AppendLine("return result;");
+                builder.EndBlock();
                 
                 builder.EndBlock();
                 builder.EndBlock();
@@ -127,7 +146,7 @@ namespace Kari.Zayats.Exporter
             });
 
             return Task.WhenAll(t, 
-                AdministratorHelpers.AddCodeStringAsync(_serializationProject.Data, "Annotations.cs", "Annotations", GetAnnotations()));
+                AdministratorHelpers.AddCodeStringAsync(_coreProject.Data, "ExporterAnnotations.cs", "Exporter", GetAnnotations()));
         }
 
         public string GetAnnotations() => DummyExporterAnnotations.Text;
