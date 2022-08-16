@@ -6,33 +6,17 @@
 
 namespace Zayats.Serialization
 {
-    public partial struct BinaryDeserializationContext
+    public partial class DeserializationContext
     {
-        public System.Collections.Generic.Dictionary<System.Type, Kari.Zayats.Exporter.ExportCategory> InterfaceToCategory { readonly get => Common.InterfaceToCategory; set => Common.InterfaceToCategory = value; }
+        public System.Collections.Generic.Dictionary<System.Type, Kari.Zayats.Exporter.ExportCategory> InterfaceToCategory { get => Common.InterfaceToCategory; set => Common.InterfaceToCategory = value; }
     }
 }
 
 namespace Zayats.Serialization
 {
-    public partial struct BinarySerializationContext
+    public partial class SerializationContext
     {
-        public System.Collections.Generic.Dictionary<System.Type, Kari.Zayats.Exporter.ExportCategory> InterfaceToCategory { readonly get => Common.InterfaceToCategory; set => Common.InterfaceToCategory = value; }
-    }
-}
-
-namespace Zayats.Serialization
-{
-    public partial struct JsonDeserializationContext
-    {
-        public System.Collections.Generic.Dictionary<System.Type, Kari.Zayats.Exporter.ExportCategory> InterfaceToCategory { readonly get => Common.InterfaceToCategory; set => Common.InterfaceToCategory = value; }
-    }
-}
-
-namespace Zayats.Serialization
-{
-    public partial struct JsonSerializationContext
-    {
-        public System.Collections.Generic.Dictionary<System.Type, Kari.Zayats.Exporter.ExportCategory> InterfaceToCategory { readonly get => Common.InterfaceToCategory; set => Common.InterfaceToCategory = value; }
+        public System.Collections.Generic.Dictionary<System.Type, Kari.Zayats.Exporter.ExportCategory> InterfaceToCategory { get => Common.InterfaceToCategory; set => Common.InterfaceToCategory = value; }
     }
 }
 #pragma warning restore

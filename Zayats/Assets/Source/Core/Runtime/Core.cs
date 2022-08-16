@@ -74,8 +74,8 @@ namespace Zayats.Core
             game.State.Shop.Items = new();
 
             {
-                var components = new object[Components.Count];
-                game.State.ComponentsByType = components;
+                // var components = new object[Components.Count];
+                // game.State.ComponentsByType = components;
                 // assertNoneNull(components);
             }
 
@@ -922,17 +922,27 @@ namespace Zayats.Core
 
         public static ComponentStorage<T> GetComponentStorage<T>(this GameContext game, int componentId)
         {
-            return (ComponentStorage<T>) game.State.ComponentsByType[componentId];
+            return (ComponentStorage<T>) game.State.Components.Storages[componentId];
         }
 
         public static ComponentStorage<T> GetComponentStorage<T>(this GameContext game, TypedIdentifier<T> componentId)
+        {
+            return GetComponentStorage<T>(game.State, componentId.Id);
+        }
+
+        public static ComponentStorage<T> GetComponentStorage<T>(this in Data.Game game, int componentId)
+        {
+            return (ComponentStorage<T>) game.Components.Storages[componentId];
+        }
+
+        public static ComponentStorage<T> GetComponentStorage<T>(this in Data.Game game, TypedIdentifier<T> componentId)
         {
             return GetComponentStorage<T>(game, componentId.Id);
         }
 
         public static bool TryGetComponent<T>(this GameContext game, TypedIdentifier<T> componentId, int thingId, out ComponentProxy<T> proxy)
         {
-            return GetComponentStorage(game, componentId).TryGetProxy(thingId, out proxy);
+            return GetComponentStorage(game.State, componentId).TryGetProxy(thingId, out proxy);
         }
 
         public static bool TryGetComponentValue<T>(this GameContext game, TypedIdentifier<T> componentId, int thingId, out T value)
@@ -1401,7 +1411,7 @@ namespace Zayats.Core
             public Board Board;
             public Player[] Players;
             public int CurrentPlayerIndex;
-            public object[] ComponentsByType;
+            public Components.Storage Components;
             public Shop Shop;
             public int LastThingId;
 
@@ -1457,12 +1467,23 @@ namespace Zayats.Core
         public static Data.Reason ItemUsedUp(int playerIndex) => new Data.Reason { Id = ItemUsedUpId, Payload = playerIndex };
     }
 
+    public interface IComponentStorage
+    {
+        void SetCountToMapSize();
+    }
+
     [Serializable]
-    public class ComponentStorage<T>
+    public class ComponentStorage<T> : IComponentStorage
     {
         public T[] Data;
         public Dictionary<int, int> MapThingIdToIndex;
         public int Count;
+
+        // Used for serialization.
+        void IComponentStorage.SetCountToMapSize()
+        {
+            Count = MapThingIdToIndex.Count;
+        }
 
         public bool TryGetProxy(int thingId, out ComponentProxy<T> proxy)
         {
@@ -1515,6 +1536,11 @@ namespace Zayats.Core
 
     public static class Components
     {
+        public struct Storage
+        {
+            public IComponentStorage[] Storages;
+        }
+
         [Serializable]
         public struct Mine
         {
@@ -1565,26 +1591,29 @@ namespace Zayats.Core
             };
         }
 
-        public static ComponentStorage<T> InitializeStorage<T>(ref Data.Game game, TypedIdentifier<T> componentId, int initialSize = 4)
+        public static ComponentStorage<T> InitializeStorage<T>(ref Storage storage, TypedIdentifier<T> componentId, int initialSize = 4)
         {
             var t = CreateStorage<T>(componentId, initialSize);
-            game.ComponentsByType[componentId.Id] = t;
+            storage.Storages[componentId.Id] = t;
             return t;
         }
 
-        public static void InitializeComponentStorages(this ref Data.Game game, int defaultSize = 4)
+        public static Storage CreateComponentStorages(int defaultSize = 4)
         {
-            Components.InitializeStorage(ref game, Components.CurrencyCostId, defaultSize);
-            Components.InitializeStorage(ref game, Components.PlayerId, defaultSize);
-            Components.InitializeStorage(ref game, Components.CurrencyId, defaultSize);
-            Components.InitializeStorage(ref game, Components.ThingSpecificEventsId, defaultSize);
-            Components.InitializeStorage(ref game, Components.RespawnPointIdsId, defaultSize);
-            Components.InitializeStorage(ref game, Components.RespawnPositionId, defaultSize);
-            Components.InitializeStorage(ref game, Components.PickupId, defaultSize);
-            Components.InitializeStorage(ref game, Components.AttachedPickupDelegateId, defaultSize);
-            Components.InitializeStorage(ref game, Components.RespawnPointIdId, defaultSize);
-            Components.InitializeStorage(ref game, Components.FlagsId, defaultSize);
-            Components.InitializeStorage(ref game, Components.ActivatedItemId, defaultSize);
+            Storage storage;
+            storage.Storages = new IComponentStorage[Count];
+            Components.InitializeStorage(ref storage, Components.CurrencyCostId, defaultSize);
+            Components.InitializeStorage(ref storage, Components.PlayerId, defaultSize);
+            Components.InitializeStorage(ref storage, Components.CurrencyId, defaultSize);
+            Components.InitializeStorage(ref storage, Components.ThingSpecificEventsId, defaultSize);
+            Components.InitializeStorage(ref storage, Components.RespawnPointIdsId, defaultSize);
+            Components.InitializeStorage(ref storage, Components.RespawnPositionId, defaultSize);
+            Components.InitializeStorage(ref storage, Components.PickupId, defaultSize);
+            Components.InitializeStorage(ref storage, Components.AttachedPickupDelegateId, defaultSize);
+            Components.InitializeStorage(ref storage, Components.RespawnPointIdId, defaultSize);
+            Components.InitializeStorage(ref storage, Components.FlagsId, defaultSize);
+            Components.InitializeStorage(ref storage, Components.ActivatedItemId, defaultSize);
+            return storage;
         }
 
         [Serializable]

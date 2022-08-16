@@ -8,6 +8,7 @@ namespace Zayats.Serialization
     using Kari.Plugins.Forward;
     using Kari.Zayats.Exporter;
     using Newtonsoft.Json;
+    using Newtonsoft.Json.Bson;
     using Newtonsoft.Json.Converters;
     using Newtonsoft.Json.Linq;
     using Newtonsoft.Json.Serialization;
@@ -20,62 +21,100 @@ namespace Zayats.Serialization
     {
         public Dictionary<System.Type, ExportCategory> InterfaceToCategory;
     }
-
-    public partial struct JsonSerializationContext
-    {
-        [Forward] public CommonSerializationContext Common;
-        public Dictionary<object, string>[] ObjectToJsonName;
-    }
     
-    public partial struct JsonDeserializationContext
+    public partial class DeserializationContext
     {
         [Forward] public CommonSerializationContext Common;
-        public Dictionary<string, object>[] JsonNameToObject;
-    }
-
-    public partial struct BinarySerializationContext
-    {
-        [Forward] public CommonSerializationContext Common;
-        public Dictionary<object, int>[] ObjectToNumber; 
-    }
-
-    public partial struct BinaryDeserializationContext
-    {
-        [Forward] public CommonSerializationContext Common;
+        public Dictionary<string, object>[] NameToObject;
         public object[][] NumberToObject;
     }
 
-    public class MapInterfacesConverter : JsonConverter
+    public partial class SerializationContext
     {
-        private JsonSerializationContext _context;
+        [Forward] public CommonSerializationContext Common;
+        public Dictionary<object, string>[] ObjectToName;
+        public Dictionary<object, int>[] ObjectToNumber; 
+    }
 
-        public MapInterfacesConverter(JsonSerializationContext context)
+    public enum BehaviorSerialization
+    {
+        String,
+        Id,
+    }
+
+    public class MapInterfacesSerializeConverter : JsonConverter
+    {
+        private SerializationContext _context;
+
+        public MapInterfacesSerializeConverter(SerializationContext context)
         {
             _context = context;
         }
 
+        public override bool CanWrite => true;
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
         {
+            JToken token;
             if (value is null)
             {
-                JToken token = null;
-                token.WriteTo(writer);
+                token = JValue.CreateNull();
             }
             else
             {
                 var type = value.GetType();
                 var category = _context.InterfaceToCategory[type];
-                string name = _context.ObjectToJsonName[(int) category][value];
-                var token = (JToken) name;
-                token.WriteTo(writer);
+
+                if (writer is BsonDataWriter)
+                {
+                    int id = _context.ObjectToNumber[(int) category][value];
+                    token = (JToken) id;
+                }
+                else
+                {
+                    string name = _context.ObjectToName[(int) category][value];
+                    token = (JToken) name;
+                }
             }
+            token.WriteTo(writer);
         }
 
         public override bool CanRead => false;
         public override bool CanConvert(System.Type objectType) => _context.InterfaceToCategory.ContainsKey(objectType);
         public override object ReadJson(JsonReader reader, System.Type objectType, object existingValue, JsonSerializer serializer)
         {
-            throw new System.NotImplementedException();
+            throw new NotSupportedException();
+        }
+    }
+
+    public class MapInterfacesDeserializeConverter : JsonConverter
+    {
+        private DeserializationContext _context;
+
+        public MapInterfacesDeserializeConverter(DeserializationContext context)
+        {
+            _context = context;
+        }
+
+        public override bool CanWrite => false;
+        public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override bool CanRead => true;
+        public override bool CanConvert(System.Type objectType) => _context.InterfaceToCategory.ContainsKey(objectType);
+        public override object ReadJson(JsonReader reader, System.Type objectType, object existingValue, JsonSerializer serializer)
+        {
+            var value = reader.Value;
+            if (value is null)
+                return null;
+            var category = _context.InterfaceToCategory[objectType];
+            if (value is int intValue)
+                return _context.NumberToObject[(int) category][intValue];
+            else if (value is string strValue)
+                return _context.NameToObject[(int) category][strValue];
+            else
+                throw new NotSupportedException("The only id types supported are int and string.");
         }
     }
 
@@ -87,47 +126,30 @@ namespace Zayats.Serialization
         public override object ReadJson(JsonReader reader, System.Type objectType, object existingValue, JsonSerializer serializer)
         {
             var t = new Data.Game();
-            Components.InitializeComponentStorages(ref t);
+            t.Components = Components.CreateComponentStorages();
+            Console.WriteLine(t.Components.Storages[0] is null ? "What" : "Good");
+
             object obj = t;
             serializer.Populate(reader, obj);
             return obj;
         }
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
         {
-            throw new System.NotImplementedException();
+            throw new NotSupportedException();
         }
     }
 
-    public class DoNothingConverter : JsonConverter
+    public class OnlyFields_IgnoreTypes_Resolver : DefaultContractResolver
     {
-        public System.Type[] _types;
+        private readonly System.Type[] _ignoredTypes;
 
-        public DoNothingConverter(params System.Type[] types)
-        {
-            _types = types;
-        }
-
-        public override bool CanRead => true;
-        public override bool CanWrite => true;
-        public override bool CanConvert(System.Type objectType) => Array.IndexOf(_types, objectType) != -1;
-        public override object ReadJson(JsonReader reader, System.Type objectType, object existingValue, JsonSerializer serializer)
-        {
-            return existingValue;
-        }
-
-        public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
-        {
-        }
-    }
-    
-    public class OnlyFieldsResolver : DefaultContractResolver
-    {
-        public OnlyFieldsResolver()
+        public OnlyFields_IgnoreTypes_Resolver(params System.Type[] ignoredTypes)
         {
             this.IgnoreSerializableAttribute = true;
             this.IgnoreSerializableInterface = true;
             this.IgnoreShouldSerializeMembers = true;
             this.SerializeCompilerGeneratedMembers = true;
+            _ignoredTypes = ignoredTypes;
         }
 
         protected override JsonContract CreateContract(Type objectType)
@@ -139,6 +161,7 @@ namespace Zayats.Serialization
         {
             return objectType
                 .GetFields(BindingFlags.Public | BindingFlags.Instance)
+                .Where(f => !_ignoredTypes.Contains(f.FieldType))
                 .Cast<MemberInfo>()
                 .ToList();
         }
@@ -156,43 +179,115 @@ namespace Zayats.Serialization
         }
     }
 
+    
+    public class PopulateComponents : JsonConverter
+    {
+        public override bool CanRead => true;
+        public override bool CanWrite => false;
+        public override bool CanConvert(System.Type objectType) => objectType == typeof(IComponentStorage);
+        
+        public override object ReadJson(JsonReader reader, System.Type objectType, object existingValue, JsonSerializer serializer)
+        {
+            if (existingValue == null)
+                throw new NotSupportedException("The component storage must have been initialized.");
+            serializer.Populate(reader, existingValue);
+            return existingValue;
+        }
+
+        public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+        {
+            throw new NotSupportedException();
+        }
+    }
+    
+
     public static class Serialization
     {
-        public static string SerializeJson(in Data.Game game)
-        {
-            var map = SerializationHelper.CreateMap();
-            JsonSerializationContext context = new()
-            {
-                ObjectToJsonName = map.Select(a => a.ToDictionary(t => t.Object, t => t.Name)).ToArray(),
-                InterfaceToCategory = SerializationHelper.GetInterfaceToCategoryMap(),
-            };
+        private static (string Name, object Object)[][] _Map;
+        private static Dictionary<System.Type, ExportCategory> _CategoryMap;
+        private static readonly OnlyFields_IgnoreTypes_Resolver _ResolverInstance = new(typeof(Events.Storage));
+        private static readonly PopulateComponents _PopulateComponents = new();
+        private static MapInterfacesSerializeConverter _MapInterfacesSerializeConverter;
+        private static MapInterfacesDeserializeConverter _MapInterfacesDeserializeConverter;
+        private static GameStateCreator _GameStateCreator = new();
+        private static JsonSerializerSettings _DefaultSettingsSerialize;
+        private static JsonSerializerSettings _DefaultSettingsDeserialize;
 
+        private static JsonSerializerSettings CreateDefaultSettings()
+        {
             JsonSerializerSettings settings = new()
             {
                 MissingMemberHandling = MissingMemberHandling.Ignore,
                 ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
                 NullValueHandling = NullValueHandling.Ignore,
                 DefaultValueHandling = DefaultValueHandling.Include,
-                ObjectCreationHandling = ObjectCreationHandling.Reuse,
+                ObjectCreationHandling = ObjectCreationHandling.Auto,
                 TypeNameHandling = TypeNameHandling.None,
                 ConstructorHandling = ConstructorHandling.Default,
-                ContractResolver = new OnlyFieldsResolver(),
-                Converters = new JsonConverter[]
-                {
-                    new MapInterfacesConverter(context),
-                    // new GameStateCreator(),
-                    new DoNothingConverter(typeof(Events.Storage)),
-                },
+                ContractResolver = _ResolverInstance,
                 CheckAdditionalContent = false,
             };
-
-            var result = JsonConvert.SerializeObject(game, settings: settings, formatting: Formatting.Indented);
-
-            return null;
+            return settings;
         }
+
+        public static string SerializeJson(in Data.Game game)
+        {
+            var settings = _DefaultSettingsSerialize;
+            if (settings is null)
+            {
+                _Map ??= SerializationHelper.CreateMap();
+                _CategoryMap ??= SerializationHelper.GetInterfaceToCategoryMap();
+
+                settings = CreateDefaultSettings();
+                var context = new SerializationContext
+                {
+                    InterfaceToCategory = _CategoryMap,
+                    ObjectToName = _Map.Select(a => a.ToDictionary(t => t.Object, t => t.Name)).ToArray(),
+                    ObjectToNumber = _Map.Select(a => 
+                    {
+                        var dict = new Dictionary<object, int>();
+                        for (int i = 0; i < a.Length; i++)
+                            dict.Add(a[i], i);
+                        return dict;
+                    }).ToArray(),
+                };
+                _MapInterfacesSerializeConverter = new(context);
+                settings.Converters = new JsonConverter[]
+                {
+                    _MapInterfacesSerializeConverter,
+                };
+                _DefaultSettingsSerialize = settings;
+            }
+
+            return JsonConvert.SerializeObject(game, settings: settings, formatting: Formatting.Indented);
+        }
+
         public static Data.Game Deserialize(string json)
         {
-            return default;
+            var settings = _DefaultSettingsDeserialize;
+            if (settings is null)
+            {
+                _Map ??= SerializationHelper.CreateMap();
+                _CategoryMap ??= SerializationHelper.GetInterfaceToCategoryMap();
+
+                settings = CreateDefaultSettings();
+                var context = new DeserializationContext
+                {
+                    InterfaceToCategory = _CategoryMap,
+                    NameToObject = _Map.Select(a => a.ToDictionary(t => t.Name, t => t.Object)).ToArray(),
+                    NumberToObject = _Map.Select(a => a.Select(t => t.Object).ToArray()).ToArray(),
+                };
+                _MapInterfacesDeserializeConverter = new(context);
+                settings.Converters = new JsonConverter[]
+                {
+                    _MapInterfacesDeserializeConverter,
+                    _GameStateCreator,
+                    _PopulateComponents,
+                };
+                _DefaultSettingsDeserialize = settings;
+            }
+
+            return JsonConvert.DeserializeObject<Data.Game>(json, settings);
         }
     }
 }
