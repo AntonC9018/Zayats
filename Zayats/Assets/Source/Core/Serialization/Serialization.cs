@@ -118,27 +118,6 @@ namespace Zayats.Serialization
         }
     }
 
-    public class GameStateCreator : JsonConverter
-    {
-        public override bool CanRead => true;
-        public override bool CanWrite => false;
-        public override bool CanConvert(System.Type objectType) => objectType == typeof(Data.Game);
-        public override object ReadJson(JsonReader reader, System.Type objectType, object existingValue, JsonSerializer serializer)
-        {
-            var t = new Data.Game();
-            t.Components = Components.CreateComponentStorages();
-            Console.WriteLine(t.Components.Storages[0] is null ? "What" : "Good");
-
-            object obj = t;
-            serializer.Populate(reader, obj);
-            return obj;
-        }
-        public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
-        {
-            throw new NotSupportedException();
-        }
-    }
-
     public class OnlyFields_IgnoreTypes_Resolver : DefaultContractResolver
     {
         private readonly System.Type[] _ignoredTypes;
@@ -184,14 +163,32 @@ namespace Zayats.Serialization
     {
         public override bool CanRead => true;
         public override bool CanWrite => false;
-        public override bool CanConvert(System.Type objectType) => objectType == typeof(IComponentStorage);
+        public override bool CanConvert(System.Type objectType) => objectType == typeof(Components.Storage);
         
         public override object ReadJson(JsonReader reader, System.Type objectType, object existingValue, JsonSerializer serializer)
         {
-            if (existingValue == null)
-                throw new NotSupportedException("The component storage must have been initialized.");
-            serializer.Populate(reader, existingValue);
-            return existingValue;
+            var storages = ((Components.Storage) existingValue);
+            if (storages.Storages is null)
+                storages = Components.CreateEmptyStorages();
+            
+            // { Storages: [{},{}...] }
+            var jobj = JObject.Load(reader);
+            var storagesProp = jobj.Property("Storages", StringComparison.OrdinalIgnoreCase);
+            var arrayValues = storagesProp.Values().GetEnumerator();
+
+            for (int i = 0; i < storages.Storages.Length; i++)
+            {
+                if (!arrayValues.MoveNext())
+                    throw new NotSupportedException("Wrong count in components array.");
+
+                if (arrayValues.Current is not JObject storageValueObj)
+                    throw new NotSupportedException("Component storages must be objects in json.");
+
+                var reader1 = storageValueObj.CreateReader();
+                serializer.Populate(reader1, storages.Storages[i]); 
+            }
+
+            return storages;
         }
 
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
@@ -209,7 +206,6 @@ namespace Zayats.Serialization
         private static readonly PopulateComponents _PopulateComponents = new();
         private static MapInterfacesSerializeConverter _MapInterfacesSerializeConverter;
         private static MapInterfacesDeserializeConverter _MapInterfacesDeserializeConverter;
-        private static GameStateCreator _GameStateCreator = new();
         private static JsonSerializerSettings _DefaultSettingsSerialize;
         private static JsonSerializerSettings _DefaultSettingsDeserialize;
 
@@ -281,7 +277,6 @@ namespace Zayats.Serialization
                 settings.Converters = new JsonConverter[]
                 {
                     _MapInterfacesDeserializeConverter,
-                    _GameStateCreator,
                     _PopulateComponents,
                 };
                 _DefaultSettingsDeserialize = settings;

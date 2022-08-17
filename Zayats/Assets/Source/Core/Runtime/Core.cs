@@ -1591,9 +1591,23 @@ namespace Zayats.Core
             };
         }
 
+        public static ComponentStorage<T> CreateEmptyStorage<T>()
+        {
+            return new()
+            {
+            };
+        }
+
         public static ComponentStorage<T> InitializeStorage<T>(ref Storage storage, TypedIdentifier<T> componentId, int initialSize = 4)
         {
             var t = CreateStorage<T>(componentId, initialSize);
+            storage.Storages[componentId.Id] = t;
+            return t;
+        }
+
+        public static ComponentStorage<T> InitializeEmptyStorage<T>(ref Storage storage, TypedIdentifier<T> componentId, int initialSize = 4)
+        {
+            var t = CreateEmptyStorage<T>();
             storage.Storages[componentId.Id] = t;
             return t;
         }
@@ -1613,6 +1627,24 @@ namespace Zayats.Core
             Components.InitializeStorage(ref storage, Components.RespawnPointIdId, defaultSize);
             Components.InitializeStorage(ref storage, Components.FlagsId, defaultSize);
             Components.InitializeStorage(ref storage, Components.ActivatedItemId, defaultSize);
+            return storage;
+        }
+
+        public static Storage CreateEmptyStorages()
+        {
+            Storage storage;
+            storage.Storages = new IComponentStorage[Count];
+            Components.InitializeEmptyStorage(ref storage, Components.CurrencyCostId);
+            Components.InitializeEmptyStorage(ref storage, Components.PlayerId);
+            Components.InitializeEmptyStorage(ref storage, Components.CurrencyId);
+            Components.InitializeEmptyStorage(ref storage, Components.ThingSpecificEventsId);
+            Components.InitializeEmptyStorage(ref storage, Components.RespawnPointIdsId);
+            Components.InitializeEmptyStorage(ref storage, Components.RespawnPositionId);
+            Components.InitializeEmptyStorage(ref storage, Components.PickupId);
+            Components.InitializeEmptyStorage(ref storage, Components.AttachedPickupDelegateId);
+            Components.InitializeEmptyStorage(ref storage, Components.RespawnPointIdId);
+            Components.InitializeEmptyStorage(ref storage, Components.FlagsId);
+            Components.InitializeEmptyStorage(ref storage, Components.ActivatedItemId);
             return storage;
         }
 
