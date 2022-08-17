@@ -3,6 +3,7 @@ namespace Zayats.Serialization
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.IO;
     using System.Linq;
     using System.Reflection;
     using Kari.Plugins.Forward;
@@ -206,12 +207,12 @@ namespace Zayats.Serialization
         private static readonly PopulateComponents _PopulateComponents = new();
         private static MapInterfacesSerializeConverter _MapInterfacesSerializeConverter;
         private static MapInterfacesDeserializeConverter _MapInterfacesDeserializeConverter;
-        private static JsonSerializerSettings _DefaultSettingsSerialize;
-        private static JsonSerializerSettings _DefaultSettingsDeserialize;
+        private static JsonSerializer _Serializer;
+        private static JsonSerializer _Deserializer;
 
-        private static JsonSerializerSettings CreateDefaultSettings()
+        private static JsonSerializer CreateDefaultJsonSerializer()
         {
-            JsonSerializerSettings settings = new()
+            JsonSerializer serializer = new()
             {
                 MissingMemberHandling = MissingMemberHandling.Ignore,
                 ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
@@ -222,19 +223,20 @@ namespace Zayats.Serialization
                 ConstructorHandling = ConstructorHandling.Default,
                 ContractResolver = _ResolverInstance,
                 CheckAdditionalContent = false,
+                Formatting = Formatting.Indented,
             };
-            return settings;
+            return serializer;
         }
 
-        public static string SerializeJson(in Data.Game game)
+        public static void SerializeJson(in Data.Game game, JsonWriter writer)
         {
-            var settings = _DefaultSettingsSerialize;
-            if (settings is null)
+            var serializer = _Serializer;
+            if (serializer is null)
             {
                 _Map ??= SerializationHelper.CreateMap();
                 _CategoryMap ??= SerializationHelper.GetInterfaceToCategoryMap();
 
-                settings = CreateDefaultSettings();
+                serializer = CreateDefaultJsonSerializer();
                 var context = new SerializationContext
                 {
                     InterfaceToCategory = _CategoryMap,
@@ -248,25 +250,21 @@ namespace Zayats.Serialization
                     }).ToArray(),
                 };
                 _MapInterfacesSerializeConverter = new(context);
-                settings.Converters = new JsonConverter[]
-                {
-                    _MapInterfacesSerializeConverter,
-                };
-                _DefaultSettingsSerialize = settings;
+                serializer.Converters.Add(_MapInterfacesSerializeConverter);
+                _Serializer = serializer;
             }
-
-            return JsonConvert.SerializeObject(game, settings: settings, formatting: Formatting.Indented);
+            serializer.Serialize(writer, game);
         }
 
-        public static Data.Game Deserialize(string json)
+        public static Data.Game Deserialize(JsonReader reader)
         {
-            var settings = _DefaultSettingsDeserialize;
-            if (settings is null)
+            var deserializer = _Deserializer;
+            if (deserializer is null)
             {
                 _Map ??= SerializationHelper.CreateMap();
                 _CategoryMap ??= SerializationHelper.GetInterfaceToCategoryMap();
 
-                settings = CreateDefaultSettings();
+                deserializer = CreateDefaultJsonSerializer();
                 var context = new DeserializationContext
                 {
                     InterfaceToCategory = _CategoryMap,
@@ -274,15 +272,12 @@ namespace Zayats.Serialization
                     NumberToObject = _Map.Select(a => a.Select(t => t.Object).ToArray()).ToArray(),
                 };
                 _MapInterfacesDeserializeConverter = new(context);
-                settings.Converters = new JsonConverter[]
-                {
-                    _MapInterfacesDeserializeConverter,
-                    _PopulateComponents,
-                };
-                _DefaultSettingsDeserialize = settings;
+                var converters = deserializer.Converters;
+                converters.Add(_MapInterfacesDeserializeConverter);
+                converters.Add(_PopulateComponents);
+                _Deserializer = deserializer;
             }
-
-            return JsonConvert.DeserializeObject<Data.Game>(json, settings);
+            return deserializer.Deserialize<Data.Game>(reader); 
         }
     }
 }
