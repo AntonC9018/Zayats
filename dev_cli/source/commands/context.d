@@ -6,10 +6,11 @@ import std.stdio;
 
 import commands.setup : SetupCommand, KariContext;
 import commands.models : ModelsContext;
+import commands.proto : ProtoContext;
 import common;
 
 @CommandDefault("The context common to all subcommands.")
-@(Subcommands!(SetupCommand, KariContext, ModelsContext))
+@(Subcommands!(SetupCommand, KariContext, ModelsContext, ProtoContext))
 struct Context
 {
     @(ArgConfig.optional)
@@ -22,6 +23,9 @@ struct Context
 
         @("Build output directory")
         string buildDirectory = "build_folder";
+
+        @("Tools directory")
+        string toolsDirectory = "build_folder/tools";
 
         @("Unity project directoy")
         string unityProjectDirectoryName = "Zayats";
@@ -75,6 +79,13 @@ struct Context
         {
             mkdir(buildDirectory);
             writeln("Created the build directory: ", buildDirectory);
+        }
+
+        toolsDirectory = absolutePath(toolsDirectory);
+        if (!exists(toolsDirectory))
+        {
+            mkdir(toolsDirectory);
+            writeln("Created the tools directory: ", toolsDirectory);
         }
 
         return errorCount;
