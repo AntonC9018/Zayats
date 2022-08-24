@@ -53,13 +53,20 @@ namespace Common.Unity
         public static void SetLocalTransform(this Transform t, Transform from)
         {
             t.localScale = from.localScale;
-            t.localRotation = from.localRotation;
             t.localPosition = from.localPosition;
+            t.localRotation = from.localRotation;
         }
 
         public static Matrix4x4 GetLocalTRS(this Transform t)
         {
             return Matrix4x4.TRS(t.localPosition, t.localRotation, t.localScale);
+        }
+
+        public static void ResetLocalPositionRotationScale(this Transform t)
+        {
+            t.localScale = Vector3.one;
+            t.localPosition = Vector3.zero;
+            t.localRotation = Quaternion.identity;
         }
     }
 }

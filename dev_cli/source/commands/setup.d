@@ -314,6 +314,7 @@ struct UnityContext
         nugetRestore,
     }
     @("Which action to execute?")
+    @(ArgConfig.positional)
     Action action;
 
     int onExecute()

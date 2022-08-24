@@ -17,7 +17,7 @@ namespace Zayats.Unity.View
                 for (int i = 0; i < mappings.Length; i++)
                 {
                     var p = mappings[i];
-                    yield return new (MeshRenderers[p.MeshRendererIndex], p.MaterialIndex);
+                    yield return new(MeshRenderers[p.MeshRendererIndex], p.MaterialIndex);
                 }
             }
         }

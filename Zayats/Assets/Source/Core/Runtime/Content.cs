@@ -46,6 +46,22 @@ namespace Zayats.Core
         public readonly GameContext Game => Proxy.Game;
         public readonly int Id => Proxy.Id;
     }
+
+    #if false
+    public enum PlacementKind
+    {
+        At,
+        Random,
+        Shop,
+        Inventory,
+    }
+
+    public struct PlacementConfiguration
+    {
+        public PlacementKind Kind;
+        public int Payload;
+    }
+    #endif
     
     public struct PlacementProxy
     {
@@ -236,7 +252,6 @@ namespace Zayats.Core
             p.AddComponent(Components.PickupId) = DoNothingPickupEffect.Instance.AsPickup();
             return p;
         }
-
 
         public static void InitializeThing(this GameContext game, int thingId, ThingKind thingKind)
         {

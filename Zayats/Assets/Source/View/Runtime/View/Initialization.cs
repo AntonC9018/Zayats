@@ -97,6 +97,8 @@ namespace Zayats.Unity.View
                 Array.Resize(ref gameConfig.PlayerCharacterColors, gameConfig.CountsToSpawn.Player);
             }
             gameConfig.CountsToSpawn.RespawnPoint = gameConfig.CountsToSpawn.Tower;
+            gameConfig.ItemCosts.FixSize();
+            gameConfig.PrefabsToSpawn.FixSize();
         }
 
         private void CustomCreateThings()
@@ -185,6 +187,11 @@ namespace Zayats.Unity.View
                     case ThingKind.Snake:
                     {
                         create.Snake().Place().IntoShop();
+                        break;
+                    }
+                    case ThingKind.Booze:
+                    {
+                        create.Booze().Place().Randomly(spawnRandom);
                         break;
                     }
                 }
