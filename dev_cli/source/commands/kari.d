@@ -84,7 +84,7 @@ struct KariRun
             const status = wait(pid);
             if (status != 0)
             {
-                writeln("Kari execution failed.");
+                context.logger.error("Kari execution failed.");
                 return status;
             }
         }
@@ -129,7 +129,7 @@ struct KariBuild
             const status = wait(pid);
             if (status != 0)
             {
-                writeln(path, " Kari plugin build failed.");
+                context.logger.error(path, " Kari plugin build failed.");
                 return status;
             }
         }
@@ -173,7 +173,7 @@ struct KariBuild
             foreach (index, value; isPluginBuilt)
             {
                 if (value == false)
-                    writeln("Invalid plugin name: ", plugins[index]);
+                    context.logger.error("Invalid plugin name: ", plugins[index]);
             }
             return 1;
         }
@@ -183,7 +183,7 @@ struct KariBuild
 
     int buildKari()
     {
-        writeln("Building Kari.");
+        context.logger.log("Building Kari.");
         auto pid = spawnProcess2([
             "dotnet", "build", 
             "--configuration", context.configuration,
@@ -192,7 +192,7 @@ struct KariBuild
         const status = wait(pid);
         if (status != 0)
         {
-            writeln("Kari build failed.");
+            context.logger.error("Kari build failed.");
             return status;
         }
         return status;
