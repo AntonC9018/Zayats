@@ -1162,6 +1162,11 @@ namespace Zayats.Core
             });
             ArrayPool<int>.Shared.Return(a);
         }
+
+        public static void InitializeComponentStorages(this GameContext game, int defaultSize = 4)
+        {
+            game.State.Components = Components.CreateComponentStorages(defaultSize);
+        }
     }
 
     public interface IRandom

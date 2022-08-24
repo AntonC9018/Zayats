@@ -1,0 +1,6 @@
+*
+!.gitignore
+
+# Keep directories and meta files
+!*/
+!*.meta

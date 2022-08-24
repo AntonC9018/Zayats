@@ -65,12 +65,12 @@ namespace Zayats.Serialization
                 var type = value.GetType();
                 var category = _context.InterfaceToCategory[type];
 
-                if (writer is BsonDataWriter)
+                // if (writer is BsonDataWriter)
                 {
                     int id = _context.ObjectToNumber[(int) category][value];
                     token = (JToken) id;
                 }
-                else
+                // else
                 {
                     string name = _context.ObjectToName[(int) category][value];
                     token = (JToken) name;

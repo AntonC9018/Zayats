@@ -224,7 +224,7 @@ namespace Zayats.Unity.View
                 Array.Resize(ref t, countsToSpawn.Array.Sum());
                 UI.ThingGameObjects = t;
             }
-            assertNoneNull(Game.State.ComponentsByType);
+            assertNoneNull(Game.State.Components.Storages);
 
             if (Mode == WorldMode.Random)
                 DefaultCreateThings(_config.Game);
