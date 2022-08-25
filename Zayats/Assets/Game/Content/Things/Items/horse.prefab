@@ -96,6 +96,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: a89641b507106d644a41895ac53b8faa, type: 3}
+      propertyPath: m_Materials.Array.data[0]
+      value: 
+      objectReference: {fileID: 2100000, guid: 29e79a0664452664daf9a2eae3561307, type: 2}
     - target: {fileID: 919132149155446097, guid: a89641b507106d644a41895ac53b8faa, type: 3}
       propertyPath: m_Name
       value: horse
@@ -119,9 +123,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8e905fc35073907459dde9f370d933ee, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  MaterialPaths:
-  - MeshRenderer: {fileID: 3816285837879262492}
-    Index: 0
+  MeshRenderers:
+  - {fileID: 3816285837879262492}
+  Config: {fileID: 11400000, guid: 8fd922092b0d57e439a7532100d03d7e, type: 2}
 --- !u!23 &3816285837879262492 stripped
 MeshRenderer:
   m_CorrespondingSourceObject: {fileID: -7511558181221131132, guid: a89641b507106d644a41895ac53b8faa, type: 3}

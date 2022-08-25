@@ -155,9 +155,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8e905fc35073907459dde9f370d933ee, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  MaterialPaths:
-  - MeshRenderer: {fileID: 1934368269}
-    Index: 0
+  MeshRenderers:
+  - {fileID: 1934368269}
+  Config: {fileID: 11400000, guid: c7f2066f3290df048853e0dbf947df06, type: 2}
 --- !u!1001 &3655566713751306251
 PrefabInstance:
   m_ObjectHideFlags: 0

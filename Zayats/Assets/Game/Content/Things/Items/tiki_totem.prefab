@@ -181,9 +181,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8e905fc35073907459dde9f370d933ee, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  MaterialPaths:
-  - MeshRenderer: {fileID: 8385014456864250786}
-    Index: 0
+  MeshRenderers:
+  - {fileID: 8385014456864250786}
+  Config: {fileID: 11400000, guid: 79276f469f5b6ac4bb8e8f614c72097d, type: 2}
 --- !u!23 &8385014456864250786 stripped
 MeshRenderer:
   m_CorrespondingSourceObject: {fileID: -7511558181221131132, guid: 2850bee72400d0b4b8152f4b7c3b4129, type: 3}

@@ -7,6 +7,18 @@ PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 658913741, guid: cefa7f33a9367fa44a604e59d08b3c65, type: 3}
+      propertyPath: Config
+      value: 
+      objectReference: {fileID: 11400000, guid: e4c7ff90c69ad9040a0976fb8d6c245e, type: 2}
+    - target: {fileID: 658913741, guid: cefa7f33a9367fa44a604e59d08b3c65, type: 3}
+      propertyPath: MeshRenderers.Array.size
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 658913741, guid: cefa7f33a9367fa44a604e59d08b3c65, type: 3}
+      propertyPath: MeshRenderers.Array.data[0]
+      value: 
+      objectReference: {fileID: 4305429431208560436}
     - target: {fileID: 1176653407, guid: cefa7f33a9367fa44a604e59d08b3c65, type: 3}
       propertyPath: m_RootOrder
       value: 1
@@ -90,9 +102,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8e905fc35073907459dde9f370d933ee, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  MaterialPaths:
-  - MeshRenderer: {fileID: 4305429431208560436}
-    Index: 0
+  MeshRenderers: []
+  Config: {fileID: 0}
 --- !u!23 &4305429431208560436 stripped
 MeshRenderer:
   m_CorrespondingSourceObject: {fileID: 1698160948, guid: cefa7f33a9367fa44a604e59d08b3c65, type: 3}

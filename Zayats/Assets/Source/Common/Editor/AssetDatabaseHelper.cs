@@ -6,6 +6,7 @@ using UnityObject = UnityEngine.Object;
 using System.Reflection;
 using UnityEngine;
 using UnityEngine.Assertions;
+using System.IO;
 
 namespace Common.Editor
 {
@@ -75,13 +76,25 @@ namespace Common.Editor
             return (T) createdObject;
         }
 
-        public static T CreateObjectWithDefaults<T>(string folderWhereToSaveRelativeToAssets = defaultFolder, string fileNameWithoutExtension = null)
+        public static T CreateObjectWithDefaults<T>(
+            string folderWhereToSaveRelativeToAssets = defaultFolder,
+            string fileNameWithoutExtension = null)
             where T : UnityObject
         {
             return (T) CreateObjectWithDefaults(typeof(T), folderWhereToSaveRelativeToAssets, fileNameWithoutExtension);
         }
 
-        public static UnityObject CreateObjectWithDefaults(System.Type objectType, string folderWhereToSaveRelativeToAssets = defaultFolder, string fileNameWithoutExtension = null)
+        public struct AssetFilePath
+        {
+            public string FullPathWithoutExtension;
+            public string Extension;
+            public readonly string AssetPath => FullPathWithoutExtension + Extension; 
+        }
+
+        public static AssetFilePath GetAssetPath(
+            System.Type objectType,
+            string folderWhereToSaveRelativeToAssets,
+            string fileNameWithoutExtension)
         {
             bool isScriptableObject = (typeof(ScriptableObject)).IsAssignableFrom(objectType);
             
@@ -91,7 +104,6 @@ namespace Common.Editor
             Assert.IsNotNull(folderWhereToSaveRelativeToAssets, "The folder must not be null");
             const string extension = ".asset";
 
-            UnityObject createdObject = ObjectFactory.CreateInstance(objectType);
 
             string MakeSureThereAreTrailingSlashes(string path)
             {
@@ -107,17 +119,68 @@ namespace Common.Editor
             fileNameWithoutExtension ??= GetDefaultFileName(objectType);
             string fullFilePath = "Assets" + MakeSureThereAreTrailingSlashes(folderWhereToSaveRelativeToAssets) + fileNameWithoutExtension;
 
+            
+            AssetFilePath a;
+            a.FullPathWithoutExtension = fullFilePath;
+            a.Extension = extension;
+            return a;
+        }
+
+        public static AssetFilePath AdjustAssetPathUntilUnique(AssetFilePath path)
+        {
             // Try appending garbage to the file name until there are no collisions.
+            int counter = 0;
+            while (CheckAssetExistsAtPath(path.AssetPath))
             {
-                int counter = 0;
-                while (CheckAssetExistsAtPath(fullFilePath + extension))
-                {
-                    fullFilePath += ((char) counter + '0');
-                    counter = (counter + 1) % 10;
-                }
+                path.FullPathWithoutExtension += ((char) counter + '0');
+                counter = (counter + 1) % 10;
             }
 
-            AssetDatabase.CreateAsset(createdObject, fullFilePath + extension);
+            return path;
+        }
+
+        public static T CreateObjectOrLoadExistingWithDefaults<T>(
+            string folderWhereToSaveRelativeToAssets = defaultFolder,
+            string fileNameWithoutExtension = null) 
+            where T : UnityObject
+        {
+            return (T) CreateObjectOrLoadExisting(typeof(T),
+                GetAssetPath(typeof(T), folderWhereToSaveRelativeToAssets, fileNameWithoutExtension));
+        }
+
+        public static T CreateObjectOrLoadExisting<T>(AssetFilePath path) where T : UnityObject
+        {
+            return (T) CreateObjectOrLoadExisting(typeof(T), path);
+        }
+
+        public static UnityObject CreateObjectOrLoadExisting(System.Type objectType, AssetFilePath path)
+        {
+            var fullPath = path.AssetPath;
+            if (CheckAssetExistsAtPath(fullPath))
+            {
+                // The old objects hang around in the undo system, I guess.
+                // They don't exist at the path, but their ids are still valid.
+                var t = AssetDatabase.LoadAssetAtPath(fullPath, objectType);
+                if (t != null)
+                    return t;
+            }
+            return CreateObject(objectType, fullPath);
+        }
+
+        public static UnityObject CreateObjectWithDefaults(
+            System.Type objectType,
+            string folderWhereToSaveRelativeToAssets = defaultFolder,
+            string fileNameWithoutExtension = null)
+        {
+            var path = GetAssetPath(objectType, folderWhereToSaveRelativeToAssets, fileNameWithoutExtension);
+            path = AdjustAssetPathUntilUnique(path);
+            return CreateObject(objectType, path.AssetPath);
+        }
+
+        public static UnityObject CreateObject(System.Type objectType, string fullPath)
+        {
+            UnityObject createdObject = ObjectFactory.CreateInstance(objectType);
+            AssetDatabase.CreateAsset(createdObject, fullPath);
             SelectObject(createdObject);
 
             return createdObject;
@@ -144,7 +207,13 @@ namespace Common.Editor
         public static bool CheckAssetExistsAtPath(string path)
         {
             var guid = AssetDatabase.AssetPathToGUID(path);
-            return !string.IsNullOrEmpty(guid);
+            
+            // This doesn't actually work in all cases.
+            // Need to check the file manually too.
+            if (string.IsNullOrEmpty(guid))
+                return false;
+            
+            return true;
         }
     }
 }

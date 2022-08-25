@@ -16,6 +16,7 @@ namespace Zayats.Unity.View.Editor
     public class EditorHelperWindow : EditorWindow
     {
         private List<string> _diagnostics;
+        private bool _shouldRequeryMaterials;
         private bool _shouldClearPreviewMaterial;
 
         public void Initialize()
@@ -92,6 +93,8 @@ namespace Zayats.Unity.View.Editor
 
             int group = Undo.GetCurrentGroup();
          
+            _shouldRequeryMaterials = EditorGUILayout.Toggle("force requery the materials", _shouldRequeryMaterials);
+
             if (GUILayout.Button("Add material infos"))
             {
                 var sharedMaterials = new List<Material>();
@@ -108,7 +111,7 @@ namespace Zayats.Unity.View.Editor
 
                     if (modelInfo.Config == null)
                     {
-                        modelInfo.Config = AssetDatabaseHelper.CreateObjectWithDefaults<ModelInfoScriptableObject>(
+                        modelInfo.Config = AssetDatabaseHelper.CreateObjectOrLoadExistingWithDefaults<ModelInfoScriptableObject>(
                             folderWhereToSaveRelativeToAssets: "Game/Content/Things/Items",
                             fileNameWithoutExtension: t.name + "_ModelInfo");
                         Undo.RegisterCreatedObjectUndo(modelInfo.Config, "config creation");
@@ -131,13 +134,15 @@ namespace Zayats.Unity.View.Editor
                     modelConfig.AllMaterials = allMaterials;
                     allSharedMaterials.Clear();
 
+                    // NOTE: Used to be a loop
                     int i = (int) MaterialKind.Default;
                     
                     SetPaths();
                     void SetPaths()
                     {
                         ref var material = ref modelConfig.Materials[i];
-                        if (material == null)
+                        if (material == null
+                            || _shouldRequeryMaterials)
                         {
                             if (allMaterials.Length == 0)
                                 return;
@@ -170,6 +175,7 @@ namespace Zayats.Unity.View.Editor
             }
 
             _shouldClearPreviewMaterial = EditorGUILayout.Toggle("recreate preview materials", _shouldClearPreviewMaterial);
+            
 
             if (GUILayout.Button("Make default preview materials"))
             {
@@ -198,6 +204,31 @@ namespace Zayats.Unity.View.Editor
                         continue;
                     }
 
+                    void SetPreviewMaterial(Material m)
+                    {
+                        Undo.RegisterCreatedObjectUndo(config, "Setting preview material");
+                        config.Materials.Preview = m;
+                        EditorUtility.SetDirty(config);
+                    }
+
+                    var path = AssetDatabase.GetAssetPath(defaultMaterial).AsSpan();
+                    int dotIndex = path.LastIndexOf(".");
+                    var newName = StringHelper.Concat(path[..dotIndex], "_preview.mat");
+                    var fullPath = Path.Join(Application.dataPath, "..", newName);
+                    if (File.Exists(fullPath))
+                    {
+                        if (_shouldClearPreviewMaterial)
+                        {
+                            AssetDatabase.DeleteAsset(newName);
+                        }
+                        else
+                        {
+                            Debug.Log("Skipping, because a preview material already exists");
+                            SetPreviewMaterial(AssetDatabase.LoadAssetAtPath<Material>(newName));
+                            continue;
+                        }
+                    }
+
                     var materialCopy = Material.Instantiate(defaultMaterial);
                     Undo.RegisterCreatedObjectUndo(materialCopy, "Create preview material");
 
@@ -205,15 +236,8 @@ namespace Zayats.Unity.View.Editor
                     c.a *= 0.5f;
                     materialCopy.color = c;
 
-                    Undo.RegisterCreatedObjectUndo(config, "Setting preview material");
-                    config.Materials.Preview = materialCopy;
-
-                    EditorUtility.SetDirty(config);
-                    
-                    var path = AssetDatabase.GetAssetPath(defaultMaterial).AsSpan();
-                    int dotIndex = path.LastIndexOf(".");
-                    var newName = StringHelper.Concat(path[..dotIndex], "_preview.mat");
                     AssetDatabase.CreateAsset(materialCopy, newName);
+                    SetPreviewMaterial(materialCopy);
                 }
             }
             if (GUILayout.Button("Add colliders"))
