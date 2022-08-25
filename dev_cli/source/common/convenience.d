@@ -80,4 +80,32 @@ template exe(string a)
         enum exe = a ~ ".exe";
     else 
         enum exe = a;
-} 
+}
+
+pragma(inline, true) string exe(string a)
+{
+    version (Windows)
+        return a ~ ".exe";
+    else
+        return a;
+}
+
+pragma(inline, true) string quote(string a)
+{
+    return '"' ~ a ~ '"';
+}
+
+string normalizedAbsolutePath(string s)
+{
+    import std.path;
+    return s.absolutePath.buildNormalizedPath;
+}
+
+pragma(inline, true) string path(string a)
+{
+    import std.string;
+    version (Windows)
+        return a.replace("/", "\\");
+    else
+        return a.replace("\\", "/");
+}

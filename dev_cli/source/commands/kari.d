@@ -3,6 +3,7 @@ module commands.kari;
 import jcli;
 
 import commands.context;
+import common.tools;
 import common;
 
 import std.path;
@@ -27,6 +28,14 @@ struct KariContext
     {
         kariStuffPath = context.projectDirectory.buildPath("kari_stuff");
         kariPath = kariStuffPath.buildPath("Kari");
+    }
+
+    DotnetBuild dotnetBuild()
+    {
+        DotnetBuild d = .dotnetBuild();
+        d.msbuildProperties["KariBuildPath"] = context.buildDirectory ~ `\`;
+        d.configuration = configuration;
+        return d;
     }
 }
 
@@ -54,9 +63,7 @@ struct KariRun
         // TODO: this path should be provided by the build system or something
         // msbuild cannot do that afaik, so study the alternatives asap.
         string kariExecutablePath = buildPath(
-            context.buildDirectory, "bin", "Kari.Generator", context.configuration, "net6.0", "Kari.Generator");
-        version (Windows)
-            kariExecutablePath ~= ".exe";
+            context.buildDirectory, "bin", "Kari.Generator", context.configuration, "net6.0", "Kari.Generator").exe;
 
         string getPluginDllPath(string pluginName, string pluginDllName)
         {
@@ -70,17 +77,17 @@ struct KariRun
             import std.algorithm;
             import std.range;
 
-            // TODO: Improve Kari's argument parsing capabilities, or call it directly
-            auto pid = spawnProcess2([
-                    kariExecutablePath,
-                    "-configurationFile", buildPath(context.projectDirectory, context.unityProjectDirectoryName, "kari.json"),
-                    "-pluginPaths", 
-                        chain(
-                            Plugins.kariInternal.map!(p => getPluginDllPath(p, "Kari.Plugins." ~ p ~ ".dll")),
-                            Plugins.custom.map!(p => getPluginDllPath(p, p ~ ".dll")))
-                        .join(","),
-                    "-gitignoreTemplate", `# Code generation is optional for now, so we don't ignore the generated files`
-                ] ~ rawArgs, context.projectDirectory);
+            Kari kari;
+            kari.toolPath = kariExecutablePath;
+            kari.configurationFile = buildPath(context.projectDirectory, context.unityProjectDirectoryName, "kari.json");
+            kari.pluginPaths = chain(
+                    Plugins.kariInternal.map!(p => getPluginDllPath(p, "Kari.Plugins." ~ p ~ ".dll")),
+                    Plugins.custom.map!(p => getPluginDllPath(p, p ~ ".dll")))
+                .array;
+            kari.gitignoreTemplate = `# We don't ignore the generated files`;
+            kari.moreArguments = rawArgs;
+
+            auto pid = startProcess(kari);
             const status = wait(pid);
             if (status != 0)
             {
@@ -114,18 +121,15 @@ struct KariBuild
         import std.algorithm;
 
         string customPluginDirectoryPath = buildPath(context.kariStuffPath, "plugins");
+        auto d = context.dotnetBuild();
 
         foreach (path; customPluginNames
             .map!(p => customPluginDirectoryPath.buildPath(p, p ~ ".csproj"))
             .chain(internalPluginNames
                 .map!(p => context.kariPath.buildPath("source", "Kari.Plugins", p, p ~ ".csproj"))))
         {
-            import std.process;
-            auto pid = spawnProcess([
-                "dotnet", "build",
-                path,
-                "--configuration", context.configuration,
-                "/p:KariBuildPath=" ~ context.buildDirectory ~ `\`]);
+            d.path = path;
+            auto pid = startProcess(d);
             const status = wait(pid);
             if (status != 0)
             {
@@ -184,11 +188,10 @@ struct KariBuild
     int buildKari()
     {
         context.logger.log("Building Kari.");
-        auto pid = spawnProcess2([
-            "dotnet", "build", 
-            "--configuration", context.configuration,
-            "/p:KariBuildPath=" ~ context.buildDirectory ~ `\`],
-            context.kariPath);
+        
+        auto d = context.dotnetBuild();
+        d.path = context.kariPath;
+        auto pid = startProcess(d);
         const status = wait(pid);
         if (status != 0)
         {

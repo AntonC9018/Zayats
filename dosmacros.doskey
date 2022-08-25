@@ -1,1 +1,2 @@
 dev=.\build_folder\dev_cli\dev $*
+dev-build=dub build --root dev_cli

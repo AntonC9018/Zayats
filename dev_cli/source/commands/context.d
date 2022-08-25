@@ -7,6 +7,7 @@ import std.stdio;
 import commands.setup;
 import commands.models : ModelsContext;
 import commands.kari : KariContext;
+import commands.proto;
 import common;
 
 @CommandDefault("The context common to all subcommands.")
@@ -15,7 +16,8 @@ import common;
     KariContext,
     ModelsContext,
     ConfigContext,
-    UnityContext))
+    UnityContext,
+    ProtoContext))
 struct Context
 {
     @(ArgConfig.optional)
@@ -30,7 +32,7 @@ struct Context
         string buildDirectory = "build_folder";
 
         @("Tools directory")
-        string toolsDirectory = "build_folder/tools";
+        string toolsDirectory = "build_folder/tools".path;
 
         @("Unity project directoy")
         string unityProjectDirectoryName = "Zayats";
@@ -79,13 +81,9 @@ struct Context
         logger = new FileLogger(stdout);
 
         if (projectDirectory == "")
-        {
             projectDirectory = getcwd();
-        }
         else
-        {
-            projectDirectory = absolutePath(projectDirectory);
-        }
+            projectDirectory = normalizedAbsolutePath(projectDirectory);
 
         unityProjectDirectory = projectDirectory.buildPath(unityProjectDirectoryName);
         if (!exists(unityProjectDirectory))
@@ -94,19 +92,19 @@ struct Context
             errorCount++;
         }
 
-        tempDirectory = absolutePath(tempDirectory);
-        if (!exists(tempDirectory))
+        void normalizeAndCreate(ref string p, string name)
         {
-            mkdir(tempDirectory);
-            logger.log("Created temp directory: ", tempDirectory);
+            p = absolutePath(p);
+            if (!exists(p))
+            {
+                mkdir(p);
+                logger.log("Created ", name, " directory: ", p);
+            }
         }
 
-        buildDirectory = absolutePath(buildDirectory);
-        if (!exists(buildDirectory))
-        {
-            mkdir(buildDirectory);
-            logger.log("Created the build directory: ", buildDirectory);
-        }
+        normalizeAndCreate(tempDirectory, "temp");
+        normalizeAndCreate(buildDirectory, "build");
+        normalizeAndCreate(toolsDirectory, "tools");
 
         {
             if (configurationPath == "")
