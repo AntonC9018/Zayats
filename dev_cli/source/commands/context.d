@@ -29,6 +29,9 @@ struct Context
         @("Build output directory")
         string buildDirectory = "build_folder";
 
+        @("Tools directory")
+        string toolsDirectory = "build_folder/tools";
+
         @("Unity project directoy")
         string unityProjectDirectoryName = "Zayats";
         
@@ -102,7 +105,7 @@ struct Context
         if (!exists(buildDirectory))
         {
             mkdir(buildDirectory);
-            logger.error("Created the build directory: ", buildDirectory);
+            logger.log("Created the build directory: ", buildDirectory);
         }
 
         {

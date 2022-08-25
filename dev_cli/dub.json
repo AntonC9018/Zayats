@@ -1,9 +1,11 @@
 {
 	"name": "dev_cli",
     "dependencies": {
-        "jcli": { "path": "./third_party/jcli" }
+        "jcli": { "path": "./third_party/jcli" },
+        "acd-versions": "~>1.0.3"
     },
     "workingDirectory": "..",
-    "targetPath": "../build_folder",
-    "targetName": "dev"
+    "targetPath": "../build_folder/dev_cli",
+    "targetName": "dev",
+    "libs": ["curl"]
 }
