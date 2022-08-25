@@ -232,14 +232,7 @@ struct ConfigInitCommand
                     return null;
             }
 
-            // TODO: use the code from the local branch
-            static string unityEditorName()
-            {
-                string result = "Unity";
-                version(Windows)
-                    result ~= ".exe";
-                return result;
-            }
+            string unityEditorName = "Unity".exe;
 
             Nullable!string getUnityPath()
             {
