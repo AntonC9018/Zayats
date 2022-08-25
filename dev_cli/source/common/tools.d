@@ -427,7 +427,7 @@ string[] buildArgs(in Kari kari)
     string[] args;
     toolStartBuildingArguments(kari, args);
 
-    foreach (field; kari.tupleof)
+    static foreach (field; typeof(kari).tupleof)
     {{
         auto value = __traits(child, kari, field); 
         enum option = "-" ~ __traits(identifier, field);
