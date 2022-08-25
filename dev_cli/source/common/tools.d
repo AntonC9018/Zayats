@@ -189,7 +189,6 @@ struct Protoc
     struct Plugin
     {
         string name;
-        // Specify a relative path here.
         string path = "";
     }
     Plugin[] plugins;
@@ -304,9 +303,11 @@ string[] buildArgs(in Protoc protoc)
         string a = p.name;
         if (p.path != "")
         {
-            // Technically, the path should be quoted,
-            // but it can't normally escape quotes for some reason.
-            // Spent 2 hours on this bug.
+            // I think I can't quote the path, because then it interprets it wrong.
+            // Don't know what's going on exactly, but quoting it here makes it complain
+            // that the path does not exist.
+            // I haven't tested it with spaces in the path while unqoted, but it might
+            // not be possible with the current state of things to do that.
             a ~= "=" ~ (p.path);
         }
         args ~= "--plugin";
@@ -325,6 +326,9 @@ string[] buildArgs(in Protoc protoc)
     //   --python_out=OUT_DIR        Generate Python source file.
     maybeAdd(args, "--python_out", protoc.pythonOut);
     //   --ruby_out=OUT_DIR          Generate Ruby source file.
+    
+    maybeAdd(args, "--grpc_out", protoc.grpcOut);
+
     //   @<filename>                 Read options and filenames from file. If a
     //                               relative file path is specified, the file
     //                               will be searched in the working directory.
@@ -337,9 +341,6 @@ string[] buildArgs(in Protoc protoc)
     //                               quotes, wildcards, escapes, commands, etc.).
     //                               Each line corresponds to a single argument,
     //                               even if it contains spaces.
-    import std.string;
-    maybeAdd(args, "--grpc_out", protoc.grpcOut);
-
     args ~= protoc.protoFiles;
     
     toolEndBuildingArguments(protoc, args);

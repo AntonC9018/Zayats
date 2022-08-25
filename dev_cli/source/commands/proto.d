@@ -157,7 +157,7 @@ struct ProtoContext
                 .array;
             p.includePaths = [inputPath];
             p.csharpOut = outputPath;
-            p.plugins ~= Protoc.Plugin("protoc-gen-grpc", relativePath(protocGRPCPluginPath));
+            p.plugins ~= Protoc.Plugin("protoc-gen-grpc", protocGRPCPluginPath);
             p.grpcOut = outputPath;
 
             return startProcess(p).wait;
