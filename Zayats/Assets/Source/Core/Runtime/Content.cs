@@ -243,7 +243,7 @@ namespace Zayats.Core
         {
             p.AddComponent(Components.ActivatedItemId) = new()
             {
-                Filter = null,
+                Filter = NoTargetFilter.Instance,
                 Action = BoozeAction,
                 InitialUses = 1,
                 UsesLeft = 1,

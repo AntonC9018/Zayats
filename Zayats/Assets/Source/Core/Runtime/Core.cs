@@ -859,8 +859,8 @@ namespace Zayats.Core
     {
         public T[] Storage;
         public int Index;
-        public readonly bool Exists => Index != -1;
         public readonly ref T Value => ref Storage[Index];
+        public readonly bool Exists => Index != -1;
     }
 
     public struct ListItemComponentProxy<T>

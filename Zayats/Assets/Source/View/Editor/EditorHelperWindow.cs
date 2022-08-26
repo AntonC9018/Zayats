@@ -42,8 +42,22 @@ namespace Zayats.Unity.View.Editor
                 foreach (var t_ in ts)
                 {
                     var t = t_;
+
+                    assert(t != null, "Not sure if this is even possible");
+                    
                     if (PrefabUtility.IsPartOfAnyPrefab(t))
                         t = PrefabUtility.GetOutermostPrefabInstanceRoot(t);
+                    
+                    // It's the actual prefab. In this case, we get the root object of the prefab.
+                    if (t == null)
+                    {
+                        t = t_;
+                        var transform = t.transform;
+                        Transform parent;
+                        while ((parent = transform.parent) != null)
+                            transform = parent;
+                        t = transform.gameObject;
+                    }
                     
                     result.Add(t);
                 }
@@ -51,7 +65,7 @@ namespace Zayats.Unity.View.Editor
                 if (ts.Length != result.Count
                     || ts.Any(t => !result.Contains(t)))
                 {
-                    ts = result.Select(t => t.gameObject).ToArray();
+                    ts = result.ToArray();
                 }
 
                 Selection.objects = ts;
@@ -114,7 +128,6 @@ namespace Zayats.Unity.View.Editor
                         modelInfo.Config = AssetDatabaseHelper.CreateObjectOrLoadExistingWithDefaults<ModelInfoScriptableObject>(
                             folderWhereToSaveRelativeToAssets: "Game/Content/Things/Items",
                             fileNameWithoutExtension: t.name + "_ModelInfo");
-                        Undo.RegisterCreatedObjectUndo(modelInfo.Config, "config creation");
                     }
 
                     var modelConfig = modelInfo.Config;

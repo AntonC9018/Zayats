@@ -112,12 +112,13 @@ namespace Zayats.Unity.View
                 }
 
                 // Payload in this case means cell count
-                if (selection.ValidTargets.Count < activatedItem.RequiredTargetCount)
+                if (selection.ValidTargetCount < activatedItem.RequiredTargetCount)
                 {
-                    view.DisplayTip($"Not enough {Subject()} (required {activatedItem.RequiredTargetCount}, available {selection.ValidTargets.Count}).");
+                    view.DisplayTip($"Not enough {Subject()} (required {activatedItem.RequiredTargetCount}, available {selection.ValidTargetCount}).");
                     return false;
                 }
 
+                view.StartSelecting(ref selection);
                 view.HandleEvent(ViewEvents.OnItemInteraction.Started, new()
                 {
                     Item = itemH,
@@ -128,7 +129,7 @@ namespace Zayats.Unity.View
             return true;
         }
 
-        public static void HighlightObjectsOfItemInteraction(this ViewContext view, in SelectionState selection)
+        public static void HighlightObjectsOfSelection(this ViewContext view, in SelectionState selection)
         {
             view.HighlightObjects(
                 view.GetObjectsValidForSelection(selection.TargetKind, selection.ValidTargets));
@@ -137,7 +138,7 @@ namespace Zayats.Unity.View
         public static bool MaybeConfirmItemUse(this ViewContext view)
         {
             ref var itemH = ref view.State.ItemHandling;
-            if (view.State.Selection.TargetIndices.Count != itemH.ActivatedItem.RequiredTargetCount)
+            if (view.State.Selection.TargetCount != itemH.ActivatedItem.RequiredTargetCount)
                 return false;
 
             ConfirmItemUse(view);

@@ -27,6 +27,7 @@ MonoBehaviour:
       - {r: 0.0027144956, g: 0.5754717, b: 0.027960142, a: 1}
     HighlightEmissionIntensity: 0.4
   Game:
+    CellPrefab: {fileID: 2967453003653832564, guid: 99d75ff85a1f4f041932dccf892c1f57, type: 3}
     PrefabsToSpawn:
       Values:
       - {fileID: 5244891537468551939, guid: f029241cfaba09642aedc84ad9bcd60e, type: 3}

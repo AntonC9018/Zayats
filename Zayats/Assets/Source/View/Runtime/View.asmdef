@@ -8,7 +8,9 @@
         "DOTween.Modules",
         "Common.Unity",
         "Newtonsoft.Json",
-        "Zayats.Serialization"
+        "Zayats.Serialization",
+        "UnityEditor.UI",
+        "UnityEngine.UI"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

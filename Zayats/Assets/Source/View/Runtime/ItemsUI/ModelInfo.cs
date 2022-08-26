@@ -4,6 +4,8 @@ using UnityEngine;
 
 namespace Zayats.Unity.View
 {
+    using static Zayats.Core.Assert;
+    
     public class ModelInfo : MonoBehaviour
     {
         public MeshRenderer[] MeshRenderers;

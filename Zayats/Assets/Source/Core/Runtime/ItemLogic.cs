@@ -160,12 +160,12 @@ namespace Zayats.Core
         protected override int EventId => GameEvents.OnTrySavePlayer.Id;
         private int _reasonFromWhichToProtect;
         
-        protected override void DoDrop(GameContext game, ItemInterationContext info)
+        protected override void DoDrop(GameContext game, ItemInterationContext context)
         {
             game.AddThingToShop(new()
             {
-                ThingId = info.ThingId,
-                Reason = Reasons.ItemUsedUp(info.PlayerIndex),
+                ThingId = context.ThingId,
+                Reason = Reasons.ItemUsedUp(context.PlayerIndex),
             });
         }
         protected override void DoEffect(GameContext game, ItemInterationContext info, ref SavePlayerContext eventData)
@@ -489,6 +489,8 @@ namespace Zayats.Core
             {
                 return ItemUsability.None;
             }
+
+            assert(proxy.Value.Filter is not null);
 
             var valid = proxy.Value.Filter.GetValid(game, new()
             {

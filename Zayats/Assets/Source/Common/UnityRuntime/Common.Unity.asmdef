@@ -1,7 +1,7 @@
 {
     "name": "Common.Unity",
     "rootNamespace": "Common.Unity",
-    "references": ["Common"],
+    "references": ["Common","UnityEditor.UI","UnityEngine.UI"],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": true,

@@ -10,6 +10,10 @@ using static Zayats.Core.GameEvents;
 using DG.Tweening;
 using Newtonsoft.Json;
 
+#if UNITY_EDITOR
+    using UnityEditor;
+#endif
+
 namespace Zayats.Unity.View
 {
 
@@ -56,9 +60,14 @@ namespace Zayats.Unity.View
 
     public class Initialization : MonoBehaviour
     {
+
         [SerializeField] private UIReferences _ui;
         [SerializeField] private SetupConfiguration _config;
         
+        #if UNITY_EDITOR
+            [SerializeField] private bool _shouldValidateConfigOnStart = true;
+        #endif
+
         #if UNITY_EDITOR
             public
         #endif
@@ -80,12 +89,15 @@ namespace Zayats.Unity.View
 
         private List<UnityEngine.Object> _toDestroy;
 
-        public enum WorldMode
-        {
-            Random,
-            Set,
-        }
-        public WorldMode Mode;
+        #if UNITY_EDITOR
+            [ContextMenu(nameof(FindCells))]
+            public void FindCells()
+            {
+                _ui.VisualCells = FindObjectsOfType<Transform>()
+                    .Where(t => t != null && t.gameObject.name.Contains("cell"))
+                    .ToArray();
+            }
+        #endif
 
         public void OnValidate()
         {
@@ -99,27 +111,67 @@ namespace Zayats.Unity.View
             gameConfig.CountsToSpawn.RespawnPoint = gameConfig.CountsToSpawn.Tower;
             gameConfig.ItemCosts.FixSize();
             gameConfig.PrefabsToSpawn.FixSize();
+            ValidateConfigPrefabs();
         }
 
-        private void CustomCreateThings()
+        // TODO: move into a helper, could be useful.
+        private bool ValidateConfigPrefabs()
         {
-            var creating = Game.StartCreating();
-            
+            bool isError = false;
+
+            Action<string> GetErrorHandler(string name)
             {
-                var p = creating.Create();
-                _view.InstantiateThing(p, ThingKind.Player);
-                p.Player(0).Place().At(0);
+                return (message) =>
+                {
+                    Debug.LogError($"{name}: {message}");
+                    isError = true;
+                };
             }
+
+            void ValidateThing(GameObject prefab, Action<string> handleError)
             {
-                var p = creating.Create();
-                _view.InstantiateThing(p, ThingKind.Snake);
-                p.Snake().Place().At(1); 
+                if (prefab == null)
+                {
+                    handleError($"Prefab is null.");
+                    return;
+                }
+                
+                var t = prefab.transform;
+                if (!t.ValidateHierarchy(handleError))
+                    return;
+
+                var (modelTransform, modelInfo) = t.GetObject(ObjectHierarchy.ModelInfo);
+                
+                var config = modelInfo.Config;
+                if (config == null)
+                {
+                    handleError("Model info config is null.");
+                }
+                else
+                {
+                    if (config.MaterialMappings == null)
+                        handleError("Material mappings are null.");
+                    if (config.Materials.Array.Any(a => a == null))
+                        handleError("One or more materials are null.");
+
+                    if (modelInfo.MeshRenderers == null)
+                        handleError("Mesh renderers are not set.");
+                    else if (modelInfo.MeshRenderers.Any(m => m == null))
+                        handleError("One or more materials are null.");
+                }
             }
+
+            var prefabs = _config.Game.PrefabsToSpawn.Array;
+            for (int i = 0; i < prefabs.Length; i++)
             {
-                var p = creating.Create();
-                _view.InstantiateThing(p, ThingKind.Player);
-                p.Player(1).Place().At(2);
+                var handleError = GetErrorHandler(((ThingKind) i).ToString());
+                var prefab = prefabs[i];
+                ValidateThing(prefab, handleError);
             }
+
+            ValidateThing(_config.Game.CellPrefab, GetErrorHandler("cell"));
+
+            return !isError;
         }
 
         private void DefaultCreateThings(in GameConfiguration config)
@@ -233,37 +285,23 @@ namespace Zayats.Unity.View
             }
             assertNoneNull(Game.State.Components.Storages);
 
-            if (Mode == WorldMode.Random)
-                DefaultCreateThings(_config.Game);
-            else
-                CustomCreateThings();
+            DefaultCreateThings(gameConfig);
 
             {    
-                InitializePlayerColor(_config.Game.PlayerCharacterColors);
+                InitializePlayerColor(gameConfig.PlayerCharacterColors);
                 // Associate respawn points with the items.
                 Core.Initialization.AssociateRespawnPointIdsOneToOne(Game);
             }
 
             var s = _view.BeginAnimationEpoch();
             for (int cellIndex = 0; cellIndex < UI.VisualCells.Length; cellIndex++)
-                _view.ArrangeThingsOnCell(cellIndex, s,
-                    (view, _, transform, pos) => transform.DOMove(pos, view.Visual.AnimationSpeed.InitialThingSpawning));   
-
-            Vector3 GetCellTopPosition(int cellIndex)
             {
-                var things = _view.Game.State.Cells[cellIndex];
-                var cellInfo = _view.GetCellVisualInfo(cellIndex);
-                var up = cellInfo.OuterObject.up;
-                var top = cellInfo.GetTop(up);
-
-                foreach (var thingId in things)
-                {
-                    var thingInfo = _view.GetThingVisualInfo(thingId);
-                    top += thingInfo.Size.y * up;
-                }
-                return top;
+                _view.ArrangeThingsOnCell(cellIndex, s,
+                    (view, _, transform, pos) => transform.DOMove(pos, view.Visual.AnimationSpeed.InitialThingSpawning));
             }
 
+            _view.ArrangeShopItems(s, _view.Visual.AnimationSpeed.InitialThingSpawning);
+            
 
             Game.GetEventProxy(OnPositionAboutToChange).Add(() => _view.BeginAnimationEpoch());
 
@@ -288,7 +326,7 @@ namespace Zayats.Unity.View
                         for (int i = context.InitialPosition + direction; i != context.TargetPosition; i += direction)
                         {
                             var cell = UI.VisualCells[i];
-                            var pos = GetCellTopPosition(i);
+                            var pos = _view.GetCellTopPosition(i);
                             var t = _view.JumpAnimation(playerTransform, pos);
                             t.OnComplete(() => playerTransform.SetParent(cell, worldPositionStays: true));
                             moveSequence.Append(t);
@@ -401,6 +439,12 @@ namespace Zayats.Unity.View
                     _view.ResetUsabilityColors(game.State.CurrentPlayerIndex, _view.LastAnimationSequence);
                 });
 
+            Game.GetEventProxy(GameEvents.OnThingAddedToShop).Add(
+                (GameContext game, ref ThingAddedToShopContext context) =>
+                {
+                    ViewLogic.OnItemAddedToShop(_view, ref context); 
+                });
+
             UI.GameplayText.Win.gameObject.SetActive(false);
             UI.GameplayText.CoinCounter.text = "0";
             _view.SetItemsForPlayer(0);
@@ -417,6 +461,20 @@ namespace Zayats.Unity.View
 
         void Start()
         {
+            // Validate the hierarchy and the configuration of the things
+            #if UNITY_EDITOR
+            if (_shouldValidateConfigOnStart)
+            {
+                if (!ValidateConfigPrefabs())
+                {
+                    Debug.LogError("Some objects haven't been set up properly. Please, fix it with the editor window.");
+                    EditorApplication.isPlaying = false;
+                    return;
+                }
+            }
+            #endif
+
+
             DOTween.Init(
                 recycleAllByDefault: true,
                 useSafeMode: false,
@@ -433,7 +491,7 @@ namespace Zayats.Unity.View
             UI.GameplayText.Win.gameObject.SetActive(false);
 
             InitializeGame();
-
+            
             var buttons = UI.GameplayButtons;
             buttons.Roll.onClick.AddListener(() =>
             {
@@ -459,31 +517,43 @@ namespace Zayats.Unity.View
                 InitializeGame();
             });
 
-            buttons.TempBuy.onClick.AddListener(async () =>
+            buttons.TempBuy.onClick.AddListener(() =>
             {
-                _view.MaybeTryInitiateBuying(shopItemIndex: 0);
+                if (_view.Game.State.Shop.Items.Count > 0)
+                    _view.MaybeTryInitiateBuying(shopItemIndex: 0);
             });
 
             UI.ScreenOverlayObject.AddComponent<InputInterceptorOverlay>().Initialize(_view);
+            (new GameObject("PreviewUpdate")).AddComponent<PreviewUpdate>().Initialize(_view);
 
-            _view.GetEventProxy(ViewEvents.OnSelectionProgress).Add(
-                (ViewContext view, ref SelectionState state) =>
+            _view.GetEventProxy(ViewEvents.OnSelection.Progress).Add(
+                static (ViewContext view, ref SelectionState state) =>
                 {
-                    // TODO: maybe add/remove handlers when it starts/ends.
+                    assert(view.State.ItemHandling.InProgress
+                            || view.State.ForcedItemDropHandling.InProgress);
+                    
                     if (view.State.ItemHandling.InProgress)
-                        view.MaybeConfirmItemUse();
+                        view.HandleEvent(ViewEvents.OnItemInteraction.Progress, ref state);
+                    else if (view.State.ForcedItemDropHandling.InProgress)
+                        view.HandleEvent(ViewEvents.OnForcedItemDrop.Progress, ref state);
+                    else
+                        panic("Unhandled progress option");
                 });
-            _view.GetEventProxy(ViewEvents.OnSelectionProgress).Add(
-                (ViewContext view, ref SelectionState state) =>
+            _view.GetEventProxy(ViewEvents.OnItemInteraction.Progress).Add(
+                static (ViewContext view, ref SelectionState state) =>
+                {
+                    view.MaybeConfirmItemUse();
+                });
+            _view.GetEventProxy(ViewEvents.OnForcedItemDrop.Progress).Add(
+                static (ViewContext view, ref SelectionState state) =>
                 {
                     // Let's say we don't allow repeats for now, so we can use the selection system without modification.
-                    if (view.State.ForcedItemDropHandling.InProgress)
-                        view.HandleNextForcedItemDropStateMachineStep(ref view.State.ForcedItemDropHandling);
+                    view.HandleNextForcedItemDropStateMachineStep(ref view.State.ForcedItemDropHandling);
                 });
 
             _view.GetEventProxy(ViewEvents.OnItemInteraction.Started).Add(
                 // Scroll the item into view on the scrollview.
-                (ViewContext view, ref ViewEvents.ItemHandlingContext context) =>
+                static (ViewContext view, ref ViewEvents.ItemHandlingContext context) =>
                 {
                     // view.BeginAnimationEpoch();
                     // view.LastAnimationSequence.Join(t);
@@ -493,31 +563,29 @@ namespace Zayats.Unity.View
                     var t = scrollRect.content.DOLocalMove(targetPos, view.Visual.AnimationSpeed.UI);
                 });
 
-            _view.GetEventProxy(ViewEvents.OnItemInteraction.Started).Add(
-                (ViewContext view, ref ViewEvents.ItemHandlingContext context) =>
+            _view.GetEventProxy(ViewEvents.OnSelection.Started).Add(
+                static (ViewContext view, ref SelectionState context) =>
                 {
-                    view.HighlightObjectsOfItemInteraction(context.Selection);
+                    view.HighlightObjectsOfSelection(context);
                 });
-            _view.GetEventProxy(ViewEvents.OnItemInteraction.CancelledOrFinalized).Add(
-                (ViewContext view) =>
+            _view.GetEventProxy(ViewEvents.OnSelection.CancelledOrFinalized).Add(
+                static (ViewContext view) =>
                 {
                     view.CancelHighlighting();
                 });
 
-            _view.GetEventProxy(ViewEvents.OnItemInteraction.Started).Add(
-                (ViewContext view, ref ViewEvents.ItemHandlingContext context) =>
+            _view.GetEventProxy(ViewEvents.OnSelection.Started).Add(
+                static (ViewContext view, ref SelectionState context) =>
                 {
-                    view.ChangeLayerOnValidTargetsForRaycasts(
-                        context.Selection.TargetKind, context.Selection.ValidTargets);
+                    view.ChangeLayerOnValidTargetsForRaycasts(context.TargetKind, context.ValidTargets);
+                });
+            _view.GetEventProxy(ViewEvents.OnSelection.CancelledOrFinalized).Add(
+                static (ViewContext view, ref SelectionState context) =>
+                {
+                    view.ChangeLayerOnValidTargetsToDefault(context.TargetKind, context.ValidTargets);
                 });
             _view.GetEventProxy(ViewEvents.OnItemInteraction.CancelledOrFinalized).Add(
-                (ViewContext view, ref ViewEvents.ItemHandlingContext context) =>
-                {
-                    view.ChangeLayerOnValidTargetsToDefault(
-                        context.Selection.TargetKind, context.Selection.ValidTargets);
-                });
-            _view.GetEventProxy(ViewEvents.OnItemInteraction.CancelledOrFinalized).Add(
-                (ViewContext view) =>
+                static (ViewContext view) =>
                 {
                     view.State.Selection.TargetKind = TargetKind.None;
                     view.State.ItemHandling.ThingId = -1;

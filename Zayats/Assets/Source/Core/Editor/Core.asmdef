@@ -1,7 +1,7 @@
 {
     "name": "Zayats.Core.Editor",
     "rootNamespace": "Zayats.Core.Editor",
-    "references": ["Common", "Common.Editor", "Zayats.Core"],
+    "references": ["Common", "Common.Editor", "Zayats.Core", "UnityEditor.UI", "UnityEngine.UI", "UnityEngine.TestRunner", "UnityEditor.TestRunner"],
     "includePlatforms": ["Editor"],
     "excludePlatforms": [],
     "allowUnsafeCode": true,

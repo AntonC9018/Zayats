@@ -33,6 +33,7 @@ namespace Zayats.Unity.View
     [Serializable]
     public struct GameConfiguration
     {
+        public GameObject CellPrefab;
         public ThingArray<GameObject> PrefabsToSpawn;
         public ThingArray<int> CountsToSpawn;
         public ThingArray<int> ItemCosts;

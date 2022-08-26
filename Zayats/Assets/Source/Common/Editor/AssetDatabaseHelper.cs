@@ -182,6 +182,7 @@ namespace Common.Editor
             UnityObject createdObject = ObjectFactory.CreateInstance(objectType);
             AssetDatabase.CreateAsset(createdObject, fullPath);
             SelectObject(createdObject);
+            Undo.RegisterCreatedObjectUndo(createdObject, "Create object " + createdObject.name);
 
             return createdObject;
         }

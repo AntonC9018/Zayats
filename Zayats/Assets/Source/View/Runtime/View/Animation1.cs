@@ -105,6 +105,21 @@ namespace Zayats.Unity.View
             var thing = context.UI.ThingGameObjects[thingIndex];
             return GetVisualInfo(thing.transform);
         }
+        
+        public static Vector3 GetCellTopPosition(this ViewContext view, int cellIndex)
+        {
+            var things = view.Game.State.Cells[cellIndex];
+            var cellInfo = view.GetCellVisualInfo(cellIndex);
+            var up = cellInfo.OuterObject.up;
+            var top = cellInfo.GetTop(up);
+
+            foreach (var thingId in things)
+            {
+                var thingInfo = view.GetThingVisualInfo(thingId);
+                top += thingInfo.Size.y * up;
+            }
+            return top;
+        }
 
         public static Tween JumpAnimation(this ViewContext view, Transform t, Vector3 pos)
         {

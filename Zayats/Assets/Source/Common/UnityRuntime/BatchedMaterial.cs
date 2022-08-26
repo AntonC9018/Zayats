@@ -199,18 +199,15 @@ namespace Common.Unity
         {
             // In order for this not to allocate too much memory,
             // we reuse buffers of different lengths.
-            var cacheIndex = size - 2;
+            var cacheIndex = size - 1;
             if (_MaterialArraysCache.Length <= cacheIndex)
             {
                 Array.Resize(ref _MaterialArraysCache, cacheIndex + 1);
-                _MaterialArraysCache[cacheIndex] = new Material[size];
+                return _MaterialArraysCache[cacheIndex] = new Material[size];
             }
-            else if (_MaterialArraysCache[cacheIndex] == null)
-            {
-                _MaterialArraysCache[cacheIndex] = new Material[size];
-            }
-            var materialCache = _MaterialArraysCache[cacheIndex];
-            return materialCache;
+            if (_MaterialArraysCache[cacheIndex] == null)
+                return _MaterialArraysCache[cacheIndex] = new Material[size];
+            return _MaterialArraysCache[cacheIndex];
         }
 
         public readonly ref struct TempCache

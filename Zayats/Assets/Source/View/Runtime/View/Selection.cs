@@ -17,6 +17,9 @@ namespace Zayats.Unity.View
     public struct SelectionState
     {
         public readonly bool InProgress => TargetKind != TargetKind.None;
+        public readonly int TargetCount => TargetIndices.Count;
+        public readonly int ValidTargetCount => ValidTargets.Count;
+
         public TargetKind TargetKind;
         public List<int> ValidTargets;
         public List<int> TargetIndices;
@@ -95,14 +98,17 @@ namespace Zayats.Unity.View
             ChangeLayerOnValidTargets(view, targetKind, validTargets, LayerIndex.Default);
         }
 
-        public static (Transform, GameObject)? RaycastRaycastable(Vector3 positionOfInteractionOnScreen)
+        public static Ray GetScreenToPointRay(Vector2 positionOfInteractionOnScreen)
         {
-            int layerMask = LayerBits.RaycastTarget;
-
-            RaycastHit hit;
             Ray ray = Camera.main.ScreenPointToRay(positionOfInteractionOnScreen);
+            return ray;
+        }
 
-            if (!Physics.Raycast(ray, out hit, layerMask))
+        public static (Transform Transform, GameObject GameObject)? RaycastThing(Ray ray, int layerMask)
+        {
+            RaycastHit hit;
+
+            if (!Physics.Raycast(ray, out hit, maxDistance: float.PositiveInfinity, layerMask: layerMask))
                 return null;
                 
             var t = hit.collider.transform.parent;
@@ -113,9 +119,15 @@ namespace Zayats.Unity.View
             return (t, obj);
         }
 
+        public static (Transform Transform, GameObject GameObject)? RaycastRaycastable(Ray ray)
+        {
+            return RaycastThing(ray, layerMask: LayerBits.RaycastTarget);
+        }
+
         public static bool MaybeSelectObject(this ViewContext view, Vector3 positionOfInteractionOnScreen)
         {
-            var raycastResult = RaycastRaycastable(positionOfInteractionOnScreen);
+            var ray = GetScreenToPointRay(positionOfInteractionOnScreen);
+            var raycastResult = RaycastRaycastable(ray);
             if (!raycastResult.HasValue)
                 return false;
             var (transform, obj) = raycastResult.Value;
@@ -149,7 +161,12 @@ namespace Zayats.Unity.View
             return view.Game.State.Players.Select(p => view.UI.ThingGameObjects[p.ThingId]);
         }
 
-        public static void AddOrRemoveObjectToSelection(this ViewContext view, GameObject hitObject)
+        public static int GetCellIndex(this ViewContext view, GameObject raycastHitObject)
+        {
+            return Array.IndexOf(view.UI.VisualCells, raycastHitObject.transform);
+        }
+
+        public static (int TargetIndex, int Target) GetSelectionTargetInfo(this ViewContext view, GameObject raycastHitObject)
         {
             ref var selection = ref view.State.Selection;
             assert(view.State.Selection.InProgress);
@@ -160,39 +177,45 @@ namespace Zayats.Unity.View
                 case TargetKind.None:
                 {
                     panic("Should not come to this");
-                    return;
+                    return (-1, -1);
                 }
                 default:
                 {
                     panic($"Unimplemented case: {selection.TargetKind}.");
-                    return;
+                    return (-1, -1);
                 }
                 case TargetKind.Cell:
                 {
-                    target = Array.IndexOf(view.UI.VisualCells, hitObject.transform);
+                    target = view.GetCellIndex(raycastHitObject);
                     break;
                 }
                 case TargetKind.Player:
                 {
-                    target = view.GetPlayerObjects().IndexOf(hitObject);
+                    target = view.GetPlayerObjects().IndexOf(raycastHitObject);
                     break;
                 }
                 case TargetKind.Thing:
                 {
-                    target = Array.IndexOf(view.UI.ThingGameObjects, hitObject);
+                    target = Array.IndexOf(view.UI.ThingGameObjects, raycastHitObject);
                     break;
                 }
             }
 
             int targetIndex = selection.ValidTargets.IndexOf(target);
+            return (targetIndex, target);
+        }
+
+        public static void AddOrRemoveObjectToSelection(this ViewContext view, GameObject hitObject)
+        {
+            var (targetIndex, target) = view.GetSelectionTargetInfo(hitObject);
             assert(targetIndex != -1);
 
+            ref var selection = ref view.State.Selection;
             var selected = selection.TargetIndices;
             if (!selected.Contains(targetIndex))
             {
                 selected.Add(targetIndex);
-
-                view.HandleEvent(ViewEvents.OnSelectionProgress, ref selection);
+                view.HandleEvent(ViewEvents.OnSelection.Progress, ref selection);
             }
         }
 
@@ -208,27 +231,26 @@ namespace Zayats.Unity.View
             view.ResetSelection();
         }
 
-        public static void CancelOrFinalizeSelection(this ViewContext view, ref SelectionState context)
+        public static void StartSelecting(this ViewContext view, ref SelectionState context)
         {
-            view.HandleEvent(ViewEvents.OnSelectionCancelledOrFinalized, ref context);
+            view.HandleEvent(ViewEvents.OnSelection.Started, ref context);
         }
 
-        public static void CancelCurrentSelectionInteraction(this ViewContext view)
+        public static void CancelSelection(this ViewContext view, ref SelectionState context)
         {
-            assert(view.State.Selection.InProgress);
+            view.CancelOrFinalizeSelection(ref context);
+            view.HandleEvent(ViewEvents.OnSelection.Cancelled, ref context);
+        }
 
-            // Might want an enum + switch for this, or an interface.
-            if (view.State.ItemHandling.InProgress)
-            {
-                view.CancelHandlingCurrentItemInteraction();
-            }
-            else if (view.State.ForcedItemDropHandling.InProgress)
-            {
-                // Note: will need to abstract this more if the item drop gets used elsewhere.
-                view.CancelPurchase(ref view.State.ForcedItemDropHandling);
-            }
-            else panic("Unimplemented?");
+        public static void FinalizeSelection(this ViewContext view, ref SelectionState context)
+        {
+            view.CancelOrFinalizeSelection(ref context);
+            view.HandleEvent(ViewEvents.OnSelection.Finalized, ref context);
+        }
 
+        public static void CancelOrFinalizeSelection(this ViewContext view, ref SelectionState context)
+        {
+            view.HandleEvent(ViewEvents.OnSelection.CancelledOrFinalized, ref context);
         }
     }
 }

@@ -10,11 +10,11 @@ namespace Zayats.Unity.View
     // Needs to span the entire screen, and not block the pointer events.
     public class InputInterceptorOverlay : MonoBehaviour, IPointerClickHandler
     {
-        private ViewContext _viewContext;
+        private ViewContext _view;
 
         public void Initialize(ViewContext viewContext)
         {
-            _viewContext = viewContext;
+            _view = viewContext;
         }
 
         // TODO: Some more decoupled input system, but this works for now. 
@@ -22,15 +22,15 @@ namespace Zayats.Unity.View
         {
             if (eventData.button == Right)
             {
-                if (_viewContext.State.Selection.InProgress)
+                if (_view.State.Selection.InProgress)
                 {
-                    _viewContext.CancelCurrentSelectionInteraction();
+                    _view.CancelCurrentSelectionInteraction();
                     return;
                 }
             }
             else if (eventData.button == Left)
             {
-                if (_viewContext.MaybeSelectObject(eventData.position))
+                if (_view.MaybeSelectObject(eventData.position))
                     return;
             }
 
@@ -39,8 +39,8 @@ namespace Zayats.Unity.View
                 Continue = true,
                 Data = eventData,
             };
-            _viewContext.GetEventProxy(ViewEvents.OnPointerClick)
-                .HandleWithContinueCheck(_viewContext, ref context);
+            _view.GetEventProxy(ViewEvents.OnPointerClick)
+                .HandleWithContinueCheck(_view, ref context);
 
             if (context.Continue)
                 eventData.Bubble(ExecuteEvents.pointerClickHandler, gameObject);

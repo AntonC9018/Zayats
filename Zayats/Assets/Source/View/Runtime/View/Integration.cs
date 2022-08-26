@@ -16,6 +16,8 @@ using UnityEngine.EventSystems;
 
 namespace Zayats.Unity.View
 {
+    using static Assert;
+    
     [Serializable]
     public class ViewContext : IGetEvents
     {
@@ -29,12 +31,6 @@ namespace Zayats.Unity.View
         public Sequence LastAnimationSequence => AnimationSequences.Last.Value;
 
         public Events.Storage Events { get; set; }
-    }
-
-    [System.Serializable]
-    public struct VisualCell
-    {
-        public Transform Transform;
     }
 
     [GenerateArrayWrapper("GameplayButtonArray")]
@@ -147,6 +143,10 @@ namespace Zayats.Unity.View
             view.State.ForcedItemDropHandling.PreviewObjects = new();
             view.State.ForcedItemDropHandling.SelectedPositions = new List<int>();
 
+            view.State.Shop.Grid = GetGridInfoForCorners(view.UI.Static.ShopUI.Corners);
+            view.State.ItemHandling.ThingId = -1;
+            
+
             return view;
         }
 
@@ -163,10 +163,28 @@ namespace Zayats.Unity.View
             }
 
             {
-                obj.name = create.Id + "_" + (thingKind).ToString() + "_" + create.Id;
+                obj.name = create.Id + "_" + (thingKind).ToString();
             }
 
             return obj;
+        }
+
+        public static void CancelCurrentSelectionInteraction(this ViewContext view)
+        {
+            assert(view.State.Selection.InProgress);
+
+            // Might want an enum + switch for this, or an interface.
+            if (view.State.ItemHandling.InProgress)
+            {
+                view.CancelHandlingCurrentItemInteraction();
+            }
+            else if (view.State.ForcedItemDropHandling.InProgress)
+            {
+                // Note: will need to abstract this more if the item drop gets used elsewhere.
+                view.CancelPurchase(ref view.State.ForcedItemDropHandling);
+            }
+            else panic("Unimplemented?");
+
         }
     }
     
@@ -189,6 +207,29 @@ namespace Zayats.Unity.View
                     g.transform.parent = transform;
                 }
             }
+            public static bool ValidateHierarchy(this Transform transform, Action<string> errorHandler)
+            {
+                if (transform.childCount < ChildCount)
+                {
+                    errorHandler($"Wrong child count: expected {ChildCount}, got {transform.childCount}.");
+                    return false;
+                }
+
+                bool isError = false;
+                void Check<T>(TypedIdentifier<T> id) where T : Component
+                {
+                    var (t, c) = transform.GetObject(Model);
+                    if (c == null)
+                    {
+                        errorHandler($"No component {typeof(T).Name} for object {_Names[id.Id]}");
+                        isError = true;
+                    }
+                }
+                Check(Model);
+                Check(ModelInfo);
+                Check(Collider);
+                return !isError;
+            }
         #endif
 
         private static readonly string[] _Names = { "model", "collider", }; 
@@ -201,14 +242,15 @@ namespace Zayats.Unity.View
     
     public static partial class ViewEvents
     {
-        public class InteractionEventSet<T>
+        public const int InteractionEventSetEventCount = 5;
+
+        public class InteractionEventSet<T, TProgress>
         {
             public readonly TypedIdentifier<T> Started;
             public readonly TypedIdentifier<T> Cancelled;
             public readonly TypedIdentifier<T> Finalized;
             public readonly TypedIdentifier<T> CancelledOrFinalized;
-            internal readonly int _Waypoint;
-            internal int EventCount => 4;
+            public readonly TypedIdentifier<TProgress> Progress;
 
             public InteractionEventSet(int currentCount)
             {
@@ -216,7 +258,14 @@ namespace Zayats.Unity.View
                 Cancelled = new(currentCount + 1);
                 Finalized = new(currentCount + 2);
                 CancelledOrFinalized = new(currentCount + 3);
-                _Waypoint = currentCount + EventCount;
+                Progress = new(currentCount + 4);
+            }
+        }
+
+        public class InteractionEventSet<T> : InteractionEventSet<T, T>
+        {
+            public InteractionEventSet(int currentCount) : base(currentCount)
+            {
             }
         }
 
@@ -228,7 +277,7 @@ namespace Zayats.Unity.View
             public SelectionState Selection;
         }
 
-        public static readonly InteractionEventSet<ItemHandlingContext> OnItemInteraction = new(0);
+        public static readonly InteractionEventSet<ItemHandlingContext, SelectionState> OnItemInteraction = new(0);
 
         public struct PointerEvent : Events.IContinue
         {
@@ -237,13 +286,16 @@ namespace Zayats.Unity.View
             public PointerEventData Data;
         }
 
-        private static readonly int _Waypoint0 = OnItemInteraction._Waypoint;
+        // This nonsense with waypoints is necessary to keep the count a constant.
+        // If it's readonly static int, it disables some compile time stuff.
+        private const int _Waypoint0 = 0 + InteractionEventSetEventCount;
         public static readonly TypedIdentifier<PointerEvent> OnPointerClick = new(_Waypoint0);
-        public static readonly TypedIdentifier<SelectionState> OnSelectionProgress = new(_Waypoint0 + 1);
-        public static readonly TypedIdentifier<SelectionState> OnSelectionCancelledOrFinalized = new(_Waypoint0 + 2);
-        public static readonly InteractionEventSet<ForcedItemDropHandling> OnForcedItemDrop = new(_Waypoint0 + 3);
-        private static readonly int _Waypoint1 = OnForcedItemDrop._Waypoint;
+        public static readonly InteractionEventSet<SelectionState> OnSelection = new(_Waypoint0 + 1);
 
-        public static readonly int Count = _Waypoint1;
+        private const int _Waypoint1 = (_Waypoint0 + 1) + InteractionEventSetEventCount;
+        public static readonly InteractionEventSet<ForcedItemDropHandling, SelectionState> OnForcedItemDrop = new(_Waypoint1);
+
+        private const int _Waypoint2 = _Waypoint1 + InteractionEventSetEventCount;
+        public const int Count = _Waypoint2;
     }
 }

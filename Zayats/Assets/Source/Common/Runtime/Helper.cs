@@ -164,5 +164,46 @@ namespace Common
             var t = (T[]) ListReflection<T>._ItemsField.GetValue(list);
             return ref t[i];
         }
+
+        // public struct ListSlice<T>
+        // {
+        //     public ListSlice(List<T> list, int start, int count)
+        //     {
+        //         List = list;
+        //         Start = start;
+        //         Count = count;
+        //     }
+        //
+        //     public List<T> List;
+        //     public int Start;
+        //     public int Count;
+        //
+        //     public T this[int index]
+        //     {
+        //         get => List[Start + index];
+        //         set => List[Start + index] = value;
+        //     }
+        // }
+        //
+        // public static ListSlice<T> Slice<T>(this List<T> list, int start, int count)
+        // {
+        //     return new ListSlice<T>(list, start, count);
+        // }
+        //
+        // public static ListSlice<T> Slice<T>(this List<T> list, int start = 0)
+        // {
+        //     return new ListSlice<T>(list, start, list.Count - start);
+        // }
+        //
+        // public static bool Contains<T>(this ListSlice<T> slice, T item) where T : class
+        // {
+        //     for (int i = 0; i < slice.Count; i++)
+        //     {
+        //         if (slice[i] == item)
+        //             return true;
+        //     }
+        //
+        //     return false;
+        // }
     }
 }
