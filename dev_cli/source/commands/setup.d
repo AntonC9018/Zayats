@@ -83,7 +83,16 @@ struct SetupCommand
             // Save it, there's no reason to load it again for this session.
             context._config = nullable(config);
 
-            return nugetRestore(context.unityProjectDirectory, config.fullUnityEditorPath);
+            // We don't do this anymore, since the dlls are added to source control.
+            // The reason is that unity deletes the meta files on first load.
+            // The two solutions would be to manage the nugets on the outside, and then copy the files with a script into unity,
+            // or git reset the meta files after running the nuget method.
+            // But I think it's way simpler to just sibmit the dlls to source control.
+            // This way there's no need for this step, and with git-lfs it's not that bad for the repo size.
+            static if (false)
+                return nugetRestore(context.unityProjectDirectory, config.fullUnityEditorPath);
+
+            return 0;
         }
     }
 }
