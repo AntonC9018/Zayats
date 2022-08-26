@@ -208,6 +208,7 @@ namespace Zayats.Unity.View.Editor
                     {
                         Undo.RegisterCreatedObjectUndo(config, "Setting preview material");
                         config.Materials.Preview = m;
+                        m.SetSurfaceType(SurfaceType.Transparent);
                         EditorUtility.SetDirty(config);
                     }
 
@@ -249,7 +250,7 @@ namespace Zayats.Unity.View.Editor
                     if (collider is MeshCollider meshCollider)
                     {
                         Undo.RegisterCompleteObjectUndo(meshCollider, "change collider properties");
-                        Undo.RegisterCompleteObjectUndo(colliderTransform, "change tranform properties");
+                        Undo.RegisterCompleteObjectUndo(colliderTransform, "change transform properties");
 
                         var (modelTransform, model) = GetOrCreateModel(t);
                         meshCollider.sharedMesh = model.gameObject.GetComponent<MeshFilter>().sharedMesh;
@@ -290,7 +291,7 @@ namespace Zayats.Unity.View.Editor
 
     public static class StringHelper
     {
-        // https://github.com/dotnet/runtime/blob/4f9ae42d861fcb4be2fcd5d3d55d5f227d30e723/src/libraries/Microsoft.IO.Redist/src/Microsoft/IO/StringExtensions.cs#L62-L78
+        // https://github.com/dotnet/runtime/blob/4f9ae42d861fcb4be2fcd5d3d55d5f227d30e723/src/libraries/Microsoft.IO.Redist/src/Microsoft/IO/StringExtensions.cs#L49-L78
         public static unsafe string Concat(ReadOnlySpan<char> str0, ReadOnlySpan<char> str1)
         {
             var result = new string('\0', checked(str0.Length + str1.Length));

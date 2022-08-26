@@ -1679,7 +1679,7 @@ namespace Zayats.Core
         {
             public Stats.Storage Stats;
             public int Index;
-            public ref float Value => ref Stats.StatValues[Index];
+            public readonly ref float Value => ref Stats.StatValues[Index];
         }
 
         public struct IntProxy
@@ -1712,7 +1712,13 @@ namespace Zayats.Core
             };
         }
         public static int Get(this Stats.Storage storage, TypedIdentifier<int> id) => GetProxy(storage, id).Value;
-        public static int Set(this Stats.Storage storage, TypedIdentifier<int> id, int value) => GetProxy(storage, id).Value = value;
+
+        public static void Set(this Stats.Storage storage, TypedIdentifier<int> id, int value)
+        {
+            var a = GetProxy(storage, id);
+            a.Value = value;
+        }
+
         public static float Get(this Stats.Storage storage, TypedIdentifier<float> id) => GetProxy(storage, id).Value;
         public static float Set(this Stats.Storage storage, TypedIdentifier<float> id, float value) => GetProxy(storage, id).Value = value;
 
