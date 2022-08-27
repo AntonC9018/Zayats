@@ -5,7 +5,7 @@
 
 **Zayats** (russian for rabbit) is a board game.
 
-It's your typical roll your dice, then move that many spaces, with special mechanics:
+It's your typical roll your dice, then move that many spaces sort of game with special mechanics:
 - the ability to jump over players;
 - items, which grant different passive effects or add activated abilities;
 - mines that explode and kill you when you step on them;
