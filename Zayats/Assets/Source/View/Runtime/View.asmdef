@@ -4,7 +4,13 @@
     "references": [
         "Zayats.Core",
         "Common",
-        "Unity.TextMeshPro"
+        "Unity.TextMeshPro",
+        "DOTween.Modules",
+        "Common.Unity",
+        "Newtonsoft.Json",
+        "Zayats.Serialization",
+        "UnityEditor.UI",
+        "UnityEngine.UI"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

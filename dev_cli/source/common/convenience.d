@@ -22,6 +22,8 @@ auto execute2(const(char[])[] args, const(char)[] workDir)
     Config config = Config.none;
     size_t maxOutput = size_t.max;
 
+    writeln(escapeShellCommand(args));
+
     return std.process.execute(args, env, config, maxOutput, workDir);
 }
 
@@ -46,4 +48,64 @@ void maybeCreateDirectoriesUntilDirectoryOf(string filePath)
     const parentDirName = dirName(filePath);
     if (!std.file.exists(parentDirName))
         std.file.mkdirRecurse(parentDirName);
+}
+
+void unzip(string zipPath, string outPath)
+{
+    import std.file : read;
+    auto zipBytes = read(zipPath);
+    unzip(zipBytes, outPath);
+}
+
+void unzip(void[] zipBytes, string outPath)
+{
+    import std.zip;
+    import std.file : write, exists, mkdirRecurse;
+    import std.path;
+    auto zip = new ZipArchive(zipBytes);
+    foreach (ArchiveMember m; zip.directory)
+    {
+        const bytes = zip.expand(m);
+        const path = buildPath(outPath, m.name);
+        const folderPath = dirName(path);
+        if (!exists(folderPath))
+            mkdirRecurse(folderPath);
+        write(path, bytes);
+    }
+}
+
+template exe(string a)
+{
+    version (Windows)
+        enum exe = a ~ ".exe";
+    else 
+        enum exe = a;
+}
+
+pragma(inline, true) string exe(string a)
+{
+    version (Windows)
+        return a ~ ".exe";
+    else
+        return a;
+}
+
+pragma(inline, true) string quote(string a)
+{
+    return '"' ~ a ~ '"';
+}
+
+string normalizedAbsolutePath(string s)
+{
+    import std.path;
+    return s.absolutePath.buildNormalizedPath;
+}
+
+pragma(inline, true) string path(string a)
+{
+    import std.string;
+    version (Windows)
+        return a.replace("/", "\\");
+    else
+        return a.replace("\\", "/");
 }

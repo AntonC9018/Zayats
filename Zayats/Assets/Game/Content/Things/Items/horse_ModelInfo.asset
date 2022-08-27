@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 109e01b38bb03b040bd9556c9c8b35f1, type: 3}
+  m_Name: horse_ModelInfo
+  m_EditorClassIdentifier: 
+  AllMaterials:
+  - {fileID: 2100000, guid: 29e79a0664452664daf9a2eae3561307, type: 2}
+  Materials:
+    Values:
+    - {fileID: 2100000, guid: 29e79a0664452664daf9a2eae3561307, type: 2}
+    - {fileID: 2100000, guid: 10cbec20fcfbe054393917534a1568e7, type: 2}
+  MaterialMappings:
+  - MeshRendererIndex: 0
+    MaterialIndex: 0

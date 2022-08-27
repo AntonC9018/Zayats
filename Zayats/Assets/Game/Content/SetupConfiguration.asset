@@ -1,0 +1,51 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5dd06d00da4f79244b070b93bcbe79f1, type: 3}
+  m_Name: SetupConfiguration
+  m_EditorClassIdentifier: 
+  Visual:
+    AnimationSpeed:
+      Values:
+      - 0.5
+      - 0.37
+      - 0.2
+    MovementJumpPower: 1.03
+    ToastTimeout: 2
+    ItemUsabilityColors:
+      Values:
+      - {r: 0, g: 0, b: 0, a: 0}
+      - {r: 1, g: 0.95084643, b: 0, a: 1}
+      - {r: 0.0027144956, g: 0.5754717, b: 0.027960142, a: 1}
+    HighlightEmissionIntensity: 0.4
+  Game:
+    CellPrefab: {fileID: 2967453003653832564, guid: 99d75ff85a1f4f041932dccf892c1f57, type: 3}
+    PrefabsToSpawn:
+      Values:
+      - {fileID: 5244891537468551939, guid: f029241cfaba09642aedc84ad9bcd60e, type: 3}
+      - {fileID: 5535414162906384630, guid: b2f9ca9285be9574384d52a0f6d37de7, type: 3}
+      - {fileID: 8605895771616095990, guid: cefa7f33a9367fa44a604e59d08b3c65, type: 3}
+      - {fileID: 2496883971429701372, guid: c08cc25b4570cba4da3e0067dddd4ee7, type: 3}
+      - {fileID: 4767638029798318955, guid: ef768a7d430eabc4e802a6bfa7280b89, type: 3}
+      - {fileID: 572154711423482554, guid: f75082f1238b4744fa36f2c2b51fe83b, type: 3}
+      - {fileID: 4420304009001216849, guid: 16b5450627b9cc341a7a1c03ed915161, type: 3}
+      - {fileID: 4251137231388668143, guid: 1d7eb54e5d3406947b2101d064ededbb, type: 3}
+      - {fileID: 6272538446848813115, guid: 018bb651ee2f7884493ae15ddbf32162, type: 3}
+      - {fileID: 7617779994967328136, guid: b264283c3c9c4eb4da391c992c35a8da, type: 3}
+      - {fileID: 7617779994967328136, guid: b264283c3c9c4eb4da391c992c35a8da, type: 3}
+    CountsToSpawn:
+      Values: 0200000002000000020000000a00000000000000010000000000000000000000000000000300000003000000
+    ItemCosts:
+      Values: 0000000000000000000000000000000000000000020000000200000002000000010000000200000002000000
+    PlayerCharacterColors:
+    - {r: 1, g: 0, b: 0, a: 1}
+    - {r: 0.07066631, g: 0, b: 1, a: 1}
+    ShopPositions: 0600000007000000

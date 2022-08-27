@@ -1,0 +1,28 @@
+{
+    "name": "Zayats.Unity.View.Editor",
+    "rootNamespace": "Zayats.Unity.View.Editor",
+    "references": [
+        "Zayats.Unity.View",
+        "Zayats.Core",
+        "Common",
+        "Common.Editor",
+        "Unity.TextMeshPro",
+        "Common.Unity",
+        "Unity.RenderPipelines.Universal.Editor",
+        "UnityEditor.UI",
+        "UnityEngine.UI",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,25 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build_kari",
+            "command": "dev",
+            "args": [ "kari", "build" ]
+        },
+        {
+            "label": "run_kari",
+            "command": "dev",
+            "args": [ "kari", "run" ]
+        },
+        {
+            "label": "build_plugins",
+            "command": "dev",
+            "args": [ "kari", "build", "--allPlugins" ]
+        },
+        {
+            "label": "build_serialization_playground",
+            "command": "dotnet",
+            "args": [ "build", "${workspaceFolder}\\Server\\LinkedProjects\\Playground\\Playground.csproj" ]
+        }
+    ]
+}

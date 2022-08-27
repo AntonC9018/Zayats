@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../Common/Common.csproj" />
+    <Compile Include="$(ZayatsUnitySourceFolder)Core\Runtime\**\*.cs" />
+  </ItemGroup>
+
+  <Target Name="DisplayMessages" AfterTargets="Build">
+    <Message Text="$(ZayatsUnitySourceFolder)" Importance="high"/>
+    <Message Text="%(CSFile.FullPath)" Importance="high"/>
+  </Target>
+</Project>

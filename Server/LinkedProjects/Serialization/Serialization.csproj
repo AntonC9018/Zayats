@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference PublicAssets="all" Include="../Common/Common.csproj" />
+    <ProjectReference PublicAssets="all" Include="../Core/Core.csproj" />
+    <Compile Include="$(ZayatsUnitySourceFolder)Core\Serialization\**\*.cs" />
+
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageReference Include="Newtonsoft.Json.Bson" Version="1.0.2" />
+  </ItemGroup>
+</Project>

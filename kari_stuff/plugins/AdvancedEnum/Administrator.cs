@@ -23,7 +23,6 @@ namespace Kari.Plugins.AdvancedEnum
         {
             AdministratorHelpers.Initialize(ref _analyzers);
             var logger = new NamedLogger("AdvancedEnum");
-            AdvancedEnumSymbols.Initialize(logger);
 
             if (!generateUnityThings && advancedEnumCommonUnityProjectName is not null)
                 logger.LogWarning("advancedEnumCommonUnityProjectName should not be defined if generateUnityThings has not been defined.");

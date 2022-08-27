@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  
+  <PropertyGroup>
+    <AssemblyName>Zayats.Exporter</AssemblyName>
+  </PropertyGroup>
+
+  <ImportGroup>
+    <Import Project="$(PluginConfigurationPath)" />
+  </ImportGroup>
+
+</Project>

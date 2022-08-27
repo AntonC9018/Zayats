@@ -14,10 +14,11 @@ namespace Kari.Plugins.AdvancedEnum
         public void CollectSymbols(ProjectEnvironment environment)
         {
             HashSet<int> enumValues = new();
+            var logger = environment.Logger;
 
             foreach (var type in environment.TypesWithAttributes)
             {
-                if (type.TryGetAttribute(AdvancedEnumSymbols.GenerateArrayWrapperAttribute, new(type.Name), out var attribute))
+                if (type.TryGetGenerateArrayWrapperAttribute(environment.Compilation, logger, out var attribute))
                 {
                     var enumMembers = type.GetFields().Where(m => m.Name != "Count").ToArray();
                     if (enumMembers.Length == 0)
@@ -253,6 +254,31 @@ namespace Kari.Plugins.AdvancedEnum
                     b.AppendLine($"public readonly ref T this[int index] => ref Values[index];");
                     b.AppendLine($"public readonly int Length => {numUniqueEnumValues};");
                 }
+
+                b.AppendLine($"public static bool operator==({generatedTypeName}<T> a, {generatedTypeName}<T> b)");
+                b.StartBlock();
+                b.AppendLine("for (int i = 0; i < a.Length; i++)");
+                b.IncreaseIndent();
+                b.AppendLine("if (!a.Values[i].Equals(b.Values[i]))");
+                b.IncreaseIndent();
+                b.AppendLine("return false;");
+                b.DecreaseIndent();
+                b.DecreaseIndent();
+                b.AppendLine("return true;");
+                b.EndBlock();
+
+                b.AppendLine($"public static bool operator!=({generatedTypeName}<T> a, {generatedTypeName}<T> b)");
+                b.StartBlock();
+                b.AppendLine("return !(a == b);");
+                b.EndBlock();
+
+                b.AppendLine($"public void FixSize()");
+                b.StartBlock();
+                b.AppendLine("if (Values is null || Values.Length != Length)");
+                b.IncreaseIndent();
+                b.AppendLine("System.Array.Resize(ref Values, Length);");
+                b.DecreaseIndent();
+                b.EndBlock();
 
                 b.EndBlock();
             }

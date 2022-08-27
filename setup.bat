@@ -1,2 +1,2 @@
-dub build --root dev_cli
-.\build_folder\dev setup
+doskey /macrofile=dosmacros.doskey
+dub run --root dev_cli -- setup

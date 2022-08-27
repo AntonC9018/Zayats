@@ -1,0 +1,15 @@
+# *
+# !.gitignore
+
+# Keep directories and meta files
+# !*/
+# !*.meta
+
+# Keep meta files for the dlls, only they matter.
+# All meta files get deleted on the first load, which is why we need not to ignore the dll.
+# The dll's meta file contains additional configuration, and we don't want it to get deleted.
+# I'm going to keep all contents of the package besides the nupkg and the signature.
+*.nupkg 
+*.nupkg.meta
+*.p7s
+*.p7s.meta

@@ -8,6 +8,7 @@ import common;
 import std.path;
 import std.stdio;
 import std.process : wait;
+import commands.kari;
 
 
 @Command("setup", "Sets up all the stuff in the project")
@@ -21,6 +22,21 @@ struct SetupCommand
 
     int onExecute()
     {
+        {
+            import commands.models : Package, ModelsContext;
+            ModelsContext modelsContext;
+            modelsContext.context = context;
+            modelsContext.onIntermediateExecute();
+
+            Package pack;
+            pack.context = &modelsContext;
+            pack.copyToUnity = true;
+            pack.force = false;
+            int status = pack.onExecute();
+            if (status != 0)
+                return status;
+        }
+
         KariContext kariContext;
         kariContext.context = context;
         kariContext.configuration = kariConfiguration;
@@ -44,198 +60,303 @@ struct SetupCommand
             if (status != 0)
                 return status;
         }
-        
-        return 0;
+        {
+            // do the initial configuration
+            ConfigContext configContext;
+            configContext.context = context;
+            {
+                int status = configContext.onIntermediateExecute();
+                if (status != 0)
+                    return status;
+            }
+            ConfigInitCommand configInit;
+            configInit.context = &configContext;
+            configInit.allowPrompt = true;
+            
+            auto r = configInit.fullyInitializeConfig();
+            if (r.someConfigValuesAreMissing)
+                return 1;
+
+            configContext.saveJSON(r.config);
+            Config config = mapJSON!Config(r.config);
+
+            // Save it, there's no reason to load it again for this session.
+            context._config = nullable(config);
+
+            // We don't do this anymore, since the dlls are added to source control.
+            // The reason is that unity deletes the meta files on first load.
+            // The two solutions would be to manage the nugets on the outside, and then copy the files with a script into unity,
+            // or git reset the meta files after running the nuget method.
+            // But I think it's way simpler to just sibmit the dlls to source control.
+            // This way there's no need for this step, and with git-lfs it's not that bad for the repo size.
+            static if (false)
+                return nugetRestore(context.unityProjectDirectory, config.fullUnityEditorPath);
+
+            return 0;
+        }
     }
 }
 
-// TODO: Maybe should build too?
-@Command("kari", "Deals with the code generator.")
-@(Subcommands!(KariRun, KariBuild))
-struct KariContext
+@Command("config", "Configuration commands")
+@(Subcommands!(ConfigInitCommand))
+struct ConfigContext
+{
+    @ParentCommand
+    Context* context;
+    alias context this;
+    
+    int onIntermediateExecute()
+    {
+        return 0;
+    }
+    
+    void saveJSON(JSONValue[string] config)
+    {
+        import std.json;
+        import std.file : write;
+        bool pretty = true;
+        JSONValue root = JSONValue(config);
+        const jsonString = toJSON(root, pretty);
+        write(configurationPath, jsonString);
+    }
+
+    Nullable!(JSONValue[string]) readJSON()
+    {
+        import std.file : exists, readText;
+        import std.json;
+
+        if (exists(context.configurationPath))
+        {
+            const text = readText(context.configurationPath);
+            auto json = parseJSON(text);
+            return nullable(json.object);
+        }
+        return typeof(return).init;
+    }
+}
+
+struct Config
+{
+    string fullUnityEditorPath;
+}
+
+import std.json : JSONValue;
+
+T mapJSON(T)(JSONValue[string] json)
+{
+    T result;
+    JSONValue* value;
+    static foreach (field; T.tupleof)
+    {
+        value = __traits(identifier, field) in json;
+        if (value)
+            __traits(child, result, field) = value.get!(typeof(field));
+    }
+    return result;
+}
+
+
+
+@Command("init", "Initialize the configuration file, by prompting the user or using the default configuration")
+struct ConfigInitCommand
+{
+    @ParentCommand
+    ConfigContext* context;
+
+    @("Whether to prompt the user for input in the case when a configuration value hasn't been found.")
+    bool allowPrompt = true;
+
+    // TODO: maybe add a "source from file" option.
+
+    int onExecute()
+    {
+        auto r = fullyInitializeConfig();
+        if (r.someConfigValuesAreMissing)
+            return 1;
+        context.saveJSON(r.config);
+        return 0;
+    }
+
+    private static struct Result
+    {
+        JSONValue[string] config;
+        bool someConfigValuesAreMissing;
+    }
+
+    Result fullyInitializeConfig()
+    {
+        import std.json;
+        import std.file;
+        
+        JSONValue[string] config;
+        {
+            auto r = context.readJSON();
+            if (!r.isNull)
+                config = r.get();
+        }
+
+        bool changedAnything = false;
+        bool skippedAnything = false;
+
+        void maybeSetValue(T)(string name, Nullable!T value)
+        {
+            if (value.isNull)
+            {
+                skippedAnything = true;
+            }
+            else
+            {
+                config[name] = JSONValue(value.get());
+                changedAnything = true;
+            }
+        }
+
+        if ("fullUnityEditorPath" !in config)
+        {
+            string projectVersionPath = buildPath(context.unityProjectDirectory, "ProjectSettings", "ProjectVersion.txt");
+            const key = "m_EditorVersion:";
+            import std.algorithm;
+            import std.range;
+            import std.string;
+            auto projectVersion = File(projectVersionPath)
+                .byLine
+                .map!(a => a.stripLeft)
+                .filter!(a => a.startsWith(key))
+                .front
+                .drop(key.length)
+                .strip
+                .idup;
+            context.logger.log("The project unity version is ", projectVersion);
+            
+            // https://support.unity.com/hc/en-us/articles/4402520309908-How-do-I-add-a-version-of-Unity-that-does-not-appear-in-the-Hub-installs-window-
+            static string getDefaultInstallLocation()
+            {
+                version(Windows)
+                    return `C:\Program Files\Unity\Hub\Editor`;
+                else version(linux)
+                    return `~/Unity/Hub/Editor`;
+                else version(OSX)
+                    return `/Applications/Unity/Hub/Editor`;
+                else
+                    return null;
+            }
+
+            string unityEditorName = "Unity".exe;
+
+            Nullable!string getUnityPath()
+            {
+                enum null_ = typeof(return).init;
+
+                string defaultInstallLocation = getDefaultInstallLocation();
+                if (defaultInstallLocation !is null)
+                {
+                    const path = buildPath(defaultInstallLocation, projectVersion, "Editor", unityEditorName);
+                    if (exists(path))
+                        return nullable(path);
+                    writeln("The default path does not include the required Unity Editor version.");
+                }
+
+                // maybe try getting the editor path from the registry on windows?
+
+                if (!allowPrompt)
+                    return null_;
+
+                char[] buffer;
+                while (true)
+                {
+                    writeln("Please enter the path to the Unity Editor executable (type \"skip\" to skip): ");
+
+                    size_t numCharsRead = readln(buffer);
+                    if (numCharsRead == 0)
+                        return null_;
+                    char[] input = buffer[0 .. numCharsRead].strip;
+                    if (input == "skip" || input == "s")
+                        return null_;
+                        
+                    const p = absolutePath(input.idup, context.projectDirectory);
+                    if (!exists(p))
+                    {
+                        writeln("The file or directory ", p, " does not exist.");
+                        continue;
+                    }
+                    
+                    if (isDir(p))
+                    {
+                        const unityPath = buildPath(input, unityEditorName);
+                        if (!exists(unityPath))
+                        {
+                            writeln("The unity executable ", unityPath, " does not exist in directory.");
+                            continue;
+                        }
+                        return nullable(unityPath);
+                    }
+
+                    return nullable(p);
+                }
+            }
+
+            maybeSetValue("fullUnityEditorPath", getUnityPath());
+        }
+
+        return Result(config, skippedAnything);
+    }
+}
+
+@Command("unity", "Stuff related to Unity Editor")
+struct UnityContext
 {
     @ParentCommand
     Context* context;
     alias context this;
 
-    @("The configuration in which Kari was built.")
-    string configuration = "Debug";
-
-    string kariStuffPath;
-    string kariPath;
-
-    void onIntermediateExecute()
+    enum Action
     {
-        kariStuffPath = context.projectDirectory.buildPath("kari_stuff");
-        kariPath = kariStuffPath.buildPath("Kari");
+        none,
+        open,
+        nugetRestore,
     }
-}
-
-
-struct Plugins
-{
-    @disable this();
-    static immutable(string[]) kariInternal = ["Flags"];
-    static immutable(string[]) custom = ["AdvancedEnum"];
-}
-
-
-@Command("run", "Runs Kari.")
-struct KariRun
-{
-    @ParentCommand
-    KariContext* context;
-    
-    @("Extra arguments passed to Kari")
-    @(ArgRaw)
-    string[] rawArgs;
+    @("Which action to execute?")
+    @(ArgConfig.positional)
+    Action action;
 
     int onExecute()
     {
-        // TODO: this path should be provided by the build system or something
-        // msbuild cannot do that afaik, so study the alternatives asap.
-        string kariExecutablePath = buildPath(
-            context.buildDirectory, "bin", "Kari.Generator", context.configuration, "net6.0", "Kari.Generator");
-        version (Windows)
-            kariExecutablePath ~= ".exe";
-
-        string getPluginDllPath(string pluginName, string pluginDllName)
+        switch (action)
         {
-            return buildPath(
-                context.buildDirectory, 
-                "bin", pluginName, context.configuration, "net6.0",
-                pluginDllName);
-        }
-
-        {
-            import std.algorithm;
-            import std.range;
-
-            // TODO: Improve Kari's argument parsing capabilities, or call it directly
-            auto pid = spawnProcess2([
-                    kariExecutablePath,
-                    "-configurationFile", buildPath(context.projectDirectory, context.unityProjectDirectoryName, "kari.json"),
-                    "-pluginPaths", 
-                        chain(
-                            Plugins.kariInternal.map!(p => getPluginDllPath(p, "Kari.Plugins." ~ p ~ ".dll")),
-                            Plugins.custom.map!(p => getPluginDllPath(p, p ~ ".dll")))
-                        .join(","),
-                    "-gitignoreTemplate", `# Code generation is optional for now, so we don't ignore the generated files`
-                ] ~ rawArgs, context.projectDirectory);
-            const status = wait(pid);
-            if (status != 0)
+            default:
+                return 0;
+            case Action.open:
             {
-                writeln("Kari execution failed.");
-                return status;
+                openUnity(context.unityProjectDirectory, context.config.fullUnityEditorPath);
+                return 0;
             }
+            case Action.nugetRestore:
+                return nugetRestore(context.unityProjectDirectory, context.config.fullUnityEditorPath);
         }
-
-        return 0;
     }
 }
 
-
-@Command("build", "Builds Kari.")
-struct KariBuild
+auto openUnity(string unityProjectDirectory, string unityEditorPath)
 {
-    @ParentCommand
-    KariContext* context;
-    
-    @("Whether to build all plugins at once")
-    @(ArgConfig.parseAsFlag)
-    bool allPlugins;
+    import std.array;
+    auto args = staticArray([
+        unityEditorPath,
+        "-projectPath", unityProjectDirectory,
+    ]);
+    return spawnProcess2(args[], unityProjectDirectory);
+}
 
-    @("Plugin names to be built. Can include either internal or external plugin names.")
-    @(ArgConfig.aggregate)
-    string[] plugins;
-
-    int buildPlugins(const string[] customPluginNames, const string[] internalPluginNames)
-    {
-        import std.range;
-        import std.algorithm;
-
-        string customPluginDirectoryPath = buildPath(context.kariStuffPath, "plugins");
-
-        foreach (path; customPluginNames
-            .map!(p => customPluginDirectoryPath.buildPath(p, p ~ ".csproj"))
-            .chain(internalPluginNames
-                .map!(p => context.kariPath.buildPath("source", "Kari.Plugins", p, p ~ ".csproj"))))
-        {
-            import std.process;
-            auto pid = spawnProcess([
-                "dotnet", "build",
-                path,
-                "--configuration", context.configuration,
-                "/p:KariBuildPath=" ~ context.buildDirectory ~ `\`]);
-            const status = wait(pid);
-            if (status != 0)
-            {
-                writeln(path, " Kari plugin build failed.");
-                return status;
-            }
-        }
-        return 0;
-    }
-
-    int onExecute()
-    {
-        import std.algorithm;
-
-        if (allPlugins)
-            return buildPlugins(Plugins.custom, Plugins.kariInternal);
-
-        if (plugins.length == 0)
-            return buildKari();
-
-        auto isPluginBuilt = new bool[plugins.length];
-
-        string[] customPluginsToBuild;
-        foreach (index, p; plugins)
-        {
-            if (Plugins.custom.canFind(p))
-            {
-                customPluginsToBuild ~= p;
-                isPluginBuilt[index] = true;
-            }
-        }
-
-        string[] internalPluginsToBuild;
-        foreach (index, p; plugins)
-        {
-            if (Plugins.kariInternal.canFind(p))
-            {
-                internalPluginsToBuild ~= p;
-                isPluginBuilt[index] = true;
-            }
-        }
-
-        if (!isPluginBuilt.all)
-        {
-            foreach (index, value; isPluginBuilt)
-            {
-                if (value == false)
-                    writeln("Invalid plugin name: ", plugins[index]);
-            }
-            return 1;
-        }
-
-        return buildPlugins(customPluginsToBuild, internalPluginsToBuild);
-    }
-
-    int buildKari()
-    {
-        writeln("Building Kari.");
-        auto pid = spawnProcess2([
-            "dotnet", "build", 
-            "--configuration", context.configuration,
-            "/p:KariBuildPath=" ~ context.buildDirectory ~ `\`],
-            context.kariPath);
-        const status = wait(pid);
-        if (status != 0)
-        {
-            writeln("Kari build failed.");
-            return status;
-        }
-        return status;
-    }
+int nugetRestore(string unityProjectDirectory, string unityEditorPath)
+{
+    import std.array;
+    auto args = staticArray([
+        unityEditorPath,
+        "-quit",
+        "-batchmode",
+        "-projectPath", unityProjectDirectory,
+        "-executeMethod", "NugetForUnity.NugetHelper.Restore",
+    ]);
+    auto unityNugetRestoreProcessID = spawnProcess2(args[], unityProjectDirectory);
+    int status = wait(unityNugetRestoreProcessID);
+    return status;
 }
