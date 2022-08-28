@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
@@ -18,8 +19,8 @@ namespace Zayats.Unity.View
 
     public class PointerEventHelper<T> : MonoBehaviour
     {
-        public int Index;
-        public T Target;
+        [NonSerialized] public int Index;
+        [NonSerialized] public T Target;
 
         public void Initialize(int index, T target)
         {

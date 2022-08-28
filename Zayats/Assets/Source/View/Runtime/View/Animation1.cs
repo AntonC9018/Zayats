@@ -57,7 +57,8 @@ namespace Zayats.Unity.View
                 // autokill is on
                 // t.Kill();
 
-                assert(k == s?.Next);
+                assert(k == s?.Next, "List node has been modified as a result of the complete call. "
+                    + "This means the sequence complete callback got executed after all?");
             }
         }
 
@@ -77,7 +78,7 @@ namespace Zayats.Unity.View
             public readonly Vector3 GetBottom(Vector3 up) => OuterObject.position + GetBottomOffset(up);
         }
 
-        public static VisualInfo GetVisualInfo(Transform outerObject)
+        public static VisualInfo GetVisualInfo(this Transform outerObject)
         {
             var (modelTransform, model) = outerObject.GetObject(ObjectHierarchy.Model);
             var trs = modelTransform.GetLocalTRS();

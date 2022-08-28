@@ -420,7 +420,7 @@ namespace Zayats.Unity.View
                 var itemId = shopItems[i];
                 var item = view.UI.ThingGameObjects[itemId].transform;
                 var position = alignment.GetPositionAtIndex(i, grid);
-                var itemInfo = GetVisualInfo(item);
+                var itemInfo = item.GetVisualInfo();
                 var p = position + itemInfo.GetTopOffset(Vector3.up);
                 var tween = item.DOMove(p, animationSpeed);
                 animationSequence.Insert(0, tween);

@@ -275,7 +275,7 @@ namespace Zayats.Unity.View.Editor
                     else if (collider is BoxCollider boxCollider)
                     {
                         Undo.RegisterCompleteObjectUndo(boxCollider, "change collider properties");
-                        var bounds = ViewLogic.GetVisualInfo(t);
+                        var bounds = t.GetVisualInfo();
                         boxCollider.center = bounds.Center;
                         boxCollider.size = bounds.Size;
                         colliderTransform.ResetLocalPositionRotationScale();

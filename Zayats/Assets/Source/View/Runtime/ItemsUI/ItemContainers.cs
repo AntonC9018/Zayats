@@ -31,8 +31,8 @@ namespace Zayats.Unity.View
             get => _itemCount;
             set
             {
-                // for (int i = value; i < _itemCount; i++)
-                //     _uiHolderInfos[i].OuterObject.SetActive(false);
+                for (int i = value; i < _itemCount; i++)
+                    _uiHolderInfos[i].OuterObject.SetActive(false);
                 _itemCount = value;
             }
         }
@@ -115,14 +115,16 @@ namespace Zayats.Unity.View
 
         private (Vector3 CCenter, float MinRatio, Vector3 CenterOffset, float ZOffset) CalculateOffsets(Transform item, UIHolderInfo holder)
         {
-            var info = ViewLogic.GetVisualInfo(item);
+            // I think this needs to be reworked.
+            // The item should have the info about its desired size specified in some configuration.
+            var info = item.GetVisualInfo();
             var size = info.Size;
             var (ccenter, csize) = holder.ItemFrameTransform.GetWorldSpaceRect();
             var minRatio = Vector2.Scale(csize, size.xy().Inverse()).Min();
             var targetCenterOffset = info.Center * minRatio;
 
             // Must be a child of ItemFrameTransform
-            var offset = - targetCenterOffset;
+            var offset = -targetCenterOffset;
 
             return (ccenter, minRatio, offset, -1f);
         }
@@ -135,6 +137,7 @@ namespace Zayats.Unity.View
             for (int i = 0; i < itemsToStore.Length; i++)
             {
                 var item = itemsToStore[i];
+                // TDOO: Might want to also animate the holder into existence.
                 var holder = MaybeInitializeAt(i);
                 var o = CalculateOffsets(item, holder);
 
@@ -168,26 +171,21 @@ namespace Zayats.Unity.View
                     // 4. Use the item frame positions within the canvas in a custom shader with that texture as input to draw the corresponding items.
                     // 5. Could do it even cooler. Set the camera at the center of the scroll rect's viewport, such that it sees only the viewport's rectangle.
                     //    Render the thing there, then in the custom shader calculate the position within viewport.
-                    item.GetChild(ObjectHierarchy.Model.Id).gameObject.layer = LayerIndex.UI;
+                    item.ChangeLayer(LayerIndex.UI);
 
                     var holder = _uiHolderInfos[i];
                     var o = CalculateOffsets(item, holder);
                     
+                    // move and rescale the centering transform such that the item is visually centered.
                     {
                         var centering = holder.CenteringTransform;
                         item.parent = centering;
                         centering.localPosition = o.CenterOffset;
-
                         centering.localScale = Vector3.one * o.MinRatio;
                         item.localScale = Vector3.one;
                         item.localPosition = Vector3.zero;
                     }
-                    {
-                        var lp = holder.AnimatedTransform.localPosition;
-                        lp.z = o.ZOffset;
-                        holder.AnimatedTransform.localPosition = lp;
-                    }
-
+                    holder.ZOffset = o.ZOffset;
                     holder.OuterObject.SetActive(true);
                 }
                 
