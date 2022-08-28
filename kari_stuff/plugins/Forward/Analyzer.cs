@@ -15,7 +15,7 @@ namespace Kari.Plugins.Forward
     using static SyntaxFactory;
     using static SyntaxHelper;
 
-    public class ForwardAnalyzer : ICollectSymbols
+    public class ForwardAnalyzer : ICollectSymbols, IGenerateSyntax
     {
         private readonly List<ForwardInfo> _infos = new();
         
@@ -451,26 +451,8 @@ namespace Kari.Plugins.Forward
                                 }
                             }
 
-                            VariableDeclaratorSyntax variableDeclarator;
-                            VariableDeclarationSyntax variableDeclaration;
-                            {
-                                variableDeclaration = syntaxReference.GetSyntax() as VariableDeclarationSyntax;
-                                if (variableDeclaration is not null)
-                                {
-                                    if (variableDeclaration.Variables.Count != 0)
-                                    {
-                                        logger.LogWarning($"Multiple declarations are not supported {field.GetLocationInfo()}."
-                                            + "Only the first one will be considered.");
-                                    }
-                                    variableDeclarator = variableDeclaration.Variables[0];
-                                }
-                                else
-                                {
-                                    variableDeclarator = (VariableDeclaratorSyntax) syntaxReference.GetSyntax();
-                                    variableDeclaration = (VariableDeclarationSyntax) variableDeclarator.Parent;
-                                }
-                            }
-                            var fieldDeclaration = (FieldDeclarationSyntax) variableDeclaration.Parent;
+                            var (fieldDeclaration, variableDeclaration, variableDeclarator) =
+                                syntaxReference.GetSyntax().AsFieldSyntaxes();
 
                             // f.m
                             var fieldNameExpression = MemberAccessExpression(

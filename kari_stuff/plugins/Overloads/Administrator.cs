@@ -9,16 +9,16 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Formatting;
 
-namespace Kari.Plugins.Forward
+namespace Kari.Plugins.Overloads
 {
-    public class ForwardAdministrator : IAdministrator
+    public class OverloadsAdministrator : IAdministrator
     {
-        public ForwardAnalyzer[] _analyzers;
+        public OverloadsAnalyzer[] _analyzers;
         
         public void Initialize()
         {
             AdministratorHelpers.Initialize(ref _analyzers);
-            var logger = new NamedLogger("Forward");
+            var logger = new NamedLogger("Overloads");
         }
         
         public Task Collect()
@@ -32,12 +32,13 @@ namespace Kari.Plugins.Forward
 
             AdministratorHelpers.AddCodeString(
                 master.CommonPseudoProject,
-                "ForwardAnnotations.cs", "Forward", DummyForwardAnnotations.Text);
-                
-            var tasks = AdministratorHelpers.GenerateSyntax(_analyzers, "Forward.cs");
+                "OverloadsAnnotations.cs", "Overloads", DummyOverloadsAnnotations.Text);
+
+            var tasks = AdministratorHelpers.GenerateSyntax(_analyzers, "Overloads.cs");
+
             return Task.WhenAll(tasks);
         }
 
-        public string GetAnnotations() => DummyForwardAnnotations.Text;
+        public string GetAnnotations() => DummyOverloadsAnnotations.Text;
     }
 }
