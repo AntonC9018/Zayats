@@ -20,11 +20,6 @@ namespace Zayats.Unity.View
     [Serializable]
     public struct ForcedItemDropHandling
     {
-        public bool InProgress;
-        
-        // Always Game.CurrentPlayerIndex
-        // public int PlayerIndex;
-
         public List<(int Index, int ThingId)> RemovedItems;
         public List<int> SelectedPositions;
 
@@ -47,6 +42,21 @@ namespace Zayats.Unity.View
 
     public static partial class ViewLogic
     {
+        // public readonly struct BuyingStateProxy
+        // {
+        //     public readonly ViewContext View;
+
+        //     public BuyingStateProxy(ViewContext view)
+        //     {
+        //         View = view;
+        //     }
+
+        //     public ref SelectionState Selection => ref View.State.Selection;
+        //     public ref ForcedItemDropHandling Drop => ref View.State.ForcedItemDropHandling;
+        //     public GameContext Game => View.Game;
+        //     public ref Logic.StartPurchaseContext CurrentPurchase => ref View.State.CurrentPurchase;
+        // }
+
         public static void MaybeTryInitiateBuying(this ViewContext view, int shopItemIndex)
         {
             if (view.State.Selection.InProgress)
@@ -83,7 +93,14 @@ namespace Zayats.Unity.View
             ref var drop = ref view.State.ForcedItemDropHandling;
             drop.SelectedPositions.Clear();
             drop.PreviewObjects.Clear();
-            drop.InProgress = true;
+
+            {
+                var unoccupiedCells = view.Game.GetUnoccupiedCellIndices();
+                selection.InteractionKind = SelectionInteractionKind.ForcedItemDrop;                
+                selection.TargetKind = TargetKind.Cell;
+                selection.TargetIndices.Clear();
+                unoccupiedCells.Overwrite(selection.ValidTargets);
+            }
 
             {
                 var result = view.Game.StartBuyingThingFromShop(start, outSpentCoins: drop.RemovedItems);
@@ -104,25 +121,20 @@ namespace Zayats.Unity.View
                 assert(result == RequiresToSpendCoins);
             }
 
-            int targetCellCount = drop.RemovedItems.Count;
-            var unoccupiedCells = view.Game.GetUnoccupiedCellIndices();
-
             assert(!selection.InProgress);
-                
-            selection.TargetKind = TargetKind.Cell;
-            selection.TargetIndices.Clear();
-            unoccupiedCells.Overwrite(selection.ValidTargets);
 
-            int unoccupiedCellCount = selection.ValidTargets.Count;
+
+            int targetCellCount = drop.RemovedItems.Count;
+            int validCellCount = selection.ValidTargets.Count;
 
             // Resolve immediately
-            if (unoccupiedCellCount == drop.RemovedItems.Count)
+            if (validCellCount == drop.RemovedItems.Count)
             {
                 ConfirmBuying(view, ref drop);
                 return true;
             }
 
-            else if (unoccupiedCellCount < drop.RemovedItems.Count)
+            else if (validCellCount < drop.RemovedItems.Count)
             {
                 view.DisplayTip("Not enough empty spaces to drop the spent coins");
                 return false;
@@ -139,7 +151,7 @@ namespace Zayats.Unity.View
 
         public static void PreviewSpawnNextCoin(this ViewContext view, ref ForcedItemDropHandling drop)
         {
-            assert(drop.InProgress);
+            assert(view.State.Selection.InteractionKind == SelectionInteractionKind.ForcedItemDrop);
 
             int coinsPlacedSoFar = drop.SelectedPositions.Count;
             assert(coinsPlacedSoFar < drop.RemovedItems.Count);
@@ -179,7 +191,7 @@ namespace Zayats.Unity.View
             int coinIndex,
             int cellIndex)
         {
-            assert(drop.InProgress);
+            assert(view.State.Selection.InteractionKind == SelectionInteractionKind.ForcedItemDrop);
             assert(drop.PreviewObjects.Count > coinIndex);
 
             var cellInfo = view.GetCellVisualInfo(cellIndex);
@@ -202,7 +214,8 @@ namespace Zayats.Unity.View
             this ViewContext view,
             ref ForcedItemDropHandling drop)
         {
-            assert(drop.InProgress);
+            assert(view.State.Selection.InteractionKind == SelectionInteractionKind.ForcedItemDrop);
+
             var coinIndex = drop.PreviewObjects.Count - 1;
             ref var selection = ref view.State.Selection; 
             var targetIndex = selection.TargetIndices[^1];
@@ -239,7 +252,8 @@ namespace Zayats.Unity.View
             ref ForcedItemDropHandling drop,
             Vector3 position)
         {
-            assert(drop.InProgress);
+            assert(view.State.Selection.InteractionKind == SelectionInteractionKind.ForcedItemDrop);
+
             var index = drop.PreviewObjects.Count - 1;
             var lastCoin = drop.PreviewObjects[index];
             lastCoin.position = position;
@@ -255,7 +269,7 @@ namespace Zayats.Unity.View
 
         public static void CancelPurchase(this ViewContext view, ref ForcedItemDropHandling drop)
         {
-            assert(drop.InProgress);
+            assert(view.State.Selection.InteractionKind == SelectionInteractionKind.ForcedItemDrop);
 
             DestroyPreviewObjects(drop);
 
@@ -263,21 +277,21 @@ namespace Zayats.Unity.View
             view.HandleEvent(ViewEvents.OnForcedItemDrop.Cancelled, ref drop);
             view.HandleEvent(ViewEvents.OnForcedItemDrop.CancelledOrFinalized, ref drop);
 
+            view.ResetSelection();
+
             drop.PreviewObjects.Clear();
             drop.SelectedPositions.Clear();
             drop.RemovedItems.Clear();
-            drop.InProgress = false;
         }
 
         public static void ConfirmCurrentCoinPlacement(this ref ForcedItemDropHandling drop)
         {
-            assert(drop.InProgress);
             assert(drop.SelectedPositions[^1] != -1);
         }
 
         public static bool HaveAllCoinsBeenPlacedBeforePurchase(in SelectionState selection, in ForcedItemDropHandling drop)
         {
-            assert(drop.InProgress);
+            assert(selection.InteractionKind == SelectionInteractionKind.ForcedItemDrop);
             return drop.SelectedPositions.Count == drop.RemovedItems.Count
                 && drop.SelectedPositions[^1] != -1;
         }
@@ -399,32 +413,46 @@ namespace Zayats.Unity.View
                 : speeds.Game);
             tween.OnComplete(() =>
             {
-                thing.ChangeLayer(LayerIndex.RaycastTarget);
+                thing.SetCollisionLayer(LayerIndex.RaycastTarget);
                 thing.parent = view.UI.Static.ShopUI.ShopRoot;
             });
             s.Append(tween);
         }
 
+        public static Vector3 GetVisualPosition(Vector3 gridPosition, Transform item)
+        {
+            var itemInfo = item.GetVisualInfo();
+            var p = gridPosition + itemInfo.GetTopOffset(Vector3.up);
+            return p;
+        }
+
         public static void ArrangeShopItems(this ViewContext view, Sequence animationSequence, float animationSpeed)
         {
             var shopRoot = view.UI.Static.ShopUI.ShopRoot;
-            ref var grid = ref view.State.Shop.Grid;
+            ref var shop = ref view.State.Shop;
 
-            ref var alignment = ref view.State.Shop.Alignment;
             var shopItems = view.Game.State.Shop.Items;
-            if (shopItems.Count > alignment.MaxItemCapacity)
-                alignment = AlignInSquareGrid(grid, shopItems.Count);
-
+            if (shopItems.Count > shop.Alignment.MaxItemCapacity)
+                shop.Alignment = AlignInSquareGrid(shop.Grid, shopItems.Count);
+            
             for (int i = 0; i < shopItems.Count; i++)
             {
                 var itemId = shopItems[i];
-                var item = view.UI.ThingGameObjects[itemId].transform;
-                var position = alignment.GetPositionAtIndex(i, grid);
-                var itemInfo = item.GetVisualInfo();
-                var p = position + itemInfo.GetTopOffset(Vector3.up);
-                var tween = item.DOMove(p, animationSpeed);
+                var position = shop.Alignment.GetPositionAtIndex(i, shop.Grid);
+                var item = view.GetThing(itemId).transform;
+                var visualPosition = GetVisualPosition(position, item);
+                
+                var tween = item.DOMove(visualPosition, animationSpeed);
+                tween.OnComplete(() => item.parent = shopRoot);
+
                 animationSequence.Insert(0, tween);
             }
+
+            animationSequence.AppendCallback(() => 
+            {
+                foreach (var itemId in shopItems)
+                    view.GetThing(itemId).transform.parent = shopRoot;
+            });
         }
     }
 }

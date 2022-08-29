@@ -13,13 +13,21 @@ using Common;
 
 namespace Zayats.Unity.View
 {
+    public enum SelectionInteractionKind
+    {
+        None,
+        Item,
+        ForcedItemDrop,
+    }
+
     [Serializable]
     public struct SelectionState
     {
-        public readonly bool InProgress => TargetKind != TargetKind.None;
+        public readonly bool InProgress => InteractionKind != SelectionInteractionKind.None;
         public readonly int TargetCount => TargetIndices.Count;
         public readonly int ValidTargetCount => ValidTargets.Count;
 
+        public SelectionInteractionKind InteractionKind;
         public TargetKind TargetKind;
         public List<int> ValidTargets;
         public List<int> TargetIndices;
@@ -44,7 +52,7 @@ namespace Zayats.Unity.View
             view.State.HighlightMaterial.Reset();
         }
 
-        public static IEnumerable<Transform> GetObjectsValidForSelection(this ViewContext view, TargetKind targetKind, List<int> validTargets)
+        public static IEnumerable<Transform> GetTargetObjects(this ViewContext view, TargetKind targetKind, IEnumerable<int> validTargets)
         {
             switch (targetKind)
             {
@@ -72,30 +80,35 @@ namespace Zayats.Unity.View
             }
         }
 
-        public static void ChangeLayerOnTargets(IEnumerable<Transform> targets, int layer)
+        public static void SetLayerOnTargets(IEnumerable<Transform> targets, int layer)
         {
             foreach (var t in targets)
-                ChangeLayer(t, layer);
+                SetCollisionLayer(t, layer);
         }
 
-        public static void ChangeLayer(this Transform t, int layer)
+        public static void SetCollisionLayer(this Transform t, int layer)
         {
             t.GetChild(ObjectHierarchy.Collider.Id).gameObject.layer = layer;
         }
 
-        public static void ChangeLayerOnValidTargets(this ViewContext view, TargetKind targetKind, List<int> validTargets, int layer)
+        public static void SetVisualLayer(this Transform t, int layer)
         {
-            ChangeLayerOnTargets(view.GetObjectsValidForSelection(targetKind, validTargets), layer);
+            t.GetChild(ObjectHierarchy.Model.Id).gameObject.layer = layer;
         }
 
-        public static void ChangeLayerOnValidTargetsForRaycasts(this ViewContext view, TargetKind targetKind, List<int> validTargets)
+        public static void SetLayerOnValidTargets(this ViewContext view, TargetKind targetKind, List<int> validTargets, int layer)
         {
-            ChangeLayerOnValidTargets(view, targetKind, validTargets, LayerIndex.RaycastTarget);
+            SetLayerOnTargets(view.GetTargetObjects(targetKind, validTargets), layer);
         }
 
-        public static void ChangeLayerOnValidTargetsToDefault(this ViewContext view, TargetKind targetKind, List<int> validTargets)
+        public static void SetLayerOnValidTargetsForRaycasts(this ViewContext view, TargetKind targetKind, List<int> validTargets)
         {
-            ChangeLayerOnValidTargets(view, targetKind, validTargets, LayerIndex.Default);
+            SetLayerOnValidTargets(view, targetKind, validTargets, LayerIndex.RaycastTarget);
+        }
+
+        public static void SetLayerOnValidTargetsToDefault(this ViewContext view, TargetKind targetKind, List<int> validTargets)
+        {
+            SetLayerOnValidTargets(view, targetKind, validTargets, LayerIndex.Default);
         }
 
         public static Ray GetScreenToPointRay(Vector2 positionOfInteractionOnScreen)
@@ -138,7 +151,7 @@ namespace Zayats.Unity.View
             {
                 var game = view.Game;
                 return game.IsShoppingAvailable(game.State.CurrentPlayerIndex)
-                    ? game.State.Shop.Items.Select(id => view.UI.ThingGameObjects[id]).IndexOf(obj)
+                    ? game.State.Shop.Items.Select(id => view.GetThing(id)).IndexOf(transform)
                     : -1;
             }
 
@@ -149,24 +162,24 @@ namespace Zayats.Unity.View
                 return false;
 
             if (isSelecting)
-                view.AddOrRemoveObjectToSelection(obj);
+                view.AddOrRemoveObjectToSelection(transform);
             else if (shopItemIndex != -1)
                 view.TryInitiateBuying(shopItemIndex);
 
             return true;
         }
 
-        public static IEnumerable<GameObject> GetPlayerObjects(this ViewContext view)
+        public static IEnumerable<Transform> GetPlayerObjects(this ViewContext view)
         {
-            return view.Game.State.Players.Select(p => view.UI.ThingGameObjects[p.ThingId]);
+            return view.Game.State.Players.Select(p => view.GetThing(p.ThingId));
         }
 
-        public static int GetCellIndex(this ViewContext view, GameObject raycastHitObject)
+        public static int GetCellIndex(this ViewContext view, Transform raycastHitObject)
         {
-            return Array.IndexOf(view.UI.VisualCells, raycastHitObject.transform);
+            return Array.IndexOf(view.UI.VisualCells, raycastHitObject);
         }
 
-        public static (int TargetIndex, int Target) GetSelectionTargetInfo(this ViewContext view, GameObject raycastHitObject)
+        public static (int TargetIndex, int Target) GetSelectionTargetInfo(this ViewContext view, Transform raycastHitObject)
         {
             ref var selection = ref view.State.Selection;
             assert(view.State.Selection.InProgress);
@@ -205,7 +218,7 @@ namespace Zayats.Unity.View
             return (targetIndex, target);
         }
 
-        public static void AddOrRemoveObjectToSelection(this ViewContext view, GameObject hitObject)
+        public static void AddOrRemoveObjectToSelection(this ViewContext view, Transform hitObject)
         {
             var (targetIndex, target) = view.GetSelectionTargetInfo(hitObject);
             assert(targetIndex != -1);
@@ -221,6 +234,7 @@ namespace Zayats.Unity.View
 
         public static void ResetSelection(this ViewContext view)
         {
+            view.State.Selection.InteractionKind = SelectionInteractionKind.None;
             view.State.Selection.TargetKind = TargetKind.None;
         }
 

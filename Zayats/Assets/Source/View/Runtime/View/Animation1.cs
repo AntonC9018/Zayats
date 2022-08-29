@@ -95,15 +95,15 @@ namespace Zayats.Unity.View
             };
         }
 
-        public static VisualInfo GetCellVisualInfo(this ViewContext context, int cellIndex)
+        public static VisualInfo GetCellVisualInfo(this ViewContext view, int cellIndex)
         {
-            var cell = context.UI.VisualCells[cellIndex];
+            var cell = view.GetCell(cellIndex);
             return GetVisualInfo(cell);
         }
 
-        public static VisualInfo GetThingVisualInfo(this ViewContext context, int thingIndex)
+        public static VisualInfo GetThingVisualInfo(this ViewContext view, int thingIndex)
         {
-            var thing = context.UI.ThingGameObjects[thingIndex];
+            var thing = view.GetThing(thingIndex);
             return GetVisualInfo(thing.transform);
         }
         
@@ -170,6 +170,16 @@ namespace Zayats.Unity.View
 
                 currentPos += thingInfo.Size.y * up;
             }
+        }
+
+        public static ref Transform GetThing(this ViewContext view, int id)
+        {
+            return ref view.UI.ThingGameObjects[id];
+        }
+
+        public static ref Transform GetCell(this ViewContext view, int cellIndex)
+        {
+            return ref view.UI.VisualCells[cellIndex];
         }
     }
 }

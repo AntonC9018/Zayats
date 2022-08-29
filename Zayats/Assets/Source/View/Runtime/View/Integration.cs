@@ -67,7 +67,7 @@ namespace Zayats.Unity.View
     [Serializable]
     public struct DynamicUI
     {
-        public GameObject[] ThingGameObjects;
+        public Transform[] ThingGameObjects;
         public List<GameObject> ItemBuyButtons;
         public ItemContainers ItemContainers;
     }
@@ -102,7 +102,7 @@ namespace Zayats.Unity.View
         // Since the forward plugin doesn't work with unity references yet, and with generated code,
         // I'm doing this manually here.
         public ItemContainers ItemContainers { readonly get => Dynamic.ItemContainers; set => Dynamic.ItemContainers = value; }
-        public GameObject[] ThingGameObjects { readonly get => Dynamic.ThingGameObjects; set => Dynamic.ThingGameObjects = value; }
+        public Transform[] ThingGameObjects { readonly get => Dynamic.ThingGameObjects; set => Dynamic.ThingGameObjects = value; }
         public List<GameObject> ItemBuyButtons { readonly get => Dynamic.ItemBuyButtons; set => Dynamic.ItemBuyButtons = value; }
         public readonly Transform[] VisualCells { get => Static.VisualCells; }
         public readonly GameplayButtonArray<Button> GameplayButtons { get => Static.GameplayButtons; }
@@ -153,11 +153,11 @@ namespace Zayats.Unity.View
         // meh
         public static GameObject InstantiateThing(this ViewContext view, ThingCreationProxy create, ThingKind thingKind)
         {
-            var obj = GameObject.Instantiate(view.SetupConfiguration.Game.PrefabsToSpawn[(int) thingKind]);
-            view.UI.ThingGameObjects[create.Id] = obj;
+            var obj = GameObject.Instantiate(view.SetupConfiguration.Game.PrefabsToSpawn[thingKind]);
+            view.UI.ThingGameObjects[create.Id] = obj.transform;
 
             {
-                var c = view.SetupConfiguration.Game.ItemCosts.Get(thingKind);
+                var c = view.SetupConfiguration.Game.ItemCosts[thingKind];
                 if (c > 0)
                     create.AddComponent(Components.CurrencyCostId) = c;
             }
@@ -173,18 +173,24 @@ namespace Zayats.Unity.View
         {
             assert(view.State.Selection.InProgress);
 
-            // Might want an enum + switch for this, or an interface.
-            if (view.State.ItemHandling.InProgress)
+            switch (view.State.Selection.InteractionKind)
             {
-                view.CancelHandlingCurrentItemInteraction();
+                default:
+                {
+                    panic("Unimplemented case?");
+                    break;
+                }
+                case SelectionInteractionKind.Item:
+                {
+                    view.CancelHandlingCurrentItemInteraction();
+                    break;
+                }
+                case SelectionInteractionKind.ForcedItemDrop:
+                {
+                    view.CancelPurchase(ref view.State.ForcedItemDropHandling);
+                    break;
+                }
             }
-            else if (view.State.ForcedItemDropHandling.InProgress)
-            {
-                // Note: will need to abstract this more if the item drop gets used elsewhere.
-                view.CancelPurchase(ref view.State.ForcedItemDropHandling);
-            }
-            else panic("Unimplemented?");
-
         }
     }
     

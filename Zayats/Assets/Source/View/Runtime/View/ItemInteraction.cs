@@ -16,7 +16,6 @@ namespace Zayats.Unity.View
     [Serializable]
     public struct ActivatedItemHandling
     {
-        public readonly bool InProgress => ThingId != -1;
         public int Index;
         public int ThingId;
         public Components.ActivatedItem ActivatedItem;
@@ -63,7 +62,7 @@ namespace Zayats.Unity.View
 
         public static bool TryStartHandlingItemInteraction(this ViewContext view, int itemIndex)
         {
-            assert(!view.State.Selection.InProgress);
+            assert(view.State.Selection.InteractionKind == SelectionInteractionKind.Item);
 
             ref var itemH = ref view.State.ItemHandling;
             var items = view.Game.State.CurrentPlayer.Items;
@@ -132,7 +131,7 @@ namespace Zayats.Unity.View
         public static void HighlightObjectsOfSelection(this ViewContext view, in SelectionState selection)
         {
             view.HighlightObjects(
-                view.GetObjectsValidForSelection(selection.TargetKind, selection.ValidTargets));
+                view.GetTargetObjects(selection.TargetKind, selection.ValidTargets));
         }
 
         public static bool MaybeConfirmItemUse(this ViewContext view)
@@ -176,12 +175,11 @@ namespace Zayats.Unity.View
         
         public static void CancelHandlingCurrentItemInteraction(this ViewContext view)
         {
-            ref var itemH = ref view.State.ItemHandling;
-            assert(itemH.InProgress);
+            assert(view.State.Selection.InteractionKind == SelectionInteractionKind.Item);
             
             var context = new ViewEvents.ItemHandlingContext
             {
-                Item = itemH,
+                Item = view.State.ItemHandling,
                 Selection = view.State.Selection,
             };
             view.ResetItemInteraction();

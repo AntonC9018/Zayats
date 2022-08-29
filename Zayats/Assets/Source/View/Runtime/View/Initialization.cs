@@ -577,12 +577,12 @@ namespace Zayats.Unity.View
             _view.GetEventProxy(ViewEvents.OnSelection.Started).Add(
                 static (ViewContext view, ref SelectionState context) =>
                 {
-                    view.ChangeLayerOnValidTargetsForRaycasts(context.TargetKind, context.ValidTargets);
+                    view.SetLayerOnValidTargetsForRaycasts(context.TargetKind, context.ValidTargets);
                 });
             _view.GetEventProxy(ViewEvents.OnSelection.CancelledOrFinalized).Add(
                 static (ViewContext view, ref SelectionState context) =>
                 {
-                    view.ChangeLayerOnValidTargetsToDefault(context.TargetKind, context.ValidTargets);
+                    view.SetLayerOnValidTargetsToDefault(context.TargetKind, context.ValidTargets);
                 });
             _view.GetEventProxy(ViewEvents.OnItemInteraction.CancelledOrFinalized).Add(
                 static (ViewContext view) =>

@@ -1,2 +1,2 @@
-doskey /macrofile=dosmacros.doskey
+loadkeys
 dub run --root dev_cli -- setup

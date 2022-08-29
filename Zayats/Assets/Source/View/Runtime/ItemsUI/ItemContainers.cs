@@ -171,7 +171,7 @@ namespace Zayats.Unity.View
                     // 4. Use the item frame positions within the canvas in a custom shader with that texture as input to draw the corresponding items.
                     // 5. Could do it even cooler. Set the camera at the center of the scroll rect's viewport, such that it sees only the viewport's rectangle.
                     //    Render the thing there, then in the custom shader calculate the position within viewport.
-                    item.ChangeLayer(LayerIndex.UI);
+                    item.SetVisualLayer(LayerIndex.UI);
 
                     var holder = _uiHolderInfos[i];
                     var o = CalculateOffsets(item, holder);
