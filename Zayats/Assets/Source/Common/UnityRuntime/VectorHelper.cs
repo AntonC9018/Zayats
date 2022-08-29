@@ -42,8 +42,8 @@ namespace Common.Unity
             t.GetWorldCorners(_WorldCornersCache);
             var center = (_WorldCornersCache[0] + _WorldCornersCache[2]) * 0.5f;
             var size = new Vector2(
-                x : (_WorldCornersCache[1] - _WorldCornersCache[0]).magnitude,
-                y : (_WorldCornersCache[3] - _WorldCornersCache[0]).magnitude);
+                y : (_WorldCornersCache[1] - _WorldCornersCache[0]).magnitude,
+                x : (_WorldCornersCache[3] - _WorldCornersCache[0]).magnitude);
             return (center, size);
         }
 

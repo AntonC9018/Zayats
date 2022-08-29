@@ -29,7 +29,8 @@ namespace Zayats.Unity.View
     [Serializable]
     public struct ShopUIReferences
     {
-        public Transform ShopRoot;
+        public Transform Root;
+        public Transform Items;
         public CornersArray<Transform> Corners;
     }
 
@@ -356,7 +357,7 @@ namespace Zayats.Unity.View
             }
         }
 
-        public static SquareGridAlignmentInfo AlignInSquareGrid(
+        public static SquareGridAlignmentInfo GetSquareGridAlignment(
             in GridCornersInfo grid,
             int itemCount,
             float gapPercentage = 0.05f)
@@ -381,14 +382,11 @@ namespace Zayats.Unity.View
             return alignment;
         }
 
-        public static Vector3 GetPositionForInventoryItem(
-            in GridCornersInfo grid,
-            ref SquareGridAlignmentInfo alignment,
-            int numItems)
+        public static Vector3 GetVisualPosition(Vector3 gridPosition, Transform item)
         {
-            if (numItems + 1 > alignment.MaxItemCapacity)
-                alignment = AlignInSquareGrid(grid, numItems + 1);
-            return alignment.GetPositionAtIndex(numItems + 1, grid);
+            var itemInfo = item.GetVisualInfo();
+            var p = gridPosition + itemInfo.GetTopOffset(Vector3.up);
+            return p;
         }
 
         public static void OnItemAddedToShop(this ViewContext view, ref GameEvents.ThingAddedToShopContext context)
@@ -398,42 +396,48 @@ namespace Zayats.Unity.View
 
         public static void OnItemAddedToShop(this ViewContext view, ref ShopState shop, in GameEvents.ThingAddedToShopContext context)
         {
-            int thingId = context.ThingId;
-            
-            var thing = view.UI.ThingGameObjects[thingId].transform;
-            ref var grid = ref shop.Grid;
-            ref var alignment = ref shop.Alignment;
+            var thing = view.GetThing(context.ThingId);
+            var itemsContainer = view.UI.Static.ShopUI.Items;
 
-            var s = view.MaybeBeginAnimationEpoch();
-            var position = GetPositionForInventoryItem(grid, ref alignment, view.Game.State.Shop.Items.Count);
             var speeds = view.Visual.AnimationSpeed;
-            var tween = thing.DOMove(position,
-                duration: context.Reason.Id == Reasons.PlacementId
+            var animationSpeed = context.Reason.Id == Reasons.PlacementId
                 ? speeds.InitialThingSpawning
-                : speeds.Game);
-            tween.OnComplete(() =>
-            {
-                thing.SetCollisionLayer(LayerIndex.RaycastTarget);
-                thing.parent = view.UI.Static.ShopUI.ShopRoot;
-            });
-            s.Append(tween);
-        }
+                : speeds.Game;
 
-        public static Vector3 GetVisualPosition(Vector3 gridPosition, Transform item)
-        {
-            var itemInfo = item.GetVisualInfo();
-            var p = gridPosition + itemInfo.GetTopOffset(Vector3.up);
-            return p;
+            var sequence = view.MaybeBeginAnimationEpoch();
+            int numItems = view.Game.State.Shop.Items.Count;
+
+            if (numItems > shop.Alignment.MaxItemCapacity)
+            {
+                shop.Alignment = GetSquareGridAlignment(shop.Grid, numItems);
+                for (int i = 0; i < numItems - 1; i++)
+                    AnimatePosition(itemsContainer.GetChild(i), i, ref shop);
+            }
+            AnimatePosition(thing, numItems - 1, ref shop);
+            
+            void AnimatePosition(Transform t, int i, ref ShopState shop)
+            {
+                var position = shop.Alignment.GetPositionAtIndex(i, shop.Grid);
+                var visualPosition = GetVisualPosition(position, thing);
+                var tween = thing.DOMove(position, duration: animationSpeed);
+                tween.OnComplete(() =>
+                {
+                    thing.SetCollisionLayer(LayerIndex.RaycastTarget);
+                    thing.parent = itemsContainer;
+                    thing.position = position;
+                });
+                sequence.Join(tween);
+            }
         }
 
         public static void ArrangeShopItems(this ViewContext view, Sequence animationSequence, float animationSpeed)
         {
-            var shopRoot = view.UI.Static.ShopUI.ShopRoot;
+            var itemContainer = view.UI.Static.ShopUI.Items;
             ref var shop = ref view.State.Shop;
 
             var shopItems = view.Game.State.Shop.Items;
             if (shopItems.Count > shop.Alignment.MaxItemCapacity)
-                shop.Alignment = AlignInSquareGrid(shop.Grid, shopItems.Count);
+                shop.Alignment = GetSquareGridAlignment(shop.Grid, shopItems.Count);
             
             for (int i = 0; i < shopItems.Count; i++)
             {
@@ -443,7 +447,7 @@ namespace Zayats.Unity.View
                 var visualPosition = GetVisualPosition(position, item);
                 
                 var tween = item.DOMove(visualPosition, animationSpeed);
-                tween.OnComplete(() => item.parent = shopRoot);
+                tween.OnComplete(() => item.parent = itemContainer);
 
                 animationSequence.Insert(0, tween);
             }
@@ -451,7 +455,7 @@ namespace Zayats.Unity.View
             animationSequence.AppendCallback(() => 
             {
                 foreach (var itemId in shopItems)
-                    view.GetThing(itemId).transform.parent = shopRoot;
+                    view.GetThing(itemId).transform.parent = itemContainer;
             });
         }
     }

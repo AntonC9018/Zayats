@@ -60,7 +60,6 @@ namespace Zayats.Unity.View
 
     public class Initialization : MonoBehaviour
     {
-
         [SerializeField] private UIReferences _ui;
         [SerializeField] private SetupConfiguration _config;
         
@@ -593,12 +592,12 @@ namespace Zayats.Unity.View
                 {
                     view.SetLayerOnValidTargetsToDefault(context.TargetKind, context.ValidTargets);
                 });
-            _view.GetEventProxy(ViewEvents.OnItemInteraction.CancelledOrFinalized).Add(
-                static (ViewContext view) =>
-                {
-                    view.State.Selection.TargetKind = TargetKind.None;
-                    view.State.ItemHandling.ThingId = -1;
-                });
+            // _view.GetEventProxy(ViewEvents.OnItemInteraction.CancelledOrFinalized).Add(
+            //     static (ViewContext view) =>
+            //     {
+            //         view.State.Selection.TargetKind = TargetKind.None;
+            //         view.State.ItemHandling.ThingId = -1;
+            //     });
 
             GetComponent<AnimationStart>().Initialize(_view);
         }

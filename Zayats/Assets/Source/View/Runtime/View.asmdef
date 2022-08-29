@@ -10,7 +10,8 @@
         "Newtonsoft.Json",
         "Zayats.Serialization",
         "UnityEditor.UI",
-        "UnityEngine.UI"
+        "UnityEngine.UI",
+        "Unity.RenderPipelines.Universal.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

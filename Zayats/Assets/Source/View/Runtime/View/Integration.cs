@@ -70,6 +70,8 @@ namespace Zayats.Unity.View
         public Transform[] ThingGameObjects;
         public List<GameObject> ItemBuyButtons;
         public ItemContainers ItemContainers;
+        public OverlayTextureManager OverlayTextureManager;
+        public CanvasResolutionService ResolutionService;
     }
 
     [Serializable]
@@ -91,6 +93,8 @@ namespace Zayats.Unity.View
         public GameObject ScreenOverlayObject;
         public ItemScrollUIReferences ItemScrollUI;
         public ShopUIReferences ShopUI;
+        public Overlay3DContext Overlay3D;
+        public Canvas OverlayCanvas;
     }
 
     [Serializable]
@@ -102,6 +106,8 @@ namespace Zayats.Unity.View
         // Since the forward plugin doesn't work with unity references yet, and with generated code,
         // I'm doing this manually here.
         public ItemContainers ItemContainers { readonly get => Dynamic.ItemContainers; set => Dynamic.ItemContainers = value; }
+        public CanvasResolutionService ResolutionService { readonly get => Dynamic.ResolutionService; set => Dynamic.ResolutionService = value; }
+        public OverlayTextureManager OverlayTextureManager { readonly get => Dynamic.OverlayTextureManager; set => Dynamic.OverlayTextureManager = value; }
         public Transform[] ThingGameObjects { readonly get => Dynamic.ThingGameObjects; set => Dynamic.ThingGameObjects = value; }
         public List<GameObject> ItemBuyButtons { readonly get => Dynamic.ItemBuyButtons; set => Dynamic.ItemBuyButtons = value; }
         public readonly Transform[] VisualCells { get => Static.VisualCells; }
@@ -133,8 +139,14 @@ namespace Zayats.Unity.View
                 Events = ViewEvents.CreateStorage(),
             };
 
+            var resolutionService = ui.OverlayCanvas.gameObject.AddComponent<CanvasResolutionService>();
+            resolutionService.Initialize(ui.OverlayCanvas);
+            view.UI.ResolutionService = resolutionService;
+
             view.UI.ItemBuyButtons = new List<GameObject>();
-            view.UI.ItemContainers = new ItemContainers(view, ui.ItemScrollUI);
+            view.UI.ItemContainers = new ItemContainers(view, ui.ItemScrollUI, resolutionService);
+            view.UI.OverlayTextureManager = new OverlayTextureManager(ui.Overlay3D, resolutionService);
+
             view.State.HighlightMaterial = BatchedMaterialBlock.Create();
             view.State.Selection.ValidTargets = new List<int>();
             view.State.Selection.TargetIndices = new List<int>();
@@ -146,7 +158,6 @@ namespace Zayats.Unity.View
             view.State.Shop.Grid = GetGridInfoForCorners(view.UI.Static.ShopUI.Corners);
             view.State.ItemHandling.ThingId = -1;
             
-
             return view;
         }
 

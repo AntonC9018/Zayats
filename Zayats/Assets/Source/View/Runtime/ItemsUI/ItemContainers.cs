@@ -33,6 +33,7 @@ namespace Zayats.Unity.View
             {
                 for (int i = value; i < _itemCount; i++)
                     _uiHolderInfos[i].OuterObject.SetActive(false);
+
                 _itemCount = value;
             }
         }
@@ -41,15 +42,18 @@ namespace Zayats.Unity.View
         private int _currentlyHoveredItem;
         private ViewContext _viewContext;
         private ItemScrollUIReferences _ui;
+        private IResolutionService _resolution;
         
         // private List<Tween> _rotationTweens;
         // private List<Tween> _usableGraphicFade;
         // private GameObject _buttonOverlay;
         // private Action<int> _overlayButtonClickedAction;
+        public const float ItemZOffset = -5.0f;
 
         public ItemContainers(
             ViewContext viewContext,
-            ItemScrollUIReferences ui
+            ItemScrollUIReferences ui,
+            IResolutionService resolution
                 // , ButtonOverlay buttonOverlay, Action<int> overlayButtonClickedAction
         )
         {
@@ -59,6 +63,15 @@ namespace Zayats.Unity.View
             _viewContext = viewContext;
             _uiHolderInfos = new();
 
+            resolution.OnResolutionChanged += (Vector2Int newResolution) =>
+            {
+                for (int i = 0; i < ItemCount; i++)
+                {
+                    var holder = _uiHolderInfos[i];
+                    if (holder.HasStoredItem)
+                        ResetOffsetsOfHolder(holder.StoredItem, holder);
+                }
+            };
             // viewContext.GetEventProxy(ViewEvents.OnItemInteraction.Cancelled)
 
             // _buttonOverlay = buttonOverlay.OuterObject;
@@ -71,6 +84,7 @@ namespace Zayats.Unity.View
             if (_uiHolderInfos.Count <= i)
             {
                 holder = GameObject.Instantiate(_ui.HolderPrefab);
+                holder.name = "item_holder_" + i;
                 {
                     var handler = holder.ItemFrameObject.AddComponent<PointerEnter>();
                     handler.Initialize(i, this);
@@ -84,6 +98,7 @@ namespace Zayats.Unity.View
                     handler.Initialize(i, this);
                 }
                 _uiHolderInfos.Add(holder);
+
                 holder.OuterObject.SetActive(false);
                 holder.OuterTransform.SetParent(parent: _ui.ScrollRect.content, worldPositionStays: false);
                 
@@ -113,7 +128,7 @@ namespace Zayats.Unity.View
         private static readonly Vector3[] _WorldCornersCache = new Vector3[4];
         private static readonly List<Transform> _GetChildrenCache = new();
 
-        private (Vector3 CCenter, float MinRatio, Vector3 CenterOffset, float ZOffset) CalculateOffsets(Transform item, UIHolderInfo holder)
+        private (Vector3 CCenter, float MinRatio, Vector3 CenterOffset) CalculateOffsets(Transform item, UIHolderInfo holder)
         {
             // I think this needs to be reworked.
             // The item should have the info about its desired size specified in some configuration.
@@ -126,7 +141,21 @@ namespace Zayats.Unity.View
             // Must be a child of ItemFrameTransform
             var offset = -targetCenterOffset;
 
-            return (ccenter, minRatio, offset, -1f);
+            return (ccenter, minRatio, offset);
+        }
+
+        private void ResetOffsetsOfHolder(Transform item, UIHolderInfo holder)
+        {
+            var o = CalculateOffsets(item, holder);
+                    
+            // move and rescale the centering transform such that the item is visually centered.
+            holder.ItemSize = o.MinRatio;
+            var centering = holder.CenteringTransform;
+            centering.localPosition = o.CenterOffset;
+            centering.localScale = Vector3.one * o.MinRatio;
+
+            var (center, size) = holder.ItemFrameTransform.GetWorldSpaceRect();
+            holder.AnimatedTransform.localPosition = new Vector3(center.x, center.y, ItemZOffset);
         }
 
         public void ChangeItems(
@@ -137,14 +166,14 @@ namespace Zayats.Unity.View
             for (int i = 0; i < itemsToStore.Length; i++)
             {
                 var item = itemsToStore[i];
-                // TDOO: Might want to also animate the holder into existence.
+                // TODO: Might want to also animate the holder into existence.
                 var holder = MaybeInitializeAt(i);
                 var o = CalculateOffsets(item, holder);
 
                 var ct = holder.CenteringTransform;
                 {
                     var t = o.CCenter + o.CenterOffset;
-                    t.z += o.ZOffset;
+                    t.z += ItemZOffset;
                     var tween = item.DOMove(t, animationSpeed);
                     animationSequence.Join(tween);
                 }
@@ -171,21 +200,17 @@ namespace Zayats.Unity.View
                     // 4. Use the item frame positions within the canvas in a custom shader with that texture as input to draw the corresponding items.
                     // 5. Could do it even cooler. Set the camera at the center of the scroll rect's viewport, such that it sees only the viewport's rectangle.
                     //    Render the thing there, then in the custom shader calculate the position within viewport.
-                    item.SetVisualLayer(LayerIndex.UI);
+                    item.SetVisualLayer(LayerIndex.Overlay3D);
 
                     var holder = _uiHolderInfos[i];
-                    var o = CalculateOffsets(item, holder);
+                    ResetOffsetsOfHolder(item, holder);
                     
                     // move and rescale the centering transform such that the item is visually centered.
-                    {
-                        var centering = holder.CenteringTransform;
-                        item.parent = centering;
-                        centering.localPosition = o.CenterOffset;
-                        centering.localScale = Vector3.one * o.MinRatio;
-                        item.localScale = Vector3.one;
-                        item.localPosition = Vector3.zero;
-                    }
-                    holder.ZOffset = o.ZOffset;
+                    var centering = holder.CenteringTransform;
+                    item.parent = centering;
+                    item.localScale = Vector3.one;
+                    item.localPosition = Vector3.zero;
+
                     holder.OuterObject.SetActive(true);
                 }
                 
@@ -236,7 +261,7 @@ namespace Zayats.Unity.View
 
                 for (int i = itemIndex + 1; i < _itemCount; i++)
                     _uiHolderInfos[i - 1].AnimatedTransform = _uiHolderInfos[i].AnimatedTransform;
-                    
+                
                 last.OuterObject.SetActive(false);
 
                 last.AnimatedTransform = ft;

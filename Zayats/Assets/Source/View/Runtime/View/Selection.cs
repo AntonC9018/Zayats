@@ -57,6 +57,9 @@ namespace Zayats.Unity.View
             switch (targetKind)
             {
                 default: panic($"Unimplemented case: {targetKind}"); return null;
+                
+                case TargetKind.None:
+                    return Enumerable.Empty<Transform>();
 
                 case TargetKind.Cell:
                 {

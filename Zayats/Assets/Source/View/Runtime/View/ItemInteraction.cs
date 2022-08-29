@@ -62,7 +62,7 @@ namespace Zayats.Unity.View
 
         public static bool TryStartHandlingItemInteraction(this ViewContext view, int itemIndex)
         {
-            assert(view.State.Selection.InteractionKind == SelectionInteractionKind.Item);
+            assert(view.State.Selection.InteractionKind == SelectionInteractionKind.None);
 
             ref var itemH = ref view.State.ItemHandling;
             var items = view.Game.State.CurrentPlayer.Items;
@@ -78,6 +78,7 @@ namespace Zayats.Unity.View
             var targetKind = filter.Kind;
 
             ref var selection = ref view.State.Selection;
+            selection.InteractionKind = SelectionInteractionKind.Item;
             selection.TargetKind = targetKind;
             selection.TargetIndices.Clear();
             selection.ValidTargets.Clear();
@@ -146,6 +147,7 @@ namespace Zayats.Unity.View
 
         public static void CancelOrFinalizeItemInteraction(this ViewContext view, ref ViewEvents.ItemHandlingContext context)
         {
+            assert(context.Selection.InteractionKind != SelectionInteractionKind.None);
             view.HandleEvent(ViewEvents.OnItemInteraction.CancelledOrFinalized, ref context);
             view.CancelOrFinalizeSelection(ref context.Selection);
         }

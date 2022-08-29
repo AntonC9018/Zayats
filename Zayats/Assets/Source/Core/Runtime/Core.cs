@@ -802,11 +802,12 @@ namespace Zayats.Core
             if (shouldRemove)
             {
                 int itemId = context.Interaction.ThingId;
-                ref var player = ref game.State.Players[context.Interaction.PlayerIndex];
+                int playerIndex = context.Interaction.PlayerIndex;
+                ref var player = ref game.State.Players[playerIndex];
                 int newItemIndex = player.Items.IndexOf(itemId);
                 if (newItemIndex != -1)
                 {
-                    player.Items.RemoveAt(itemId);
+                    game.RemoveItemFromInventory_AtIndex(playerIndex, newItemIndex);
                     game.AddThingToShop(new()
                     {
                         ThingId = itemId,
