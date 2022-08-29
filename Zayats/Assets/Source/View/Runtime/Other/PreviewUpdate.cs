@@ -28,7 +28,8 @@ namespace Zayats.Unity.View
             }
 
             ref var drop = ref _view.State.ForcedItemDropHandling; 
-            assert(drop.InProgress, "Should have been deactivated.");
+            assert(_view.State.Selection.InteractionKind == SelectionInteractionKind.ForcedItemDrop,
+                "Should have been deactivated.");
             
             // - try raycast cell
             // If there is a cell under selection, then it's already been raycasted and the position
@@ -42,10 +43,10 @@ namespace Zayats.Unity.View
                 var r = ViewLogic.RaycastRaycastable(ray);
                 // Pointing at a cell
                 if (r.HasValue)
-                {
+            {
                     assert(_view.State.Selection.TargetKind == TargetKind.Cell);
                     
-                    var cellIndex = _view.GetCellIndex(r.Value.GameObject);
+                    var cellIndex = _view.GetCellIndex(r.Value.Transform);
                     if (_view.TrySetLastCoinPositionToCell(ref drop, cellIndex))
                         return;
                 }

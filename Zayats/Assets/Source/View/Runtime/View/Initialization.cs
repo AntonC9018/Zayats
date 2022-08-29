@@ -529,15 +529,24 @@ namespace Zayats.Unity.View
             _view.GetEventProxy(ViewEvents.OnSelection.Progress).Add(
                 static (ViewContext view, ref SelectionState state) =>
                 {
-                    assert(view.State.ItemHandling.InProgress
-                            || view.State.ForcedItemDropHandling.InProgress);
-                    
-                    if (view.State.ItemHandling.InProgress)
-                        view.HandleEvent(ViewEvents.OnItemInteraction.Progress, ref state);
-                    else if (view.State.ForcedItemDropHandling.InProgress)
-                        view.HandleEvent(ViewEvents.OnForcedItemDrop.Progress, ref state);
-                    else
-                        panic("Unhandled progress option");
+                    switch (state.InteractionKind)
+                    {
+                        default:
+                        {
+                            panic("Unhandled progress option");
+                            break;
+                        }
+                        case SelectionInteractionKind.Item:
+                        {
+                            view.HandleEvent(ViewEvents.OnItemInteraction.Progress, ref state);
+                            break;
+                        }
+                        case SelectionInteractionKind.ForcedItemDrop:
+                        {
+                            view.HandleEvent(ViewEvents.OnForcedItemDrop.Progress, ref state);
+                            break;
+                        }
+                    }
                 });
             _view.GetEventProxy(ViewEvents.OnItemInteraction.Progress).Add(
                 static (ViewContext view, ref SelectionState state) =>
