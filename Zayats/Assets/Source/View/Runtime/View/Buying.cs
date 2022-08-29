@@ -419,12 +419,11 @@ namespace Zayats.Unity.View
             {
                 var position = shop.Alignment.GetPositionAtIndex(i, shop.Grid);
                 var visualPosition = GetVisualPosition(position, thing);
-                var tween = thing.DOMove(position, duration: animationSpeed);
+                var tween = thing.DOMove(visualPosition, duration: animationSpeed);
                 tween.OnComplete(() =>
                 {
                     thing.SetCollisionLayer(LayerIndex.RaycastTarget);
                     thing.parent = itemsContainer;
-                    thing.position = position;
                 });
                 sequence.Join(tween);
             }
