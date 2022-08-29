@@ -68,5 +68,39 @@ namespace Common.Unity
             t.localPosition = Vector3.zero;
             t.localRotation = Quaternion.identity;
         }
+
+        public static Vector2Int FloorToInt(this Vector2 v)
+        {
+            return new Vector2Int((int) v.x, (int) v.y);
+        }
+
+        public static Vector2Int RoundUpToPowersOf2(this Vector2Int v)
+        {
+            static uint RoundUpToPowerOf2(uint a)
+            {
+                if (a == 0)
+                    return 0;
+
+                uint msb = unchecked((uint) 1 << (sizeof(uint) * 8 - 1));
+
+                // Go throught all 32 bits from end to start.
+                // We know we'll find at least one bit, so we can ignore the stop condition.
+                for (uint i = msb;; i >>= 1)
+                {
+                    if ((a & i) != 0)
+                    {
+                        // i is the only set bit.
+                        if (a == i)
+                            return i;
+
+                        // highest set bit * 2
+                        return unchecked(i << 1);
+                    }
+                }
+            }
+            return new Vector2Int(
+                (int) RoundUpToPowerOf2((uint) v.x),
+                (int) RoundUpToPowerOf2((uint) v.y));
+        }
     }
 }
