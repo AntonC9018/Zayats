@@ -2,7 +2,7 @@
 	"name": "dev_cli",
     "dependencies": {
         "jcli": { "path": "./third_party/jcli" },
-        "acd-versions": "~>1.0.3"
+        "acd-versions": "~>1.0.4"
     },
     "workingDirectory": "..",
     "targetPath": "../build_folder/dev_cli",

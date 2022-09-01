@@ -161,7 +161,7 @@ namespace Zayats.Unity.View
             view.Game.UseItem(new()
             {
                 Interaction = view.Game.GetItemInteractionContextForCurrentPlayer(itemH.Index),
-                Item = view.Game.GetComponentProxy(Components.ActivatedItemId, itemH.ThingId),
+                // Item = view.Game.GetComponentProxy(Components.ActivatedItemId, itemH.ThingId),
                 SelectedTargets = selection.TargetIndices.Select(i => validTargets[i]).ToArray(),
             });
 

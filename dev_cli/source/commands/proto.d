@@ -10,16 +10,10 @@ import std.path;
 import std.stdio;
 import std.process : wait;
 import std.file : exists, mkdir, mkdirRecurse;
-import std.net.curl;
 
 import acd.versions;
 mixin Versions;
 
-enum DownloadToolOption
-{
-    libcurl_dll,
-    curl,
-}
 
 @Command("protoc", "Protobuf compiler.")
 struct ProtoContext
@@ -34,35 +28,11 @@ struct ProtoContext
     @ArgRaw
     string[] protocArgs;
 
-    @("What to do http requests with")
-    auto dowloadTool = DownloadToolOption.curl;
-
     @("Download the proto tool again even if it already exists")
     bool force;
 
     string protocExecutablePath;
     string protocGRPCPluginPath;
-
-    private bool download(string url, string outputPath)
-    {
-        if (dowloadTool == DownloadToolOption.curl)
-        {
-            import common.tools;
-            Curl c = curlTool();
-            c.url = url;
-            c.followRedirects = true;
-            c.outputFile = outputPath;
-            if (startProcess(c).wait != 0)
-                return false;
-        }
-        else
-        {
-            try .download(url, outputPath);
-            catch (Exception e)
-                return false;
-        }
-        return true;
-    }
 
     int onExecute()
     {
@@ -84,7 +54,7 @@ struct ProtoContext
             const toolsVersion = "2.48.0";
             const toolsURL = "https://www.nuget.org/api/v2/package/Grpc.Tools/" ~ toolsVersion;
             string archivePath = buildPath(context.tempDirectory, "protoc.zip");
-            download(toolsURL, archivePath);
+            context.download(toolsURL, archivePath);
 
             import std.file : read;
             import std.zip;
@@ -117,24 +87,7 @@ struct ProtoContext
             }
 
             string folder = "tools/" ~ getFolderName() ~ "/";
-            bool isError;
-            foreach (name; protocFileNames)
-            {
-                auto member = (folder ~ name) in zip.directory;
-                if (!member)
-                {
-                    context.logger.error("The member ", folder, name, " not found in the archive?");
-                    isError = true;
-                    continue;
-                }
-                const bytes = zip.expand(*member);
-
-                import std.file : write;
-                auto pathToFile = chainPath(protocPath, name);
-                write(pathToFile, bytes);
-            }
-
-            if (isError)
+            if (!unpackFiles(context.logger, zip, folder, protocFileNames, protocPath))
                 return 1;
         }
 

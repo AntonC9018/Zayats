@@ -7,8 +7,16 @@ import std.stdio;
 import commands.setup;
 import commands.models : ModelsContext;
 import commands.kari : KariContext;
+import commands.nuget : NugetContext;
 import commands.proto;
 import common;
+
+enum DownloadToolOption
+{
+    curl,
+    libcurl_dll,
+}
+
 
 @CommandDefault("The context common to all subcommands.")
 @(Subcommands!(
@@ -17,7 +25,8 @@ import common;
     ModelsContext,
     ConfigContext,
     UnityContext,
-    ProtoContext))
+    ProtoContext,
+    NugetContext))
 struct Context
 {
     @(ArgConfig.optional)
@@ -39,6 +48,9 @@ struct Context
         
         @("Path to the configuration file, created locally for each machine.")
         string configurationPath;
+
+        @("What to do http requests with")
+        auto dowloadTool = DownloadToolOption.curl;
     }
 
     string unityProjectDirectory;
@@ -85,7 +97,7 @@ struct Context
         else
             projectDirectory = normalizedAbsolutePath(projectDirectory);
 
-        unityProjectDirectory = projectDirectory.buildPath(unityProjectDirectoryName);
+        unityProjectDirectory = buildNormalizedPath(absolutePath(projectDirectory), unityProjectDirectoryName);
         if (!exists(unityProjectDirectory))
         {
             logger.error("Please run the tool in the root directory of the project, or specify it as an argument.");
@@ -94,7 +106,7 @@ struct Context
 
         void normalizeAndCreate(ref string p, string name)
         {
-            p = absolutePath(p);
+            p = normalizedAbsolutePath(p);
             if (!exists(p))
             {
                 mkdir(p);
@@ -108,11 +120,11 @@ struct Context
 
         {
             if (configurationPath == "")
-                configurationPath = buildPath(buildDirectory, "local_config.json");
+                configurationPath = buildNormalizedPath(buildDirectory, "local_config.json");
             else if (!isAbsolute(configurationPath))
             {
                 configurationPath = setExtension(configurationPath, ".json");
-                configurationPath = buildPath(buildDirectory, configurationPath);
+                configurationPath = buildNormalizedPath(buildDirectory, configurationPath);
             }
             
             import std.file : exists, isDir;
@@ -127,5 +139,29 @@ struct Context
         }
 
         return errorCount;
+    }
+
+    bool download(string url, string outputPath)
+    {
+        if (dowloadTool == DownloadToolOption.curl)
+        {
+            import common.tools;
+            import std.process : wait;
+
+            Curl c = curlTool();
+            c.url = url;
+            c.followRedirects = true;
+            c.outputFile = outputPath;
+            if (startProcess(c).wait != 0)
+                return false;
+        }
+        else
+        {
+            import std.net.curl : download;
+            try download(url, outputPath);
+            catch (Exception e)
+                return false;
+        }
+        return true;
     }
 }

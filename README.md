@@ -81,3 +81,8 @@ Any fields marked with attributes are valid arguments to the commands.
 
 I'll add more commands in the future, as I see fit.
 Perhaps there will be a build command for the game, a publish command for a git release, etc.
+
+
+### How to open files in VSCode when double-clicking
+
+*File -> Edit -> Preferences -> External Tools -> Editor Script Editor Args*, change the string to `"$(ProjectPath)/.." --reuse-window --goto "$(File)":$(Line):$(Column)`.

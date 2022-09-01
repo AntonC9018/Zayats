@@ -1,7 +1,7 @@
 {
 	"fileVersion": 1,
 	"versions": {
-		"acd-versions": "1.0.3",
+		"acd-versions": "1.0.4",
 		"jcli": {"path":"./third_party/jcli"}
 	}
 }

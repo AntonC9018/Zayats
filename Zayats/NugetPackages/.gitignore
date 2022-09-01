@@ -1,0 +1,11 @@
+# This folder is used to restore packages, and then immediately
+# copy them to the correct folder within the assets folder.
+# 
+# These files cannot be directly within Assets, because then nuget
+# will try to overwrite .meta files (I guess, I didn't dare testing that).
+# 
+# The packages are restored and copied by a command in the dev tool.
+*
+!.gitignore
+!NuGet.config
+!packages.config

@@ -450,3 +450,8 @@ string[] buildArgs(in Kari kari)
     toolEndBuildingArguments(kari, args);
     return args;
 }
+
+
+struct NuGet
+{
+}

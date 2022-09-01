@@ -109,3 +109,35 @@ pragma(inline, true) string path(string a)
     else
         return a.replace("\\", "/");
 }
+
+
+import std.zip : ZipArchive;
+import std.experimental.logger : Logger;
+
+bool unpackFiles(
+    Logger logger,
+    ZipArchive zip,
+    string baseFolder,
+    const string[] fileNames,
+    string destinationFolder)
+{
+    bool isError = false;
+    foreach (name; fileNames)
+    {
+        string path = (baseFolder ~ name);
+        auto member = path in zip.directory;
+        if (!member)
+        {
+            logger.error("The member ", path, " not found in the archive?");
+            isError = true;
+            continue;
+        }
+        const bytes = zip.expand(*member);
+
+        import std.file : write;
+        import std.string : toLower;
+        auto pathToFile = chainPath(destinationFolder, name);
+        write(pathToFile, bytes);
+    }
+    return isError;
+}

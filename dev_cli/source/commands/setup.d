@@ -9,6 +9,7 @@ import std.path;
 import std.stdio;
 import std.process : wait;
 import commands.kari;
+import commands.nuget;
 
 
 @Command("setup", "Sets up all the stuff in the project")
@@ -91,8 +92,12 @@ struct SetupCommand
             // This way there's no need for this step, and with git-lfs it's not that bad for the repo size.
             static if (false)
                 return nugetRestore(context.unityProjectDirectory, config.fullUnityEditorPath);
+        }
 
-            return 0;
+        {
+            NugetContext nuget;
+            nuget.context = context;
+            return nuget.onExecute();
         }
     }
 }

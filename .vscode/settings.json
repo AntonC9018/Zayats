@@ -37,15 +37,15 @@
         "**/*.mat":true,
         "**/*.meta":true,
         "**/*.prefab":true,
-        "Game/*.csproj": true,
-        "Assets/build/":true,
-        "Assets/Build/":true,
-        "Assets/obj/":true,
-        "Assets/Obj/":true,
-        "Assets/ProjectSettings/":true,
-        "Assets/temp/":true,
-        "Assets/Temp/":true,
-        "Assets/Library/":true,
-        "Assets/library/":true
+        "Zayats/*.csproj": true,
+        "Zayats/Assets/build/":true,
+        "Zayats/Assets/Build/":true,
+        "Zayats/Assets/obj/":true,
+        "Zayats/Assets/Obj/":true,
+        "Zayats/Assets/ProjectSettings/":true,
+        "Zayats/Assets/temp/":true,
+        "Zayats/Assets/Temp/":true,
+        "Zayats/Assets/Library/":true,
+        "Zayats/Assets/library/":true
     }
 }
