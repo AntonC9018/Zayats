@@ -758,13 +758,19 @@ namespace Zayats.Core
         public struct UseItemContext
         {
             public ItemInterationContext Interaction;
-            public ComponentProxy<Components.ActivatedItem> Item;
+            
+            // These are the actual targets, not just target indices.
             public int[] SelectedTargets;
+            
+            public readonly ref Components.ActivatedItem GetItem(GameContext game)
+            {
+                return ref game.GetComponent(Components.ActivatedItemId, Interaction.ItemId);
+            }
         }
 
         public static bool ValidateItemUse(this GameContext game, UseItemContext context)
         {
-            ref var item = ref context.Item.Value;
+            ref var item = ref context.GetItem(game);
             var distinct = context.SelectedTargets.Distinct().ToArray();
             if (distinct.Length != context.SelectedTargets.Length)
                 return false;
@@ -782,7 +788,7 @@ namespace Zayats.Core
         {
             assert(ValidateItemUse(game, context));
             
-            ref var item = ref context.Item.Value;
+            ref var item = ref context.GetItem(game);
 
             // Update the referenced values first, because the proxy gets invalidated after any logic happens.
             bool shouldRemove = false;
@@ -796,7 +802,7 @@ namespace Zayats.Core
                 }
             }
 
-            assert(context.SelectedTargets.Length == context.Item.Value.RequiredTargetCount);
+            assert(context.SelectedTargets.Length == item.RequiredTargetCount);
             item.Action.DoAction(game, context.Interaction, context.SelectedTargets);
 
             if (shouldRemove)

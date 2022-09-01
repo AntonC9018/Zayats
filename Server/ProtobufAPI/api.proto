@@ -1,0 +1,102 @@
+syntax = "proto3";
+option csharp_namespace = "Zayats.GameServer";
+package zayats;
+
+service GameAPI
+{
+  rpc Reconnect(ReconnectRequest) returns (ReconnectResponse);
+  rpc SyncState(StateSyncRequest) returns (StateSyncResponse);
+  rpc UseItem(UseItemRequest) returns (ErrorCodeResponse);
+  rpc SubmitTurn(SubmitTurnRequest) returns (ErrorCodeResponse);
+  rpc SubscribeToMessages(GameSubscribeToMessagesRequest) returns(stream GameStreamedMessage);
+}
+
+message ReconnectRequest
+{
+}
+message ReconnectResponse
+{
+}
+
+message StateSyncRequest{}
+
+message StateSyncResponse {
+  bytes gameData = 1;
+}
+
+message ErrorCodeResponse
+{
+  int32 error = 1;
+}
+
+message UseItemRequest
+{
+  int32 itemId = 1;
+  // Maybe it's better to pass indices to effectively avoid validation 
+  repeated int32 selectedTargets = 2;
+}
+
+message SubmitTurnRequest
+{
+}
+
+message PlayerDisconnected
+{
+}
+
+message GameSubscribeToMessagesRequest
+{
+}
+message GameStreamedMessage
+{
+  int32 actingPlayerIndex = 1;
+  oneof message
+  {
+    UseItemRequest useItem = 2;
+    SubmitTurnRequest submitTurn = 3;
+    PlayerDisconnected playerDisconnected = 4;
+  }
+}
+
+
+service LobbyAPI
+{
+  rpc GetRooms(GetRoomsRequest) returns(GetRoomsResponse);
+  rpc GetRoomInfo(RoomInfoRequest) returns(RoomInfoResponse);
+  rpc ConnectToRoom(ConnectToRoomRequest) returns(ConnectToRoomResponse);
+  rpc StartGame(StartGameRequest) returns(StartGameResponse);
+}
+
+message RoomInfoRequest
+{
+  bytes id = 1;
+}
+message RoomInfoResponse
+{
+  bytes id = 1;
+  bytes players = 2;
+}
+
+message GetRoomsRequest
+{
+}
+message GetRoomsResponse
+{
+  repeated RoomInfoResponse roomInfos = 2;
+}
+
+message ConnectToRoomRequest
+{
+  bytes id = 1;
+}
+message ConnectToRoomResponse
+{
+}
+
+message StartGameRequest
+{
+}
+message StartGameResponse
+{
+  bytes gameId = 1;
+}
