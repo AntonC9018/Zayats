@@ -25,6 +25,12 @@ struct NugetContext
     @("NuGet path")
     string nugetPath;
 
+    static if (!Version.Windows)
+    {
+        @("Mono path")
+        string monoPath = "mono";
+    }
+
     @ArgRaw
     string[] nugetArgs;
 
@@ -65,19 +71,17 @@ struct NugetContext
 
         const cwd = buildPath(context.unityProjectDirectory, "NugetPackages");
 
+        string[] nugetProgramArgs;
+        static if (!Version.Windows)
+            nugetProgramArgs ~= monoPath;
+        nugetProgramArgs ~= nugetExecutablePath;
+
         if (nugetArgs.length > 0)
-        {
-            string[] args;
-            args.length = nugetArgs.length + 1;
-            args[0] = nugetExecutablePath;
-            args[1 .. $] = nugetArgs[];
-            
-            return spawnProcess2(args, cwd).wait;
-        }
+            return spawnProcess2(nugetProgramArgs ~ nugetArgs, cwd).wait;
 
         // if (nugetArgs.length == 0)
         {
-            int status = spawnProcess2([nugetExecutablePath, "restore"], cwd).wait;
+            int status = spawnProcess2(nugetProgramArgs ~ ["restore"], cwd).wait;
             if (status != 0)
                 return status;
 

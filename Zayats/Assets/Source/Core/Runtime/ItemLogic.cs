@@ -32,17 +32,12 @@ namespace Zayats.Core
 
         public virtual void DoPickupEffect(GameContext game, ItemInterationContext info)
         {
+            ApplyNonSerializedEffect(game, info);
+        }
+
+        public void ApplyNonSerializedEffect(GameContext game, ItemInterationContext info)
+        {
             GetEventProxy(game, info.PlayerIndex).Add(_handler);
-        }
-
-        public virtual bool ShouldRemoveFromCellOnPickup(GameContext game, ItemInterationContext info)
-        {
-            return true;
-        }
-
-        public virtual bool IsInventoryItem(GameContext game, ItemInterationContext info)
-        {
-            return true;
         }
     }
 
@@ -74,6 +69,11 @@ namespace Zayats.Core
     {
         void DoPickupEffect(GameContext game, ItemInterationContext info);
         void DoDropEffect(GameContext game, ItemInterationContext info);
+
+        // This function will be called after the game state has been deserialized.
+        // It should do stuff like append event handlers. 
+        // The position is the current position of the player.
+        void ApplyNonSerializedEffect(GameContext game, ItemInterationContext info);
     }
 
     public interface IPickupInteraction
@@ -127,6 +127,11 @@ namespace Zayats.Core
         {
             DoDetach(game, info);
             DoDrop(game, info);
+        }
+
+        public void ApplyNonSerializedEffect(GameContext game, ItemInterationContext info)
+        {
+            DoAttach(game, info);
         }
     }
 
@@ -190,6 +195,10 @@ namespace Zayats.Core
         public static readonly DoNothingPickupEffect Instance = new();
         private DoNothingPickupEffect(){}
 
+        void IPickupEffect.ApplyNonSerializedEffect(GameContext game, ItemInterationContext info)
+        {
+        }
+
         void IPickupEffect.DoDropEffect(GameContext game, ItemInterationContext info)
         {
         }
@@ -225,6 +234,10 @@ namespace Zayats.Core
             });
             if (DestroyOnDetonation)
                 game.DestroyThing(info.ThingId);
+        }
+
+        public void ApplyNonSerializedEffect(GameContext game, ItemInterationContext info)
+        {
         }
     }
 
@@ -273,6 +286,9 @@ namespace Zayats.Core
             _boost = boost;
         }
 
+        public void ApplyNonSerializedEffect(GameContext game, ItemInterationContext info)
+        {
+        }
 
         public void DoDropEffect(GameContext game, ItemInterationContext info) => _boost.AddValue(game, info.PlayerIndex);
         public void DoPickupEffect(GameContext game, ItemInterationContext info) => _boost.SubtractValue(game, info.PlayerIndex);
@@ -283,6 +299,10 @@ namespace Zayats.Core
         [Export]
         public static readonly TowerPickupEffect Instance = new();
         private TowerPickupEffect(){}
+
+        public void ApplyNonSerializedEffect(GameContext game, ItemInterationContext info)
+        {
+        }
 
         public void DoDropEffect(GameContext game, ItemInterationContext info)
         {

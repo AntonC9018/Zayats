@@ -56,7 +56,8 @@ Follow the steps below to set up the project:
 1. Install a [D compiler](https://dlang.org/download.html)
 2. Install [.NET 6](https://dotnet.microsoft.com/en-us/download/dotnet/6.0)
 3. Install Unity version 2021.3.4f1 from [the archive](https://unity3d.com/get-unity/download/archive)
-4. Run the setup script in the root of the project.
+4. Install [Mono](https://www.mono-project.com/docs/getting-started/install/) if you're not on Windows.
+5. Run the setup script in the root of the project.
 
 The `dev` cli tool will be written to `build_folder/dev_cli/dev`, but I recommend you define an alias for this command (this is done automatically on Windows, see [dosmacros.doskey](dosmacros.doskey), which gets automatically applied by the setup script.
 Also, I recommend you set up a terminal profile, which gets those commands automatically defined, because the `dev` tool will be used a lot.
