@@ -86,4 +86,7 @@ Perhaps there will be a build command for the game, a publish command for a git 
 
 ### How to open files in VSCode when double-clicking
 
-*File -> Edit -> Preferences -> External Tools -> Editor Script Editor Args*, change the string to `"$(ProjectPath)/.." --reuse-window --goto "$(File)":$(Line):$(Column)`.
+*Edit -> Preferences -> External Tools -> Editor Script Editor Args*, change the string to
+```
+"$(ProjectPath)/.." --reuse-window --goto "$(File)":$(Line):$(Column)
+```.
