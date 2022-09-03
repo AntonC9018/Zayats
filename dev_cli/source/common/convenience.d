@@ -139,5 +139,5 @@ bool unpackFiles(
         auto pathToFile = chainPath(destinationFolder, name);
         write(pathToFile, bytes);
     }
-    return isError;
+    return !isError;
 }

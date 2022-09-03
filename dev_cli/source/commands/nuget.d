@@ -66,7 +66,10 @@ struct NugetContext
 
             string folder = "build/native/";
             if (!unpackFiles(context.logger, zip, folder, fileNames, nugetPath))
+            {
+                context.logger.error("Failed to find ", fileNames, " in the archive.");
                 return 1;
+            }
         }
 
         const cwd = buildPath(context.unityProjectDirectory, "NugetPackages");
