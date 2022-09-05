@@ -97,8 +97,20 @@ struct SetupCommand
         {
             NugetContext nuget;
             nuget.context = context;
-            return nuget.onExecute();
+            int status = nuget.onExecute();
+            if (status != 0)
+                return status;
         }
+
+        {
+            MagicOnionContext magicOnion;
+            magicOnion.restoreTools = true;
+            int status = magicOnion.onExecute();
+            if (status != 0)
+                return status;
+        }
+
+        return 0;
     }
 }
 
@@ -364,4 +376,49 @@ int nugetRestore(string unityProjectDirectory, string unityEditorPath)
     auto unityNugetRestoreProcessID = spawnProcess2(args[], unityProjectDirectory);
     int status = wait(unityNugetRestoreProcessID);
     return status;
+}
+
+@Command("magic-onion", "Runs magic onion on the unity project")
+struct MagicOnionContext
+{
+    @ParentCommand
+    Context* context;
+    alias context this;
+
+    @("Whether to call `dotnet tool restore` prior to running the tool.")
+    bool restoreTools;
+
+    int onExecute()
+    {
+        int status;
+        status = spawnProcess2(["dotnet", "tool", "restore"], context.projectDirectory).wait;
+        if (status != 0)
+            return status;
+        
+        import common.tools;
+        auto mo = magicOnion();
+        mo.unuseUnityAttr = true;
+        mo.input = buildPath(context.unityProjectDirectory, "Assets", "Source", "MagicOnion");
+        mo.output = buildPath(mo.input, "MessagePackGenerated");
+        mo.messagePackGeneratedNamespace = "Zayats.Unity.MagicOnion.Generated";
+        mo.namespace = mo.messagePackGeneratedNamespace;
+        mo.conditionalSymbols = ["UNITY_EDITOR"];
+
+        status = spawnProcess(mo, mo.input).wait;
+        if (status != 0)
+            return status;
+
+        auto mp = messagePack();
+        mp.input = mo.input;
+        mp.output = mo.input;
+        mp.conditionalSymbols = mo.conditionalSymbols;
+        mp.namespace = mo.namespace;
+        mp.resolverName = "Resolver";
+
+        status = spawnProcess(mp, mp.input).wait;
+        if (status != 0)
+            return status;
+
+        return 0;
+    }
 }

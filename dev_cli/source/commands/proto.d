@@ -103,7 +103,7 @@ struct ProtoContext
             import std.array;
 
             Protoc p = protocTool();
-            p.toolPath = protocExecutablePath;
+            p.toolPath = [protocExecutablePath];
             p.protoFiles = dirEntries(inputPath, SpanMode.breadth)
                 .filter!(d => isFile(d) && d.extension == ".proto")
                 .map!(d => cast(string) d)

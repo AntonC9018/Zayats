@@ -78,7 +78,7 @@ struct KariRun
             import std.range;
 
             Kari kari;
-            kari.toolPath = kariExecutablePath;
+            kari.toolPath = [kariExecutablePath];
             kari.configurationFile = buildPath(context.projectDirectory, context.unityProjectDirectoryName, "kari.json");
             kari.pluginPaths = chain(
                     Plugins.kariInternal.map!(p => getPluginDllPath(p, "Kari.Plugins." ~ p ~ ".dll")),

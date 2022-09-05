@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "isRoot": true,
+  "tools": {
+    "magiconion.generator": {
+      "version": "4.5.2",
+      "commands": [
+        "dotnet-moc"
+      ]
+    },
+    "messagepack.generator": {
+      "version": "2.4.35",
+      "commands": [
+        "mpc"
+      ]
+    }
+  }
+}

@@ -4,7 +4,7 @@ import common.convenience;
 
 struct Tool
 {
-    string toolPath;
+    const(string)[] toolPath;
     string[] moreArguments;
 }
 
@@ -55,7 +55,7 @@ struct Curl
 Curl curlTool()
 {
     Curl c;
-    c.toolPath = "curl";
+    c.toolPath = ["curl"];
     return c;
 }
 
@@ -158,6 +158,11 @@ auto startProcess(ToolT)(in ToolT tool, string workingDirectory = getcwd())
     return spawnProcess2(buildArgs(tool), workingDirectory);
 }
 
+auto spawnProcess(ToolT)(in ToolT tool, string workingDirectory = getcwd())
+{
+    return startProcess(tool, workingDirectory);
+}
+
 
 // https://helpmanual.io/help/protoc/
 struct Protoc
@@ -202,7 +207,7 @@ struct Protoc
 Protoc protocTool()
 {
     Protoc p;
-    p.toolPath = "protoc";
+    p.toolPath = ["protoc"];
     return p;
 }
 
@@ -375,7 +380,7 @@ struct DotnetBuild
 DotnetBuild dotnetBuild()
 {
     DotnetBuild result;
-    result.toolPath = "dotnet";
+    result.toolPath = ["dotnet"];
     return result;
 }
 
@@ -395,6 +400,16 @@ string[] buildArgs(in DotnetBuild build)
 
     toolEndBuildingArguments(build.tool, args);
     return args;
+}
+
+void maybeAdd_Join(ref string[] args, string option, const(string)[] values, string joinWith = ",")
+{
+    if (values.length > 0)
+    {
+        args ~= option;
+        import std.string : join;
+        args ~= values.join(joinWith);
+    }
 }
 
 struct Kari
@@ -422,36 +437,135 @@ struct Kari
     string gitignoreTemplate;
 }
 
-string[] buildArgs(in Kari kari)
+void addDefault(T)(ref string[] args, in T tool)
 {
-    string[] args;
-    toolStartBuildingArguments(kari, args);
-
-    static foreach (field; typeof(kari).tupleof)
+    static foreach (field; T.tupleof)
     {{
-        auto value = __traits(child, kari, field); 
+        auto value = __traits(child, tool, field); 
         enum option = "-" ~ __traits(identifier, field);
 
         static if (is(typeof(field) : string))
-        {
             maybeAdd(args, option, value);
-        }
         else static if (is(typeof(field) : string[]))
-        {
-            if (value.length > 0)
-            {
-                args ~= option;
-                import std.string : join;
-                args ~= value.join(",");
-            }
-        }
+            maybeAdd_Join(args, option, value, ",");
+        else static if (is(typeof(field) : bool))
+            maybeAddFlag(args, option, value);
     }}
+}
 
-    toolEndBuildingArguments(kari, args);
+string[] buildArgsDefault(T)(in T tool)
+{
+    string[] args;
+    toolStartBuildingArguments(tool, args);
+    addDefault(args, tool);
+    toolEndBuildingArguments(tool, args);
     return args;
+}
+
+string[] buildArgs(in Kari kari)
+{
+    return buildArgsDefault(kari); 
 }
 
 
 struct NuGet
 {
+}
+
+struct MagicOnion
+{
+    
+    Tool tool;
+    alias tool this;
+
+    // Options:
+    // -i, -input <String>                            Input path of analyze csproj or directory. (Required)
+    string input;
+    // -o, -output <String>                           Output path(file) or directory base(in separated mode). (Required)
+    string output;
+    // -u, -unuseUnityAttr <Boolean>                  Unuse UnityEngine's RuntimeInitializeOnLoadMethodAttribute on MagicOnionInitializer. (Default: False)
+    bool unuseUnityAttr;
+    // -n, -namespace <String>                        Set namespace root name. (Default: MagicOnion)
+    string namespace;
+    // -m, -messagePackGeneratedNamespace <String>    Set generated MessagePackFormatter namespace. (Default: MessagePack.Formatters)
+    string messagePackGeneratedNamespace;
+    // -c, -conditionalSymbol <String>                Conditional compiler symbols, split with ','. (Default: null)
+    string[] conditionalSymbols;
+}
+
+MagicOnion magicOnion()
+{
+    MagicOnion result;
+    result.toolPath = ["dotnet", "tool", "run", "dotnet-moc"];
+    return result;
+}
+
+import std.array;
+
+
+string[] buildArgs(in MagicOnion mo)
+{
+    return buildArgsDefault(mo); 
+}
+// string[] buildArgs(in MagicOnion mc)
+// {
+//     string[] args;
+//     toolStartBuildingArguments(mc, args);
+
+//     maybeAdd(args, "-input", mc.input);
+//     maybeAdd(args, "-output", mc.output);
+//     maybeAddFlag(args, "-unuseUnityAttr", mc.unuseUnityAttr);
+//     maybeAdd(args, "-namespace", mc.namespace);
+//     maybeAdd(args, "-messagePackGeneratedNamespace", mc.messagePackGeneratedNamespace);
+//     maybeAdd_Join(args, "-conditionalSymbol", mc.conditionalSymbols, ",");
+
+//     toolEndBuildingArguments(mc, args);
+//     return args;
+// }
+
+
+struct MessagePack
+{
+    
+    Tool tool;
+    alias tool this;
+
+    // D:\projects\Zayats>dotnet tool run mpc -- --help
+    // Usage: mpc [options...]
+
+    // Options:
+    // -i, -input <String>                                Input path to MSBuild project file or the directory containing Unity source files. (Required)
+    string input;
+    // -o, -output <String>                               Output file path(.cs) or directory (multiple generate file). (Required)
+    string output;
+    // -c, -conditionalSymbol <String>                    Conditional compiler symbols, split with ','. Ignored if a project file is specified for input. (Default: null)
+    string[] conditionalSymbols;
+    // -r, -resolverName <String>                         Set resolver name. (Default: GeneratedResolver)
+    string resolverName;
+    // -n, -namespace <String>                            Set namespace root name. (Default: MessagePack)
+    string namespace;
+    // -m, -useMapMode                                    Force use map mode serialization. (Optional)
+    bool useMapMode;
+    // -ms, -multipleIfDirectiveOutputSymbols <String>    Generate #if-- files by symbols, split with ','. (Default: null)
+    string[] multipleIfDirectiveOutputSymbols;
+    // -ei, -externalIgnoreTypeNames <String[]>           Ignore type names. (Default: null)
+    string[] externalIgnoreTypeNames;
+
+    // Commands:
+    // help          Display help.
+    // version       Display version.
+}
+
+MessagePack messagePack()
+{
+    MessagePack result;
+    result.toolPath = ["dotnet", "tool", "run", "dotnet-moc"];
+    return result;
+}
+
+import std.array;
+
+string[] buildArgs(in MessagePack mp)
+{
+    return buildArgsDefault(mp);
 }

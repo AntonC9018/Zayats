@@ -26,7 +26,8 @@ enum DownloadToolOption
     ConfigContext,
     UnityContext,
     ProtoContext,
-    NugetContext))
+    NugetContext,
+    MagicOnionContext))
 struct Context
 {
     @(ArgConfig.optional)
