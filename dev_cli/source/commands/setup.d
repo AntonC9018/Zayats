@@ -391,9 +391,13 @@ struct MagicOnionContext
     int onExecute()
     {
         int status;
-        status = spawnProcess2(["dotnet", "tool", "restore"], context.projectDirectory).wait;
-        if (status != 0)
-            return status;
+
+        if (restoreTools)
+        {
+            status = spawnProcess2(["dotnet", "tool", "restore"], context.projectDirectory).wait;
+            if (status != 0)
+                return status;
+        }
         
         import common.tools;
         auto mo = magicOnion();
