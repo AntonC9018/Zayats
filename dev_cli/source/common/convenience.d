@@ -141,3 +141,6 @@ bool unpackFiles(
     }
     return !isError;
 }
+
+alias Path = string;
+

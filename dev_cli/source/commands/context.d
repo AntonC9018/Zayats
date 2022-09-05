@@ -165,4 +165,9 @@ struct Context
         }
         return true;
     }
+
+    int runUnityMethod(string methodName)
+    {
+        return executeUnityMethod(config.fullUnityEditorPath, unityProjectDirectory, methodName);
+    }
 }

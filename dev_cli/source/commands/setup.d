@@ -38,29 +38,6 @@ struct SetupCommand
                 return status;
         }
 
-        KariContext kariContext;
-        kariContext.context = context;
-        kariContext.configuration = kariConfiguration;
-        kariContext.onIntermediateExecute();
-
-        {
-            KariBuild build;
-            build.context = &kariContext;
-            auto status = build.buildKari();
-            if (status != 0)
-                return status;
-
-            status = build.buildPlugins(Plugins.custom, Plugins.kariInternal);
-            if (status != 0)
-                return status;
-        }
-        {
-            KariRun run;
-            run.context = &kariContext;
-            auto status = run.onExecute();
-            if (status != 0)
-                return status;
-        }
         {
             // do the initial configuration
             ConfigContext configContext;
@@ -83,17 +60,51 @@ struct SetupCommand
 
             // Save it, there's no reason to load it again for this session.
             context._config = nullable(config);
-
-            // We don't do this anymore, since the dlls are added to source control.
-            // The reason is that unity deletes the meta files on first load.
-            // The two solutions would be to manage the nugets on the outside, and then copy the files with a script into unity,
-            // or git reset the meta files after running the nuget method.
-            // But I think it's way simpler to just sibmit the dlls to source control.
-            // This way there's no need for this step, and with git-lfs it's not that bad for the repo size.
-            static if (false)
-                return nugetRestore(context.unityProjectDirectory, config.fullUnityEditorPath);
         }
 
+        {
+            // import std.file;
+            // DirEntry assetsFolder = buildPath(context.unityProjectDirectory, "Assets");
+
+            int status = context.runUnityMethod(UnityMethod.RestoreSolutionFiles);
+            if (status != 0)
+            {
+                context.logger.error("Could not restore Unity solution solution files."
+                    ~ " I'd guess it's because it tried to use a function from the VS plugin, but VS was not installed. FIXME.");
+                return status;
+            }
+        }
+
+        KariContext kariContext;
+        kariContext.context = context;
+        kariContext.configuration = kariConfiguration;
+        kariContext.onIntermediateExecute();
+
+        {
+            KariBuild build;
+            build.context = &kariContext;
+            auto status = build.buildKari();
+            if (status != 0)
+                return status;
+
+            status = build.buildPlugins(Plugins.custom, Plugins.kariInternal);
+            if (status != 0)
+                return status;
+        }
+
+        // We can now allow ourselves to use read the solution files,
+        // instead of scanning the directories manually!
+        // TODO: make use of that.
+        {
+            KariRun run;
+            run.context = &kariContext;
+            auto status = run.onExecute();
+            if (status != 0)
+                return status;
+        }
+
+        // We don't use NuGetForUnity, instead,
+        // we restore separately and then copy the required files.
         {
             NugetContext nuget;
             nuget.context = context;
@@ -331,6 +342,7 @@ struct UnityContext
         none,
         open,
         nugetRestore,
+        restoreSolutionFiles,
     }
     @("Which action to execute?")
     @(ArgConfig.positional)
@@ -348,12 +360,14 @@ struct UnityContext
                 return 0;
             }
             case Action.nugetRestore:
-                return nugetRestore(context.unityProjectDirectory, context.config.fullUnityEditorPath);
+                return context.runUnityMethod(UnityMethod.NugetRestore);
+            case Action.restoreSolutionFiles:
+                return context.runUnityMethod(UnityMethod.RestoreSolutionFiles);
         }
     }
 }
 
-auto openUnity(string unityProjectDirectory, string unityEditorPath)
+auto openUnity(Path unityProjectDirectory, Path unityEditorPath)
 {
     import std.array;
     auto args = staticArray([
@@ -363,7 +377,13 @@ auto openUnity(string unityProjectDirectory, string unityEditorPath)
     return spawnProcess2(args[], unityProjectDirectory);
 }
 
-int nugetRestore(string unityProjectDirectory, string unityEditorPath)
+enum UnityMethod : string
+{
+    NugetRestore = "NugetForUnity.NugetHelper.Restore",
+    RestoreSolutionFiles = "UnityEditor.SyncVS.SyncSolution",
+}
+
+int executeUnityMethod(Path unityEditorPath, Path unityProjectDirectory, string method)
 {
     import std.array;
     auto args = staticArray([
@@ -371,11 +391,11 @@ int nugetRestore(string unityProjectDirectory, string unityEditorPath)
         "-quit",
         "-batchmode",
         "-projectPath", unityProjectDirectory,
-        "-executeMethod", "NugetForUnity.NugetHelper.Restore",
+        "-executeMethod", method,
+        "-nographics",
+        "-ignoreCompilerErrors",
     ]);
-    auto unityNugetRestoreProcessID = spawnProcess2(args[], unityProjectDirectory);
-    int status = wait(unityNugetRestoreProcessID);
-    return status;
+    return spawnProcess2(args[], unityProjectDirectory).wait;
 }
 
 @Command("magic-onion", "Runs magic onion on the unity project")
@@ -386,6 +406,7 @@ struct MagicOnionContext
     alias context this;
 
     @("Whether to call `dotnet tool restore` prior to running the tool.")
+    @(ArgConfig.parseAsFlag)
     bool restoreTools;
 
     int onExecute()
@@ -398,28 +419,35 @@ struct MagicOnionContext
             if (status != 0)
                 return status;
         }
+
+        import std.file : exists;
+        Path csprojPath = buildPath(context.unityProjectDirectory, "Zayats.Unity.MagicOnion.csproj");
+        if (!exists(csprojPath))
+        {
+            context.logger.error("The project file at ", csprojPath, " has not been found."
+                ~ " You must first regenerate the project files.");
+            return 1;
+        }
         
+        // TODO: make a kari plugin for both.
         import common.tools;
         auto mo = magicOnion();
         mo.unuseUnityAttr = true;
-        mo.input = buildPath(context.unityProjectDirectory, "Assets", "Source", "MagicOnion");
+        mo.input = csprojPath;
         mo.output = buildPath(mo.input, "MessagePackGenerated");
         mo.messagePackGeneratedNamespace = "Zayats.Unity.MagicOnion.Generated";
         mo.namespace = mo.messagePackGeneratedNamespace;
         mo.conditionalSymbols = ["UNITY_EDITOR"];
 
-        status = spawnProcess(mo, mo.input).wait;
+        status = spawnProcess(mo, context.unityProjectDirectory).wait;
         if (status != 0)
             return status;
 
         auto mp = messagePack();
-        mp.input = mo.input;
-        mp.output = mo.input;
-        mp.conditionalSymbols = mo.conditionalSymbols;
-        mp.namespace = mo.namespace;
+        copyPropertiesWithSameName(mo, mp);
         mp.resolverName = "Resolver";
 
-        status = spawnProcess(mp, mp.input).wait;
+        status = spawnProcess(mp, context.unityProjectDirectory).wait;
         if (status != 0)
             return status;
 

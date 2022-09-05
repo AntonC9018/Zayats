@@ -569,3 +569,21 @@ string[] buildArgs(in MessagePack mp)
 {
     return buildArgsDefault(mp);
 }
+
+private string runIfCompiles(string expr)
+{
+    return "static if (__traits(compiles, " ~ expr ~ ")) " ~ expr ~ ";";
+}
+
+
+private void assign(field, T0, T1)(in T0 source, ref T1 dest)
+{
+    // dest.name = source.name;
+    __traits(getMember, dest, __traits(identifier, field)) = __traits(child, source, field);
+}
+
+void copyPropertiesWithSameName(T0, T1)(in T0 source, ref T1 dest)
+{
+    static foreach (field; T0.tupleof)
+        mixin(runIfCompiles("assign!field(source, dest)"));
+}
