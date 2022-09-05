@@ -1,0 +1,23 @@
+{
+    "name": "Zayats.Unity.MagicOnion",
+    "rootNamespace": "Zayats.Unity.MagicOnion",
+    "references": [
+        "Zayats.Core",
+        "Common",
+        "Unity.TextMeshPro",
+        "DOTween.Modules",
+        "Common.Unity",
+        "Newtonsoft.Json",
+        "MagicOnion",
+        "MessagePack"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
