@@ -135,6 +135,7 @@ struct NugetContext
                     mkdir(unityPackagePath);
 
                 const string[2] ignoredExtensions = [ ".p7s", ".nupkg" ];
+                const string[2] ignoredFolders = [ "lib", "ref" ];
 
                 static struct Entry
                 {
@@ -162,8 +163,11 @@ struct NugetContext
                 
                 foreach (Entry p; iterateEntries(unityPackagePath, libEntry))
                 {
-                    if (pathSplitter(p.relativePath).front == "lib")
-                        continue;
+                    {
+                        const a = pathSplitter(p.relativePath).front;
+                        if (ignoredFolders[].canFind(a))
+                            continue;
+                    }
 
                     if (p.libPath.isDir)
                     {
@@ -213,6 +217,8 @@ struct NugetContext
                     }
                 }
             }
+
+            context.logger.log("Processed the packages successfully");
         }
 
         return 0;

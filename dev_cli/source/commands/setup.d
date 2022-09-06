@@ -62,6 +62,19 @@ struct SetupCommand
             context._config = nullable(config);
         }
 
+        // We don't use NuGetForUnity, instead,
+        // we restore separately and then copy the required files.
+        {
+            NugetContext nuget;
+            nuget.context = context;
+            int status = nuget.onExecute();
+            if (status != 0)
+            {
+                context.logger.error("Nuget restore failed.");
+                return status;
+            }
+        }
+
         {
             // import std.file;
             // DirEntry assetsFolder = buildPath(context.unityProjectDirectory, "Assets");
@@ -78,8 +91,10 @@ struct SetupCommand
         {
             // TODO: replace with libgit2, but that requires a lot of work, because the bindings are broken,
             // and making ones manually requires adding imports manually.
-            
-            // restore the meta files
+
+            // Restore the meta files.
+            // When opening unity in batch mode, without the generated files being there, it deletes the associated meta files too.
+            // There might be an undocumented flag, but I asked on Discord and googled to no avail.
             import std.process : spawnProcess;
             int status = spawnProcess(["git", "restore", "Zayats/Assets/Source/**/*.cs.meta"]).wait;
             if (status != 0)
@@ -114,18 +129,9 @@ struct SetupCommand
                 return status;
         }
 
-        // We don't use NuGetForUnity, instead,
-        // we restore separately and then copy the required files.
-        {
-            NugetContext nuget;
-            nuget.context = context;
-            int status = nuget.onExecute();
-            if (status != 0)
-                return status;
-        }
-
         {
             MagicOnionContext magicOnion;
+            magicOnion.context = context;
             magicOnion.restoreTools = true;
             int status = magicOnion.onExecute();
             if (status != 0)
