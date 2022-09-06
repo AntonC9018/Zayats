@@ -438,21 +438,23 @@ struct MagicOnionContext
         }
 
         import std.file : exists;
-        Path csprojPath = buildPath(context.unityProjectDirectory, "Zayats.Unity.MagicOnion.csproj");
+        Path csprojPath = buildPath(context.unityProjectDirectory, "Zayats.Net.Shared.csproj");
         if (!exists(csprojPath))
         {
             context.logger.error("The project file at ", csprojPath, " has not been found."
                 ~ " You must first regenerate the project files.");
             return 1;
         }
-        
+        Path magicOnionProjectPath = buildPath(context.unityProjectDirectory, "Assets", "Source", "MagicOnion", "Runtime");
+
+
         // TODO: make a kari plugin for both.
         import common.tools;
         auto mo = magicOnion();
         mo.unuseUnityAttr = true;
         mo.input = csprojPath;
-        mo.output = buildPath(mo.input, "MessagePackGenerated");
-        mo.messagePackGeneratedNamespace = "Zayats.Unity.MagicOnion.Generated";
+        mo.output = buildPath(magicOnionProjectPath, "MessagePackGenerated");
+        mo.messagePackGeneratedNamespace = "Zayats.Unity.Net.Generated";
         mo.namespace = mo.messagePackGeneratedNamespace;
         mo.conditionalSymbols = ["UNITY_EDITOR"];
 
@@ -462,7 +464,7 @@ struct MagicOnionContext
 
         auto mp = messagePack();
         copyPropertiesWithSameName(mo, mp);
-        mp.resolverName = "Resolver";
+        mp.resolverName = "MyResolver";
 
         status = spawnProcess(mp, context.unityProjectDirectory).wait;
         if (status != 0)

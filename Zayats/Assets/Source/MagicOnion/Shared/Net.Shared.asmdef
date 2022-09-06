@@ -1,6 +1,6 @@
 {
-    "name": "Zayats.Unity.MagicOnion",
-    "rootNamespace": "Zayats.Unity.MagicOnion",
+    "name": "Zayats.Net.Shared",
+    "rootNamespace": "Zayats.Net.Shared",
     "references": [
         "Zayats.Core",
         "Common",
@@ -8,7 +8,9 @@
         "DOTween.Modules",
         "Common.Unity",
         "Newtonsoft.Json",
-        "MagicOnion",
+        "MagicOnion.Unity",
+        "MagicOnion.Client",
+        "MagicOnion.Abstractions",
         "MessagePack"
     ],
     "includePlatforms": [],

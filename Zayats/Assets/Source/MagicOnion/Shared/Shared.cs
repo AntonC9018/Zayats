@@ -1,6 +1,6 @@
 using MagicOnion;
 
-namespace Zayats.GameServer.Shared
+namespace Zayats.Net.Shared
 {
     public interface ITestService : IService<ITestService>
     {

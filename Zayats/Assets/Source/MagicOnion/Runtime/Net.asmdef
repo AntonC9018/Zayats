@@ -1,0 +1,26 @@
+{
+    "name": "Zayats.Unity.Net",
+    "rootNamespace": "Zayats.Unity.Net",
+    "references": [
+        "Zayats.Core",
+        "Zayats.Net.Shared",
+        "Common",
+        "Unity.TextMeshPro",
+        "DOTween.Modules",
+        "Common.Unity",
+        "Newtonsoft.Json",
+        "MagicOnion.Unity",
+        "MagicOnion.Client",
+        "MagicOnion.Abstractions",
+        "MessagePack"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

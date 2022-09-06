@@ -559,7 +559,7 @@ struct MessagePack
 MessagePack messagePack()
 {
     MessagePack result;
-    result.toolPath = ["dotnet", "tool", "run", "dotnet-moc"];
+    result.toolPath = ["dotnet", "tool", "run", "mpc"];
     return result;
 }
 
@@ -572,11 +572,11 @@ string[] buildArgs(in MessagePack mp)
 
 private string runIfCompiles(string expr)
 {
-    return "static if (__traits(compiles, " ~ expr ~ ")) " ~ expr ~ ";";
+    return "static if (__traits(compiles, () {" ~ expr ~ "; })) " ~ expr ~ ";";
 }
 
 
-private void assign(field, T0, T1)(in T0 source, ref T1 dest)
+private static void assign(alias field, T0, T1)(in T0 source, ref T1 dest)
 {
     // dest.name = source.name;
     __traits(getMember, dest, __traits(identifier, field)) = __traits(child, source, field);
@@ -585,5 +585,7 @@ private void assign(field, T0, T1)(in T0 source, ref T1 dest)
 void copyPropertiesWithSameName(T0, T1)(in T0 source, ref T1 dest)
 {
     static foreach (field; T0.tupleof)
+    {
         mixin(runIfCompiles("assign!field(source, dest)"));
+    }
 }

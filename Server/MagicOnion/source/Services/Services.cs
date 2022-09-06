@@ -1,7 +1,7 @@
 using System;
 using MagicOnion;
 using MagicOnion.Server;
-using Zayats.GameServer.Shared;
+using Zayats.Net.Shared;
 
 namespace Zayats.GameServer;
 
