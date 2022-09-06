@@ -473,3 +473,111 @@ struct MagicOnionContext
         return 0;
     }
 }
+
+@Command("create-solution")
+struct CreateSolution
+{
+    @ParentCommand
+    Context* context;
+    alias context this;
+
+    @(ArgConfig.optional)
+    {
+        @("Whether to include kari into the generated solution.")
+        bool includeKari;
+
+        @("Whether to include kari plugins into the generated solution.")
+        bool includeKariPlugins;
+
+        @("Whether to include all the server code into the generated solution.")
+        bool includeServer;
+
+        @("Whether to include unity into the generated solution.")
+        bool includeUnity;
+    }
+
+    int onExecute()
+    {
+        import std.file;
+
+        static struct SolutionInfo
+        {
+            string folder;
+            string fileName;
+            string fullPath;
+
+            this(string folder, string fileName)
+            {
+                this.folder = folder;
+                this.fileName = fileName;
+                this.fullPath = buildPath(folder, fileName);
+            }
+        }
+
+        int makeSolutionFileFromAllCsProjInFolder(in SolutionInfo solution)
+        {
+            if (exists(solution.fullPath))
+                std.file.remove(solution.fullPath);
+
+            {
+                int status = spawnProcess2(["dotnet", "new", "sln", solution.fileName], solution.folder).wait;
+                if (status != 0)
+                    return status;
+            }
+
+            foreach (p; dirEntries(solution.folder, "*.csproj", SpanMode.depth))
+            {
+                string relativeProjectPath = relativePath(p, solution.folder);
+                int status = spawnProcess2(["dotnet", "sln", solution.fileName, "add", relativeProjectPath], solution.folder).wait;
+                if (status != 0)
+                    return status;
+            }
+
+            return 0;
+        }
+
+        const server = SolutionInfo(buildPath(context.projectDirectory, "Server"), "Server.sln");
+        if (includeServer)
+        {
+            int status = makeSolutionFileFromAllCsProjInFolder(server);
+            if (status != 0)
+                return status;
+        }
+
+        const kariPlugins = SolutionInfo(buildPath(context.projectDirectory, "kari_stuff", "plugins"), "Plugins.sln");
+        if (includeKariPlugins)
+        {
+            int status = makeSolutionFileFromAllCsProjInFolder(kariPlugins);
+            if (status != 0)
+                return status;
+        }
+
+        const unity = SolutionInfo(context.unityProjectDirectory, "Zayats.sln");
+        const kari = SolutionInfo(buildPath(context.projectDirectory, "kari_stuff", "Kari"), "Kari.sln");
+
+        // {
+        //     import std.array;
+
+        //     string[] args = ["dotnet", "slnmerge"];
+
+        //     auto solutions = appender!(string[]);
+        //     if (includeKari)
+        //         solutions ~= kari.fullPath;
+        //     if (includeKariPlugins)
+        //         solutions ~= kariPlugins.fullPath;
+        //     if (includeServer)
+        //         solutions ~= server.fullPath;
+        //     if (includeUnity)
+        //         solutions ~= unity.fullPath;
+            
+        //     args ~= solutions[].join(",");
+        //     args ~= ["--folder", 
+
+        //     int status = spawnProcess2(args, context.projectDirectory).wait;
+        //     if (status != 0)
+        //         return status;
+        // }
+
+        return 0;
+    }
+}
