@@ -75,6 +75,17 @@ struct SetupCommand
             }
         }
 
+        {
+            // TODO: replace with libgit2, but that requires a lot of work, because the bindings are broken,
+            // and making ones manually requires adding imports manually.
+            
+            // restore the meta files
+            import std.process : spawnProcess;
+            int status = spawnProcess(["git", "restore", "Zayats/Assets/Source/**/*.cs.meta"]).wait;
+            if (status != 0)
+                return status;
+        }
+
         KariContext kariContext;
         kariContext.context = context;
         kariContext.configuration = kariConfiguration;
