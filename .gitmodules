@@ -4,3 +4,6 @@
 [submodule "dev_cli/third_party/jcli"]
 	path = dev_cli/third_party/jcli
 	url = https://github.com/AntonC9018/jcli
+[submodule "stuff/SolutionParser"]
+	path = stuff/SolutionParser
+	url = https://github.com/AntonC9018/SolutionParser
