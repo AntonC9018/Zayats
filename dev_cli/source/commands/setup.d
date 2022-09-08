@@ -183,6 +183,7 @@ struct ConfigContext
 struct Config
 {
     string fullUnityEditorPath;
+    string devenvPath;
 }
 
 import std.json : JSONValue;
@@ -256,6 +257,69 @@ struct ConfigInitCommand
             }
         }
 
+        char[] inputBufferCache;
+
+        enum PromptResultKind
+        {
+            EnteredPath,
+            Skip,
+        }
+
+        struct PromptResult
+        {
+            PromptResultKind kind;
+            string path;
+        }
+
+        PromptResult readPromptDirectory(string prompt)
+        {
+            while (true)
+            {
+                import std.string;
+                
+                writeln(prompt, " (type \"skip\" to skip)");
+
+                size_t numCharsRead = readln(inputBufferCache);
+                if (numCharsRead == 0)
+                    continue;
+                char[] input = inputBufferCache[0 .. numCharsRead].strip;
+                if (input == "skip" || input == "s")
+                    return PromptResult(PromptResultKind.Skip, null);
+
+                string inputString = input.idup;
+                const p = absolutePath(inputString, context.projectDirectory);
+                if (!exists(p))
+                {
+                    writeln("The file or directory ", p, " does not exist.");
+                    continue;
+                }
+                return PromptResult(PromptResultKind.EnteredPath, inputString);
+            }
+        }
+
+        PromptResult readPromptFile(string prompt, string fileName)
+        {
+            while (true)
+            {
+                auto input = readPromptDirectory(prompt);
+                if (input.kind == PromptResultKind.Skip)
+                    return input;
+
+                if (isDir(input.path))
+                {
+                    const filePath = buildPath(input.path, fileName);
+                    if (!exists(filePath))
+                    {
+                        writeln("The file named ", filePath, " does not exist in given directory.");
+                        continue;
+                    }
+                    input.path = filePath;
+                }
+
+                return input;
+            }
+        }
+
         if ("fullUnityEditorPath" !in config)
         {
             string projectVersionPath = buildPath(context.unityProjectDirectory, "ProjectSettings", "ProjectVersion.txt");
@@ -302,45 +366,77 @@ struct ConfigInitCommand
                 }
 
                 // maybe try getting the editor path from the registry on windows?
-
                 if (!allowPrompt)
                     return null_;
 
-                char[] buffer;
-                while (true)
-                {
-                    writeln("Please enter the path to the Unity Editor executable (type \"skip\" to skip): ");
-
-                    size_t numCharsRead = readln(buffer);
-                    if (numCharsRead == 0)
-                        return null_;
-                    char[] input = buffer[0 .. numCharsRead].strip;
-                    if (input == "skip" || input == "s")
-                        return null_;
-                        
-                    const p = absolutePath(input.idup, context.projectDirectory);
-                    if (!exists(p))
-                    {
-                        writeln("The file or directory ", p, " does not exist.");
-                        continue;
-                    }
-                    
-                    if (isDir(p))
-                    {
-                        const unityPath = buildPath(input, unityEditorName);
-                        if (!exists(unityPath))
-                        {
-                            writeln("The unity executable ", unityPath, " does not exist in directory.");
-                            continue;
-                        }
-                        return nullable(unityPath);
-                    }
-
-                    return nullable(p);
-                }
+                auto input = readPromptFile("Please enter the path to the Unity Editor executable ", unityEditorName);
+                return (input.kind == PromptResultKind.Skip) ? null_ : nullable(input.path);
             }
 
             maybeSetValue("fullUnityEditorPath", getUnityPath());
+        }
+
+        if ("devenvPath" !in config)
+        {
+            enum ResultKind
+            {
+                Found,
+                NotFound,
+                UseEnv,
+            }
+            struct Result
+            {
+                ResultKind kind;
+                string value;
+            }
+
+            Result findDevenv()
+            {
+                static string getDefaultInstallLocation()
+                {
+                    version(Windows)
+                        return `C:\Program Files (x86)\Microsoft Visual Studio\%i\Enterprise\Common7\IDE\`;
+                    else
+                        return null;
+                }
+
+                string defaultInstallLocation = getDefaultInstallLocation();
+                if (defaultInstallLocation !is null)
+                {
+                    foreach (v; [2022, 2019, 2017])
+                    {
+                        import std.format;
+                        string path = defaultInstallLocation.format(v) ~ "devenv".exe;
+                        if (exists(path))
+                            return Result(ResultKind.Found, path);
+                    }
+                    writeln("Could not find visual studio in the default path.");
+                }
+
+                // No need for it if msbuild is available globally.
+                if (canFindProgram("msbuild")
+                    || canFindProgram("devenv"))
+                {
+                    return Result(ResultKind.UseEnv, null);
+                }
+
+                // TODO: maybe try reading from the registry, again?
+                auto input = readPromptFile("Please enter the path to devenv (the visual studio installation) ", "devenv".exe);
+                return (input.kind == PromptResultKind.Skip)
+                    ? Result(ResultKind.NotFound, null)
+                    : Result(ResultKind.Found, input.path);
+            }
+
+            const result = findDevenv();
+            if (result.kind == ResultKind.Found)
+            {
+                changedAnything = true;
+                config["devenvPath"] = result.value;
+            }
+            else if (result.kind == ResultKind.NotFound)
+            {
+                skippedAnything = true;
+            }
         }
 
         return Result(config, skippedAnything);
