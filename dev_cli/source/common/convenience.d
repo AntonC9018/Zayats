@@ -9,6 +9,19 @@ auto spawnProcess2(const(char[])[] args, const char[] workDir)
     File stdout = std.stdio.stdout;
     File stderr = std.stdio.stderr;
     const string[string] env = null;
+    Config config = Config.newEnv;
+
+    writeln(escapeShellCommand(args));
+
+    return std.process.spawnProcess(args, stdin, stdout, stderr, env, config, workDir);
+}
+
+auto spawnProcessEnv(const(char[])[] args, string[string] envs, const char[] workDir)
+{
+    File stdin = std.stdio.stdin;
+    File stdout = std.stdio.stdout;
+    File stderr = std.stdio.stderr;
+    const string[string] env = envs;
     Config config = Config.none;
 
     writeln(escapeShellCommand(args));

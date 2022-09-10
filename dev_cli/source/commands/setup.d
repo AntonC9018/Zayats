@@ -183,7 +183,7 @@ struct ConfigContext
 struct Config
 {
     string fullUnityEditorPath;
-    string devenvPath;
+    string msbuildFolderPath;
 }
 
 import std.json : JSONValue;
@@ -376,67 +376,40 @@ struct ConfigInitCommand
             maybeSetValue("fullUnityEditorPath", getUnityPath());
         }
 
-        if ("devenvPath" !in config)
+        if ("msbuildFolderPath" !in config)
         {
-            enum ResultKind
+            Nullable!string getMSBuildFodlerPath()
             {
-                Found,
-                NotFound,
-                UseEnv,
-            }
-            struct Result
-            {
-                ResultKind kind;
-                string value;
-            }
-
-            Result findDevenv()
-            {
-                static string getDefaultInstallLocation()
+                enum null_ = typeof(return).init;
+                string GetMSBuildPath_ProjectPath = buildPath(context.projectDirectory, "stuff", "GetMSBuildPath");
                 {
-                    version(Windows)
-                        return `C:\Program Files (x86)\Microsoft Visual Studio\%i\Enterprise\Common7\IDE\`;
-                    else
-                        return null;
-                }
-
-                string defaultInstallLocation = getDefaultInstallLocation();
-                if (defaultInstallLocation !is null)
-                {
-                    foreach (v; [2022, 2019, 2017])
+                    int status = spawnProcess2(["dotnet", "publish", "--configuration", "Release"], GetMSBuildPath_ProjectPath).wait;
+                    if (status != 0)
                     {
-                        import std.format;
-                        string path = defaultInstallLocation.format(v) ~ "devenv".exe;
-                        if (exists(path))
-                            return Result(ResultKind.Found, path);
+                        context.logger.error("Could not compile GetMSBuildPath");
+                        return null_;
                     }
-                    writeln("Could not find visual studio in the default path.");
                 }
-
-                // No need for it if msbuild is available globally.
-                if (canFindProgram("msbuild")
-                    || canFindProgram("devenv"))
                 {
-                    return Result(ResultKind.UseEnv, null);
+                    auto r = execute2([
+                            "dotnet", "run",
+                            buildPath(GetMSBuildPath_ProjectPath, "bin", "release", "publish", "GetMSBuildPath.dll")],
+                        GetMSBuildPath_ProjectPath);
+                    if (r.status != 0)
+                    {
+                        context.logger.error("GetMSBuildPath execution error.");
+                        return null_;
+                    }
+
+                    import std.algorithm;
+                    import std.range;
+                    import std.string;
+                    auto lines = r.output.splitter("\n");
+                    return lines.empty ? null_ : nullable(lines.front.strip);
                 }
-
-                // TODO: maybe try reading from the registry, again?
-                auto input = readPromptFile("Please enter the path to devenv (the visual studio installation) ", "devenv".exe);
-                return (input.kind == PromptResultKind.Skip)
-                    ? Result(ResultKind.NotFound, null)
-                    : Result(ResultKind.Found, input.path);
             }
 
-            const result = findDevenv();
-            if (result.kind == ResultKind.Found)
-            {
-                changedAnything = true;
-                config["devenvPath"] = result.value;
-            }
-            else if (result.kind == ResultKind.NotFound)
-            {
-                skippedAnything = true;
-            }
+            maybeSetValue("msbuildFolderPath", getMSBuildFodlerPath());
         }
 
         return Result(config, skippedAnything);
@@ -570,31 +543,37 @@ struct MagicOnionContext
     }
 }
 
-@Command("create-solution")
+@Command("create-sln")
 struct CreateSolution
 {
     @ParentCommand
     Context* context;
     alias context this;
 
-    @(ArgConfig.optional)
+    @(ArgConfig.optional | ArgConfig.parseAsFlag)
     {
-        @("Whether to include kari into the generated solution.")
+        @ArgNamed("kari", "Whether to include kari into the generated solution.")
         bool includeKari;
 
-        @("Whether to include kari plugins into the generated solution.")
+        @ArgNamed("kari-plugins", "Whether to include kari plugins into the generated solution.")
         bool includeKariPlugins;
 
-        @("Whether to include all the server code into the generated solution.")
+        @ArgNamed("server", "Whether to include all the server code into the generated solution.")
         bool includeServer;
 
-        @("Whether to include unity into the generated solution.")
+        @ArgNamed("unity", "Whether to include unity into the generated solution.")
         bool includeUnity;
     }
 
     int onExecute()
     {
         import std.file;
+
+        if (context.config.msbuildFolderPath == null)
+        {
+            context.logger.error("Please, first set the msbuild path with `dev config init`.");
+            return 1;
+        }
 
         static struct SolutionInfo
         {
@@ -635,44 +614,77 @@ struct CreateSolution
         const server = SolutionInfo(buildPath(context.projectDirectory, "Server"), "Server.sln");
         if (includeServer)
         {
-            int status = makeSolutionFileFromAllCsProjInFolder(server);
-            if (status != 0)
-                return status;
+            // int status = makeSolutionFileFromAllCsProjInFolder(server);
+            // if (status != 0)
+            //     return status;
         }
 
         const kariPlugins = SolutionInfo(buildPath(context.projectDirectory, "kari_stuff", "plugins"), "Plugins.sln");
         if (includeKariPlugins)
         {
-            int status = makeSolutionFileFromAllCsProjInFolder(kariPlugins);
-            if (status != 0)
-                return status;
+            // int status = makeSolutionFileFromAllCsProjInFolder(kariPlugins);
+            // if (status != 0)
+            //     return status;
         }
 
         const unity = SolutionInfo(context.unityProjectDirectory, "Zayats.sln");
         const kari = SolutionInfo(buildPath(context.projectDirectory, "kari_stuff", "Kari"), "Kari.sln");
 
-        // {
-        //     import std.array;
+        const solutionName = "ZayatsSolution.sln";
+        const solutionFullPath = buildPath(context.projectDirectory, solutionName);
+        if (exists(solutionFullPath))
+            remove(solutionFullPath);
 
-        //     string[] args = ["dotnet", "slnmerge"];
+        {
+            import std.array;
+            import std.process;
+            import std.algorithm;
 
-        //     auto solutions = appender!(string[]);
-        //     if (includeKari)
-        //         solutions ~= kari.fullPath;
-        //     if (includeKariPlugins)
-        //         solutions ~= kariPlugins.fullPath;
-        //     if (includeServer)
-        //         solutions ~= server.fullPath;
-        //     if (includeUnity)
-        //         solutions ~= unity.fullPath;
+            auto args = appender(["dotnet", "slngen"]);
+
+            if (includeKari)
+            {
+                string baseDir = buildPath(kari.folder, "source");
+
+                foreach (dir; dirEntries(baseDir, SpanMode.shallow).filter!(d => d.isDir))
+                {
+                    // these don't compile anyway.
+                    if (["dotnet_new_templates", "Kari.Plugin.Sdk"].canFind(dir[baseDir.length + 1 .. $]))
+                        continue;
+                    
+                    foreach (string csproj; dirEntries(dir, "*.csproj", SpanMode.depth))
+                        args ~= csproj;
+                }
+            }
+            if (includeKariPlugins)
+            {
+                foreach (string csproj; dirEntries(kariPlugins.folder, "*.csproj", SpanMode.depth))
+                    args ~= csproj;
+            }
+            if (includeServer)
+            {
+                foreach (string csproj; dirEntries(server.folder, "*.csproj", SpanMode.depth))
+                    args ~= csproj;
+            }
+            if (includeUnity)
+                args ~= buildPath(unity.folder, "Assembly-CSharp-Editor.csproj");
             
-        //     args ~= solutions[].join(",");
-        //     args ~= ["--folder", 
+            args ~= [
+                "--launch", "false",
+                "--solutiondir", context.projectDirectory,
+                "--solutionfile", solutionName,
+            ];
 
-        //     int status = spawnProcess2(args, context.projectDirectory).wait;
-        //     if (status != 0)
-        //         return status;
-        // }
+            string[string] envs;
+            string p = environment.get("PATH");
+            if (p !is null)
+                p ~= ";";
+            envs["PATH"] = p ~ context.config.msbuildFolderPath;
+
+            int status = spawnProcessEnv(args[], envs, context.projectDirectory).wait;
+            if (status != 0)
+                return status;
+        }
 
         return 0;
     }
