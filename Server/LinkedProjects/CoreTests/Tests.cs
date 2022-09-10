@@ -4,6 +4,7 @@ using Xunit;
 
 namespace Zayats.Core.Facts
 {
+    using static Zayats.Core.Components;
     using static Zayats.Core.GameEvents;
     using Assert = Xunit.Assert;
     
@@ -26,6 +27,10 @@ namespace Zayats.Core.Facts
         public void Debug(string format, object value)
         {
             System.Console.WriteLine(String.Format(format, value));
+        }
+
+        public void Dump(object obj)
+        {
         }
     }
 
@@ -54,9 +59,9 @@ namespace Zayats.Core.Facts
             
             game.Logger = new Logger();
 
-            Components.InitializeComponentStorages(game, defaultSize: 0);
+            game.InitializeComponentStorages(defaultSize: 0);
             
-            Assert.True(game.State.ComponentsByType.All(f => f is not null), "Not all component storage units have been initialized.");
+            Assert.True(game.State.Components.Storages.All(f => f is not null), "Not all component storage units have been initialized.");
 
             return (game, rand, creating);
         }
@@ -74,7 +79,7 @@ namespace Zayats.Core.Facts
             return (game, rand, creating);
         }
 
-        public static int AddPickup(ThingCreationContext creating, IPickup pickup, int position = 1)
+        public static int AddPickup(ThingCreationContext creating, Pickup pickup, int position = 1)
         {
             var p = creating.Create();
             p.AddComponent(Components.PickupId) = pickup;
@@ -116,7 +121,7 @@ namespace Zayats.Core.Facts
         {
             var (game, rand, creating) = BasicSinglePlayer(cellCount: 3);
 
-            int itemId = AddPickup(creating, PlayerInventoryPickup.Instance);
+            int itemId = AddPickup(creating, DoNothingPickupEffect.Instance.AsPickup());
 
             rand.NextAmount = 1;
             game.ExecuteCurrentPlayersTurn();
@@ -133,7 +138,7 @@ namespace Zayats.Core.Facts
             int addedStatValue = 3;
             // Choose a stat that doesn't affect movement here.
             var statId = Stats.JumpAfterMoveCapacity;
-            var pickup = new AddStatPickup(statId, addedStatValue);
+            var pickup = new AddStatPickupEffect(new StatBoost(statId, addedStatValue)).AsPickup();
 
             int itemId = AddPickup(creating, pickup);
 
@@ -201,7 +206,7 @@ namespace Zayats.Core.Facts
             public bool Value = false;
         }
 
-        private (GameContext, int mineId) MineSetup(MinePickup pickup)
+        private (GameContext, int mineId) MineSetup(Pickup pickup)
         {
             var (game, rand, creating) = BasicSinglePlayer(cellCount: 3);
             rand.NextAmount = 1;
@@ -213,7 +218,7 @@ namespace Zayats.Core.Facts
         [Fact]
         public void RegularMine()
         {
-            var (game, mineId) = MineSetup(MinePickup.Regular);
+            var (game, mineId) = MineSetup(Pickups.RegularMine);
 
             game.ExecuteCurrentPlayersTurn();
             
@@ -228,7 +233,7 @@ namespace Zayats.Core.Facts
         [Fact]
         public void EternalMine()
         {
-            var (game, mineId) = MineSetup(MinePickup.Eternal);
+            var (game, mineId) = MineSetup(Pickups.EternalMine);
 
             game.ExecuteCurrentPlayersTurn();
 
@@ -340,10 +345,10 @@ namespace Zayats.Core.Facts
 
             int totemId = 1;
             
-            game.AddComponent(Components.PickupId, totemId) = TotemPickup.Instance;
+            game.AddComponent(Components.PickupId, totemId) = Pickups.Totem;
             game.AddComponent(Components.AttachedPickupDelegateId, totemId);
 
-            game.AddItemToInventory_DoPickupEffect(TotemPickup.Instance, new()
+            game.AddItemToInventory_DoPickupEffect(Pickups.Totem, new()
             {
                 PlayerIndex = 0,
                 Position = 0,
@@ -353,7 +358,7 @@ namespace Zayats.Core.Facts
             AssertEqual(totemId, player.Items.Single());
 
             int minePosition = 1;
-            int mineId = AddPickup(creating, MinePickup.Eternal, minePosition);
+            int mineId = AddPickup(creating, Pickups.EternalMine, minePosition);
 
             rand.NextAmount = 1;
             game.ExecuteCurrentPlayersTurn();
@@ -375,7 +380,7 @@ namespace Zayats.Core.Facts
             ref var player = ref game.State.Players[0];
 
             int minePosition = 2;
-            int mineId = AddPickup(creating, MinePickup.Eternal, minePosition);
+            int mineId = AddPickup(creating, Pickups.EternalMine, minePosition);
 
             int respawnPointId = 2;
             int respawnPointPosition = 1;
