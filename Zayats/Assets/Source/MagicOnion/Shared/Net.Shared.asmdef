@@ -4,8 +4,6 @@
     "references": [
         "Zayats.Core",
         "Common",
-        "Unity.TextMeshPro",
-        "DOTween.Modules",
         "Common.Unity",
         "Newtonsoft.Json",
         "MagicOnion.Unity",

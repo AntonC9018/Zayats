@@ -381,7 +381,7 @@ struct ConfigInitCommand
             Nullable!string getMSBuildFodlerPath()
             {
                 enum null_ = typeof(return).init;
-                string GetMSBuildPath_ProjectPath = buildPath(context.projectDirectory, "stuff", "GetMSBuildPath");
+                string GetMSBuildPath_ProjectPath = buildPath(context.projectDirectory, "ci_stuff", "GetMSBuildPath");
                 {
                     auto r = execute2(["dotnet", "run", "--configuration", "Release"], GetMSBuildPath_ProjectPath);
                     if (r.status != 0)
