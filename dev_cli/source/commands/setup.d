@@ -383,18 +383,7 @@ struct ConfigInitCommand
                 enum null_ = typeof(return).init;
                 string GetMSBuildPath_ProjectPath = buildPath(context.projectDirectory, "stuff", "GetMSBuildPath");
                 {
-                    int status = spawnProcess2(["dotnet", "publish", "--configuration", "Release"], GetMSBuildPath_ProjectPath).wait;
-                    if (status != 0)
-                    {
-                        context.logger.error("Could not compile GetMSBuildPath");
-                        return null_;
-                    }
-                }
-                {
-                    auto r = execute2([
-                            "dotnet", "run",
-                            buildPath(GetMSBuildPath_ProjectPath, "bin", "release", "publish", "GetMSBuildPath.dll")],
-                        GetMSBuildPath_ProjectPath);
+                    auto r = execute2(["dotnet", "run", "--configuration", "Release"], GetMSBuildPath_ProjectPath);
                     if (r.status != 0)
                     {
                         context.logger.error("GetMSBuildPath execution error.");
