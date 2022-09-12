@@ -9,7 +9,7 @@ auto spawnProcess2(const(char[])[] args, const char[] workDir)
     File stdout = std.stdio.stdout;
     File stderr = std.stdio.stderr;
     const string[string] env = null;
-    Config config = Config.newEnv;
+    Config config = Config.none;
 
     writeln(escapeShellCommand(args));
 
@@ -22,7 +22,7 @@ auto spawnProcessEnv(const(char[])[] args, string[string] envs, const char[] wor
     File stdout = std.stdio.stdout;
     File stderr = std.stdio.stderr;
     const string[string] env = envs;
-    Config config = Config.none;
+    Config config = Config.newEnv;
 
     writeln(escapeShellCommand(args));
 

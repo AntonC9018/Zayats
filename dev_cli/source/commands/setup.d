@@ -664,11 +664,16 @@ struct CreateSolution
                 "--solutionfile", solutionName,
             ];
 
-            string[string] envs;
-            string p = environment.get("PATH");
-            if (p !is null)
-                p ~= ";";
-            envs["PATH"] = p ~ context.config.msbuildFolderPath;
+            string[string] envs = environment.toAA;
+
+            static void addToPath(string[string] env, string pathToAdd)
+            {
+                if (auto p = "PATH" in env)
+                    *p ~= ";" ~ pathToAdd;
+                else
+                    env["PATH"] = pathToAdd;
+            }
+            addToPath(envs, context.config.msbuildFolderPath);
 
             int status = spawnProcessEnv(args[], envs, context.projectDirectory).wait;
             if (status != 0)
