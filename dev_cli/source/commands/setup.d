@@ -554,6 +554,9 @@ struct CreateSolution
         bool includeUnity;
     }
 
+    @ArgRaw
+    string[] slngenArgs;
+
     int onExecute()
     {
         import std.file;
@@ -663,6 +666,7 @@ struct CreateSolution
                 "--solutiondir", context.projectDirectory,
                 "--solutionfile", solutionName,
             ];
+            args ~= slngenArgs;
 
             string[string] envs = environment.toAA;
 
