@@ -521,13 +521,13 @@ struct MagicOnionContext
         if (status != 0)
             return status;
 
-        auto mp = messagePack();
-        copyPropertiesWithSameName(mo, mp);
-        mp.resolverName = "MyResolver";
+        // auto mp = messagePack();
+        // copyPropertiesWithSameName(mo, mp);
+        // mp.resolverName = "MyResolver";
 
-        status = spawnProcess(mp, context.unityProjectDirectory).wait;
-        if (status != 0)
-            return status;
+        // status = spawnProcess(mp, context.unityProjectDirectory).wait;
+        // if (status != 0)
+        //     return status;
 
         return 0;
     }

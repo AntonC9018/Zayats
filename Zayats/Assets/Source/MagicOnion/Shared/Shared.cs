@@ -15,7 +15,6 @@ namespace Zayats.Net.Shared
         // The method must have a return type of `void` and can have up to 15 parameters of any type.
         void OnJoin(Player player);
         void OnLeave(Player player);
-
     }
     
     // Client -> Server definition
