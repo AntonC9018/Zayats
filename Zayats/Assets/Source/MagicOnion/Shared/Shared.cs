@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using MagicOnion;
 using MessagePack;
+using Kari.Plugins.Flags;
 
 namespace Zayats.Net.Shared
 {
@@ -9,28 +10,38 @@ namespace Zayats.Net.Shared
         UnaryResult<int> SumAsync(int x, int y);
     }
 
-    // Server -> Client definition
+    // Server -> Client
     public interface IGamingHubReceiver
     {
-        // The method must have a return type of `void` and can have up to 15 parameters of any type.
         void OnJoin(Player player);
         void OnLeave(Player player);
     }
     
-    // Client -> Server definition
-    // implements `IStreamingHub<TSelf, TReceiver>`  and share this type between server and client.
+    // Client -> Server
     public interface IGamingHub : IStreamingHub<IGamingHub, IGamingHubReceiver>
     {
-        // The method must return `Task` or `Task<T>` and can have up to 15 parameters of any type.
+        // Task<Player[]> GetPlayers(string room);
         Task<Player[]> JoinAsync(string roomName, string userName);
         Task LeaveAsync();
     }
+
+    [NiceFlags]
+    public enum RoomFlags
+    {
+        RequiresPassword,
+        RequiresName,
+    }
+
+    public enum StreamingHubState
+    {
+        NotInRoom,
+        InRoom,
+        InGame,
+    }
     
-    // for example, request object by MessagePack.
     [MessagePackObject]
     public class Player
     {
-        [Key(0)]
-        public string Name { get; set; }
+        [Key(0)] public string Name { get; set; }
     }
 }

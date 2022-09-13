@@ -24,9 +24,10 @@ namespace Zayats.Unity.Net
     
             return _players[playerName];
         }
+
+        private bool IsInitialized => _players is not null; 
     
         // methods send to server.
-    
         public async Task LeaveAsync()
         {
             await _client.LeaveAsync();
@@ -48,7 +49,7 @@ namespace Zayats.Unity.Net
     
         void IGamingHubReceiver.OnJoin(Player player)
         {
-            if (_players is null)
+            if (!IsInitialized)
                 return;
 
             Debug.Log("Join Player:" + player.Name);
@@ -59,7 +60,7 @@ namespace Zayats.Unity.Net
     
         void IGamingHubReceiver.OnLeave(Player player)
         {
-            if (_players is null)
+            if (!IsInitialized)
                 return;
 
             Debug.Log("Leave Player:" + player.Name);

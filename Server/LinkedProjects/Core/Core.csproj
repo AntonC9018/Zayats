@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="../Common/Common.csproj" />
+    <ProjectReference Include="..\Common\Common.csproj" />
     <Compile Include="$(ZayatsUnitySourceFolder)Core\Runtime\**\*.cs" />
   </ItemGroup>
 </Project>
