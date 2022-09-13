@@ -53,6 +53,9 @@ struct Context
 
         @("What to do http requests with")
         auto dowloadTool = DownloadToolOption.curl;
+
+        @("CI directory")
+        string ciDirectoryPath = "ci_stuff";
     }
 
     string unityProjectDirectory;
@@ -119,6 +122,7 @@ struct Context
         normalizeAndCreate(tempDirectory, "temp");
         normalizeAndCreate(buildDirectory, "build");
         normalizeAndCreate(toolsDirectory, "tools");
+        normalizeAndCreate(ciDirectoryPath, "ci");
 
         {
             if (configurationPath == "")

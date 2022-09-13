@@ -509,6 +509,7 @@ struct MagicOnionContext
         // TODO: make a kari plugin for both.
         import common.tools;
         auto mo = magicOnion();
+        mo.toolPath = ["dotnet", "run", "--framework", "net6.0", "--configuration", "release", "--"];
         mo.unuseUnityAttr = true;
         mo.input = csprojPath;
         mo.output = buildPath(magicOnionProjectPath, "MessagePackGenerated");
@@ -516,7 +517,7 @@ struct MagicOnionContext
         mo.namespace = mo.messagePackGeneratedNamespace;
         mo.conditionalSymbols = ["UNITY_EDITOR"];
 
-        status = spawnProcess(mo, context.unityProjectDirectory).wait;
+        status = spawnProcess(mo, buildPath(context.ciDirectoryPath, "MagicOnion", "src", "MagicOnion.Generator")).wait;
         if (status != 0)
             return status;
 
