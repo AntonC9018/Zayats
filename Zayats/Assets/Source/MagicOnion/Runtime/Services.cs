@@ -30,7 +30,7 @@ namespace Zayats.Unity.Net
         // methods send to server.
         public async Task LeaveAsync()
         {
-            await _client.LeaveAsync();
+            await _client.LeaveRoom();
         }
     
         // dispose client-connection before channel.ShutDownAsync is important!
@@ -47,7 +47,7 @@ namespace Zayats.Unity.Net
     
         // Receivers of message from server.
     
-        void IGamingHubReceiver.OnJoin(Player player)
+        void IGamingHubReceiver.OnJoin(RoomPlayer player)
         {
             if (!IsInitialized)
                 return;
@@ -58,7 +58,7 @@ namespace Zayats.Unity.Net
             _players[player.Name] = cube;
         }
     
-        void IGamingHubReceiver.OnLeave(Player player)
+        void IGamingHubReceiver.OnLeave(RoomPlayer player)
         {
             if (!IsInitialized)
                 return;
