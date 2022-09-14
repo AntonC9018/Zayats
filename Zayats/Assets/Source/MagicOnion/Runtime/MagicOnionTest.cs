@@ -15,7 +15,7 @@ namespace Zayats.Unity.Net
             MagicOnionInitializer.Register();
             
             var channel = GrpcChannelx.ForTarget(new GrpcChannelTarget("localhost", 5000, isInsecure: true));
-            var hub = new GamingHubClient();
+            var hub = new GameClient();
             await hub.ConnectAsync(channel, roomName: "a", playerName: "Anton");
             await hub.LeaveAsync();
         }

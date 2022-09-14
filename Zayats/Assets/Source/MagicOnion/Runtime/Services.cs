@@ -7,65 +7,58 @@ using Zayats.Net.Shared;
 
 namespace Zayats.Unity.Net
 {
-    public class GamingHubClient : IGamingHubReceiver
+    public class GameClient : IGamingHubReceiver
     {
-        Dictionary<string, GameObject> _players;
-        IGamingHub _client;
+        private IGamingHub _client;
+
+        private PlayerId? _playerIdentity;
+        private StreamingHubState _roomState;
+
+        private bool IsLoggedIn => _playerIdentity.HasValue;
     
-        public async Task<GameObject> ConnectAsync(ChannelBase grpcChannel, string roomName, string playerName)
+        public async Task ConnectAsync(ChannelBase grpcChannel, string roomName, string playerName)
         {
-            this._client = await StreamingHubClient.ConnectAsync<IGamingHub, IGamingHubReceiver>(grpcChannel, this);
-
-            var roomPlayers = await _client.JoinAsync(roomName, playerName);
-
-            _players = new();
-            foreach (var player in roomPlayers)
-                (this as IGamingHubReceiver).OnJoin(player);
-    
-            return _players[playerName];
+            _client = await StreamingHubClient.ConnectAsync<IGamingHub, IGameReceiver>(grpcChannel, this);
         }
 
-        private bool IsInitialized => _players is not null; 
-    
-        // methods send to server.
         public async Task LeaveAsync()
         {
             await _client.LeaveRoom();
         }
     
-        // dispose client-connection before channel.ShutDownAsync is important!
         public Task DisposeAsync()
         {
             return _client.DisposeAsync();
         }
     
-        // You can watch connection state, use this for retry etc.
         public Task WaitForDisconnect()
         {
             return _client.WaitForDisconnect();
         }
-    
-        // Receivers of message from server.
-    
-        void IGamingHubReceiver.OnJoin(RoomPlayer player)
-        {
-            if (!IsInitialized)
-                return;
 
-            Debug.Log("Join Player:" + player.Name);
-            var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            cube.name = player.Name;
-            _players[player.Name] = cube;
+        void IGameReceiver.OnUseItem(UseItemRequest useItem)
+        {
+            throw new System.NotImplementedException();
         }
-    
-        void IGamingHubReceiver.OnLeave(RoomPlayer player)
-        {
-            if (!IsInitialized)
-                return;
 
-            Debug.Log("Leave Player:" + player.Name);
-            if (_players.TryGetValue(player.Name, out var cube))
-                GameObject.Destroy(cube);
+        void IGameReceiver.OnExecuteTurn(bool pass)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        void IRoomReceiver.OnJoin(RoomPlayer player)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        void IRoomReceiver.OnLeave(int playerIndex, LeaveRoomReason reason)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        void IRoomReceiver.OnGameStart()
+        {
+            throw new System.NotImplementedException();
         }
     }
 }

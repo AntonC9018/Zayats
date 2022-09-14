@@ -1,10 +1,13 @@
 using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using MagicOnion;
 using MagicOnion.Server;
 using MagicOnion.Server.Hubs;
 using MessagePack;
+using Zayats.Core;
 using Zayats.Net.Shared;
 
 namespace Zayats.GameServer;
@@ -12,7 +15,6 @@ namespace Zayats.GameServer;
 
 public class TestService : ServiceBase<ITestService>, ITestService
 {
-    // `UnaryResult<T>` allows the method to be treated as `async` method.
     public UnaryResult<int> SumAsync(int x, int y)
     {
         Console.WriteLine($"Received:{x}, {y}");
@@ -20,39 +22,102 @@ public class TestService : ServiceBase<ITestService>, ITestService
     }
 }
 
-// Server implementation
-// implements : StreamingHubBase<THub, TReceiver>, THub
-public class GamingHub : StreamingHubBase<IGamingHub, IGamingHubReceiver>, IGamingHub
+public class RoomState
 {
-    // this class is instantiated per connected so fields are cache area of connection.
+    public RoomFlags Flags;
+
+    public List<PlayerId> Players;
+
+    public int OwnerIndex;
+    public GameContext OnGoingGame;
+}
+
+public class PlayerState
+{
+    public RoomId Room;
+}
+
+public class SharedState
+{
+    public ConcurrentDictionary<RoomId, Room> _rooms;
+    public ConcurrentDictionary<PlayerId, PlayerState> _players;
+}
+
+public class GamingHub : StreamingHubBase<IGamingHub, IGameReceiver>, IGamingHub
+{
+    private SharedState _sharedState;
     private IGroup _room;
-    private Player _self;
-    private IInMemoryStorage<Player> _storage;
 
-    public async Task<Player[]> JoinAsync(string roomName, string userName)
+    public GamingHub(SharedState sharedState)
     {
-        Console.WriteLine(userName + " joined.");
-        _self = new Player() { Name = userName };
-
-        // Group can bundle many connections and it has inmemory-storage so add any type per group. 
-        (_room, _storage) = await Group.AddAsync(roomName, _self);
-
-        // Typed Server->Client broadcast.
-        Broadcast(_room).OnJoin(_self);
-
-        return _storage.AllValues.ToArray();
+        _sharedState = sharedState;
+        Group.RawGroupRepository
     }
 
-    public async Task LeaveAsync()
+    public Task UseItem(UseItemRequest request)
     {
-        await _room.RemoveAsync(this.Context);
-        Broadcast(_room).OnLeave(_self);
+        throw new NotImplementedException();
     }
 
-    // You can hook OnConnecting/OnDisconnected by override.
-    protected override ValueTask OnDisconnected()
+    public Task ExecuteTurn(bool pass = false)
     {
-        // on disconnecting, if automatically removed this connection from group.
-        return CompletedTask;
+        throw new NotImplementedException();
+    }
+
+    public Task LeaveRoom()
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task KickPlayer()
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task StartGame()
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<GeneralPlayerInfo> Login(string login, string password)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<GeneralPlayerInfo[]> GetPlayers(int maxPlayers)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<Room> GetRoom(RoomId room)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<Room[]> FindRooms(SearchQuery query)
+    {
+        throw new NotImplementedException();
+    }
+
+    public async Task<Room> JoinRoom(RoomId room)
+    {
+        string roomName = room.Name;
+        var group = await Group.AddAsync(roomName);
+        group.AddAsync()
+    }
+
+    public Task<Room> GetRoomImIn()
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<GameSynchronization> SyncGame(RoomId room)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<RoomId?> CreateRoom()
+    {
+        throw new NotImplementedException();
     }
 }

@@ -13,13 +13,31 @@ namespace Zayats.Net.Shared
         UnaryResult<int> SumAsync(int x, int y);
     }
 
-    // Server -> Client
-    public interface IGamingHubReceiver
+    public interface IRoomReceiver
     {
         void OnJoin(RoomPlayer player);
-        void OnLeave(RoomPlayer player);
+        void OnLeave(int playerIndex, LeaveRoomReason reason);
+        void OnGameStart();
+    }
+    
+    // Server -> Client
+    public interface IGameReceiver
+    {
+        void OnUseItem(UseItemRequest useItem);
+        void OnExecuteTurn(bool pass);
     }
 
+    public interface IGamingHubReceiver : IGameReceiver, IRoomReceiver
+    {
+    }
+
+    public enum LeaveRoomReason
+    {
+        Kicked,
+        OwnDecision,
+    }
+
+    [NiceFlags]
     public enum Require
     {
         Authorization = 1 << 0,
@@ -82,11 +100,14 @@ namespace Zayats.Net.Shared
         // Needed for synchronization or loading a watched game.
         [Require(Authorization)]
         Task<GameSynchronization> SyncGame(RoomId room);
+
+        [Require(Authorization)]
+        Task<RoomId?> CreateRoom();
     }
 
     // Client -> Server
     public interface IGamingHub : IGameOperations, IRoomOperations, IGlobalOperations,
-        IStreamingHub<IGamingHub, IGamingHubReceiver>
+        IStreamingHub<IGamingHub, IGameReceiver>
     {
     }
 
