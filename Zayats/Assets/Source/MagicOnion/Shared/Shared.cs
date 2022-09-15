@@ -29,6 +29,7 @@ namespace Zayats.Net.Shared
 
     public interface IGamingHubReceiver : IGameReceiver, IRoomReceiver
     {
+        void OnTest();
     }
 
     public enum LeaveRoomReason
@@ -107,8 +108,14 @@ namespace Zayats.Net.Shared
 
     // Client -> Server
     public interface IGamingHub : IGameOperations, IRoomOperations, IGlobalOperations,
-        IStreamingHub<IGamingHub, IGameReceiver>
+        IStreamingHub<IGamingHub, IGamingHubReceiver>
     {
+    }
+
+    public interface IGamingHubService : IGameOperations, IRoomOperations, IGlobalOperations,
+        IService<IGamingHubService>
+    {
+        Task Test2();
     }
 
     [MessagePackObject]

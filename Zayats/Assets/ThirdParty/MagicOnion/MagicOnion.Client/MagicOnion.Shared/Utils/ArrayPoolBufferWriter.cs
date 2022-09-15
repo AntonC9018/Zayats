@@ -3,7 +3,7 @@ using System.Buffers;
 
 namespace MagicOnion.Utils
 {
-    internal sealed class ArrayPoolBufferWriter : IBufferWriter<byte>, IDisposable
+    public sealed class ArrayPoolBufferWriter : IBufferWriter<byte>, IDisposable
     {
         [ThreadStatic]
         static ArrayPoolBufferWriter staticInstance;

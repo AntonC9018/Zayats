@@ -25,9 +25,7 @@ public class TestService : ServiceBase<ITestService>, ITestService
 public class RoomState
 {
     public RoomFlags Flags;
-
     public List<PlayerId> Players;
-
     public int OwnerIndex;
     public GameContext OnGoingGame;
 }
