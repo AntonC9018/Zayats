@@ -27,6 +27,230 @@ namespace Zayats.Unity.Net
         }
     }
 
+    public class SubscriptionContext
+    {
+    }
+
+    public enum Result
+    {
+        // Should discontinue the current operation
+        CannotContinue,
+        //
+        CanContinue,
+    }
+    
+
+    public static class Helper2
+    {
+        public interface ISubscribeErrorHandler
+        {
+            // Returns true if the exc
+            Result HandleConsumeException(Exception e);
+            Result HandleStreamException(Exception e);
+            // ErrorHandlingResult HandleConsumeError(string error); 
+        }
+
+        public interface IConsumeData
+        {
+            Result ConsumeData(byte[] data);
+        }
+        
+        public static async Task StartSubscription<TConsumeErrorHandler>(
+            IAsyncStreamReader<byte[]> reader,
+            ISubscribeErrorHandler errorHandler,
+            IConsumeData consumer,
+            CancellationToken cancellationToken)
+        {
+            var firstMoveNextTask = reader.MoveNext(cancellationToken);
+            if (firstMoveNextTask.IsFaulted)
+            {
+                // NOTE: Grpc.Net:
+                //           If an error is returned from `StreamingHub.Connect` method server-side,
+                //           ResponseStream.MoveNext synchronously returns a task that is `IsFaulted = true`.
+                //       C-core:
+                //           `firstMoveNextTask` is incomplete task (`IsFaulted = false`) whether ResponseHeadersAsync is failed or not.
+                //           If the channel is disconnected or the server returns an error (StatusCode != OK), awaiting the Task will throw an exception.
+                try
+                {
+                    await firstMoveNextTask.ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    if (errorHandler.HandleStreamException(ex) == Result.CannotContinue)
+                        return;
+                }
+            }
+
+            if (cancellationToken.IsCancellationRequested)
+                return;
+
+            try
+            {
+                var t = firstMoveNextTask;
+                while (await t.ConfigureAwait(false)) // avoid Post to SyncContext(it loses one-frame per operation)
+                {
+                    try
+                    {
+                        if (consumer.ConsumeData(reader.Current) == Result.CannotContinue)
+                            return;
+                    }
+                    catch (Exception ex)
+                    {
+                        if (errorHandler.HandleConsumeException(ex) == Result.CannotContinue)
+                            return;
+                    }
+
+                    if (cancellationToken.IsCancellationRequested)
+                        return;
+
+                    t = reader.MoveNext(cancellationToken);
+                }
+            }
+            catch (Exception ex)
+            {
+                if (ex is OperationCanceledException)
+                    return;
+
+                errorHandler.HandleStreamException(ex);
+            }
+            finally
+            {
+            }
+        }
+
+        public struct HandleMessageResult
+        {
+            public bool WasHandled;
+            public Result Result;
+        }
+
+        public interface IResponseHandler
+        {
+            Result? HandleResponse(int messageId, int methodId, ArraySegment<byte> data);
+            Result? HandleServerError(int messageId, Status status, string errorMessage); 
+            Result HandleBroadcast(int methodId, ArraySegment<byte> data);
+        }
+
+        public interface IConsumeErrorHandler
+        {
+            Result HandleResponseException(Exception e);
+            Result HandleIgnoredResponse(int messageId, int methodId, ArraySegment<byte> data);
+            Result HandleIgnoredServerError(int messageId, Status status, string errorMessage);
+            Result HandleInvalidFormatException(MessagePackSerializationException e);
+        }
+
+        public static Result ConsumeStandardMessage(
+            byte[] data,
+            SynchronizationContext syncContext,
+            IResponseHandler responseHandler,
+            IConsumeErrorHandler errorHandler)
+        {
+            try
+            {
+                var messagePackReader = new MessagePackReader(data);
+                var arrayLength = messagePackReader.ReadArrayHeader();
+                
+                // response: [messageId, methodId, response]
+                if (arrayLength == 3)
+                {
+                    var messageId = messagePackReader.ReadInt32();
+                    var methodId = messagePackReader.ReadInt32();
+                    var offset = (int) messagePackReader.Consumed;
+                    var rest = new ArraySegment<byte>(data, offset, data.Length - offset);
+
+                    var r = responseHandler.HandleResponse(messageId, methodId, rest);
+                    if (r.HasValue)
+                        return r.Value;
+
+                    return errorHandler.HandleIgnoredResponse(messageId, methodId, rest);
+                }
+                else if (arrayLength == 4)
+                {
+                    var messageId = messagePackReader.ReadInt32();
+                    var statusCode = messagePackReader.ReadInt32();
+                    var detail = messagePackReader.ReadString();
+                    var error = messagePackReader.ReadString();
+                    var status = new Status((StatusCode) statusCode, detail);
+
+                    var r = responseHandler.HandleServerError(messageId, status, error);
+                    if (r.HasValue)
+                        return r.Value;
+
+                    return errorHandler.HandleIgnoredServerError(messageId, status, error);
+                }
+
+                // broadcast: [methodId, [argument]]
+                else
+                {
+                    var methodId = messagePackReader.ReadInt32();
+                    var offset = (int) messagePackReader.Consumed;
+                    var rest = new ArraySegment<byte>(data, offset, data.Length - offset);
+                    return responseHandler.HandleBroadcast(methodId, rest);
+                }
+            }
+            catch (MessagePackSerializationException e)
+            {
+                return errorHandler.HandleInvalidFormatException(e);
+            }
+        }
+
+        public static async Task WriteMessageAsync<T>(
+            int methodId,
+            T message,
+            AsyncLock lock_,
+            IClientStreamWriter<byte[]> writer,
+            MessagePackSerializerOptions serializerOptions)
+        {
+            byte[] BuildMessage()
+            {
+                using (var buffer = ArrayPoolBufferWriter.RentThreadStaticWriter())
+                {
+                    var writer = new MessagePackWriter(buffer);
+                    writer.WriteArrayHeader(2);
+                    writer.Write(methodId);
+                    MessagePackSerializer.Serialize(ref writer, message, serializerOptions);
+                    writer.Flush();
+                    return buffer.WrittenSpan.ToArray();
+                }
+            }
+
+            var messageBytes = BuildMessage();
+            using (await lock_.LockAsync().ConfigureAwait(false))
+                await writer.WriteAsync(messageBytes).ConfigureAwait(false);
+        }
+
+        protected async Task<TResponse> WriteMessageWithResponseAsync<TRequest, TResponse>(int methodId, TRequest message)
+        {
+            ThrowIfDisposed();
+
+            var mid = Interlocked.Increment(ref _currentMessageId);
+            var tcs = new TaskCompletionSourceEx<TResponse>(); // use Ex
+            _responseFutures[mid] = (object)tcs;
+
+            byte[] BuildMessage()
+            {
+                using (var buffer = ArrayPoolBufferWriter.RentThreadStaticWriter())
+                {
+                    var writer = new MessagePackWriter(buffer);
+                    writer.WriteArrayHeader(3);
+                    writer.Write(mid);
+                    writer.Write(methodId);
+                    MessagePackSerializer.Serialize(ref writer, message, _serializerOptions);
+                    writer.Flush();
+                    return buffer.WrittenSpan.ToArray();
+                }
+            }
+
+            var v = BuildMessage();
+            using (await _asyncLock.LockAsync().ConfigureAwait(false))
+            {
+                await _connection.RawStreamingCall.RequestStream.WriteAsync(v).ConfigureAwait(false);
+            }
+
+            return await tcs.Task.ConfigureAwait(false); // wait until server return response(or error). if connection was closed, throws cancellation from DisposeAsyncCore.
+        }
+    }
+
 
     public abstract class HubClientBase
     {
@@ -41,15 +265,15 @@ namespace Zayats.Unity.Net
         protected readonly MessagePackSerializerOptions _serializerOptions;
         readonly AsyncLock _asyncLock = new AsyncLock();
 
-        DuplexStreamingResult<byte[], byte[]> _connection;
-        Task _subscription;
-        TaskCompletionSource<object> _waitForDisconnect = new TaskCompletionSource<object>();
+        private DuplexStreamingResult<byte[], byte[]> _connection;
+        private Task _subscription;
+        private TaskCompletionSource<object> _waitForDisconnect = new TaskCompletionSource<object>();
 
         // {messageId, TaskCompletionSource}
-        ConcurrentDictionary<int, object> _responseFutures = new ConcurrentDictionary<int, object>();
-        protected CancellationTokenSource _cts = new CancellationTokenSource();
-        int _messageId = 0;
-        bool _disposed;
+        private ConcurrentDictionary<int, object> _responseFutures = new ConcurrentDictionary<int, object>();
+        protected CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+        private int _currentMessageId = 0;
+        private bool _disposed;
 
         protected HubClientBase(Method<byte[], byte[]> method, CallInvoker callInvoker, string host, CallOptions option, MessagePackSerializerOptions serializerOptions, IMagicOnionClientLogger logger)
         {
@@ -87,7 +311,7 @@ namespace Zayats.Unity.Net
 
             _connection = streamingResult;
 
-            // Establish StreamingHub connection between the client and the server.
+            // Establish ZayatsHub connection between the client and the server.
             Metadata.Entry messageVersion = default;
             try
             {
@@ -122,7 +346,7 @@ namespace Zayats.Unity.Net
             }
 
             // What the heck does this do?
-            var linkedToken = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cts.Token).Token;
+            var linkedToken = _cancellationTokenSource.Token; //CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cancellationTokenSource.Token).Token;
             var firstMoveNextTask = _connection.RawStreamingCall.ResponseStream.MoveNext(linkedToken);
             if (firstMoveNextTask.IsFaulted)
             {
@@ -175,7 +399,7 @@ namespace Zayats.Unity.Net
                         }
                     }
 
-                    moveNext = reader.MoveNext(_cts.Token);
+                    moveNext = reader.MoveNext(_cancellationTokenSource.Token);
                 }
             }
             catch (Exception ex)
@@ -207,6 +431,7 @@ namespace Zayats.Unity.Net
                         SynchronizationContext.SetSynchronizationContext(syncContext);
                     }
 #endif
+
                     await DisposeAsyncCore(false).ConfigureAwait(false);
                 }
                 finally
@@ -328,7 +553,7 @@ namespace Zayats.Unity.Net
         {
             ThrowIfDisposed();
 
-            var mid = Interlocked.Increment(ref _messageId);
+            var mid = Interlocked.Increment(ref _currentMessageId);
             var tcs = new TaskCompletionSourceEx<TResponse>(); // use Ex
             _responseFutures[mid] = (object)tcs;
 
@@ -389,8 +614,8 @@ namespace Zayats.Unity.Net
             catch { } // ignore error?
             finally
             {
-                _cts.Cancel();
-                _cts.Dispose();
+                _cancellationTokenSource.Cancel();
+                _cancellationTokenSource.Dispose();
                 try
                 {
                     if (waitSubscription)

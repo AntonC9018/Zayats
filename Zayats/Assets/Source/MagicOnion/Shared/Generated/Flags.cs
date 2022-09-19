@@ -7,6 +7,222 @@
 namespace Zayats.Net.Shared.Generated
 {
     using System.Runtime.CompilerServices;
+    public static class LoginStatusFlagsExtensions
+    {
+        /// <summary>
+        /// Checks whether the given flags intersect with the other flags.
+        /// Returns true if either of the other flags are set on the flags.
+        /// To see if flags contain all of some other flags, use <c>Has()</c> instead. 
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool HasEither(this Zayats.Net.Shared.LoginStatus flag1, Zayats.Net.Shared.LoginStatus flag2)
+        {
+            return (flag1 & flag2) != 0;
+        }
+
+        /// <summary>
+        /// Checks whether the given flags does not intersect with the other flags.
+        /// Returns false if either of the other flags are set on the flags.
+        /// This function does the same as negating a call to <c>HasEither()</c>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool DoesNotHaveEither(this Zayats.Net.Shared.LoginStatus flag1, Zayats.Net.Shared.LoginStatus flag2)
+        {
+            return (flag1 & flag2) == 0;
+        }
+
+        /// <summary>
+        /// Checks whether the given flags1 contains flags2.
+        /// Returns false if either of the other flags are set on the flags.
+        /// This function does the same as negating a call to <c>HasEither()</c>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool Has(this Zayats.Net.Shared.LoginStatus flag1, Zayats.Net.Shared.LoginStatus flag2)
+        {
+            return (flag1 & flag2) == flag2;
+        }
+
+        /// <summary>
+        /// Checks whether the given flags1 does not contain flags2.
+        /// Returns false if either of the other flags are set on the flags.
+        /// This function does the same as negating a call to <c>!Has()</c>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool DoesNotHave(this Zayats.Net.Shared.LoginStatus flag1, Zayats.Net.Shared.LoginStatus flag2)
+        {
+            return (flag1 & flag2) != flag2;
+        }
+
+        /// <summary>
+        /// Modifies the given <c>LoginStatus</c>, setting the given flags.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref Zayats.Net.Shared.LoginStatus Set(ref this Zayats.Net.Shared.LoginStatus flagInitial, Zayats.Net.Shared.LoginStatus flagToSet)
+        {
+            flagInitial = flagInitial | flagToSet;
+            return ref flagInitial;
+        }
+
+        /// <summary>
+        /// Returns a new <c>LoginStatus</c> with the given flags set.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Zayats.Net.Shared.LoginStatus WithSet(this Zayats.Net.Shared.LoginStatus flagInitial, Zayats.Net.Shared.LoginStatus flagToSet)
+        {
+            return flagInitial | flagToSet;
+        }
+        
+        /// <summary>
+        /// Modifies the given <c>LoginStatus</c> unsetting the given flags.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref Zayats.Net.Shared.LoginStatus Unset(ref this Zayats.Net.Shared.LoginStatus flagInitial, Zayats.Net.Shared.LoginStatus flagToSet)
+        {
+            flagInitial = flagInitial & (~flagToSet);
+            return ref flagInitial;
+        }
+
+        /// <summary>
+        /// Returns a new <c>LoginStatus</c> with the given flags unset.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Zayats.Net.Shared.LoginStatus WithUnset(this Zayats.Net.Shared.LoginStatus flagInitial, Zayats.Net.Shared.LoginStatus flagToSet)
+        {
+            return flagInitial & (~flagToSet);
+        }
+        
+        /// <summary>
+        /// Modifies the given <c>LoginStatus</c> with the given flags set or unset, 
+        /// indicated by the <c>set</c> boolean parameter.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref Zayats.Net.Shared.LoginStatus Set(ref this Zayats.Net.Shared.LoginStatus flagInitial, Zayats.Net.Shared.LoginStatus flagToSet, bool set)
+        {
+            if (set) flagInitial = flagInitial | flagToSet;
+            else     flagInitial = flagInitial & (~flagToSet);
+            return ref flagInitial;
+        }
+
+        /// <summary>
+        /// Returns a new <c>LoginStatus</c> with the given flags set or unset, 
+        /// indicated by the <c>set</c> boolean parameter.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Zayats.Net.Shared.LoginStatus WithSet(this Zayats.Net.Shared.LoginStatus flagInitial, Zayats.Net.Shared.LoginStatus flagToSet, bool set)
+        {
+            if (set) return flagInitial | flagToSet;
+            else     return flagInitial & (~flagToSet);
+        }
+    }
+    
+    public static class RequireFlagsExtensions
+    {
+        /// <summary>
+        /// Checks whether the given flags intersect with the other flags.
+        /// Returns true if either of the other flags are set on the flags.
+        /// To see if flags contain all of some other flags, use <c>Has()</c> instead. 
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool HasEither(this Zayats.Net.Shared.Require flag1, Zayats.Net.Shared.Require flag2)
+        {
+            return (flag1 & flag2) != 0;
+        }
+
+        /// <summary>
+        /// Checks whether the given flags does not intersect with the other flags.
+        /// Returns false if either of the other flags are set on the flags.
+        /// This function does the same as negating a call to <c>HasEither()</c>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool DoesNotHaveEither(this Zayats.Net.Shared.Require flag1, Zayats.Net.Shared.Require flag2)
+        {
+            return (flag1 & flag2) == 0;
+        }
+
+        /// <summary>
+        /// Checks whether the given flags1 contains flags2.
+        /// Returns false if either of the other flags are set on the flags.
+        /// This function does the same as negating a call to <c>HasEither()</c>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool Has(this Zayats.Net.Shared.Require flag1, Zayats.Net.Shared.Require flag2)
+        {
+            return (flag1 & flag2) == flag2;
+        }
+
+        /// <summary>
+        /// Checks whether the given flags1 does not contain flags2.
+        /// Returns false if either of the other flags are set on the flags.
+        /// This function does the same as negating a call to <c>!Has()</c>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool DoesNotHave(this Zayats.Net.Shared.Require flag1, Zayats.Net.Shared.Require flag2)
+        {
+            return (flag1 & flag2) != flag2;
+        }
+
+        /// <summary>
+        /// Modifies the given <c>Require</c>, setting the given flags.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref Zayats.Net.Shared.Require Set(ref this Zayats.Net.Shared.Require flagInitial, Zayats.Net.Shared.Require flagToSet)
+        {
+            flagInitial = flagInitial | flagToSet;
+            return ref flagInitial;
+        }
+
+        /// <summary>
+        /// Returns a new <c>Require</c> with the given flags set.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Zayats.Net.Shared.Require WithSet(this Zayats.Net.Shared.Require flagInitial, Zayats.Net.Shared.Require flagToSet)
+        {
+            return flagInitial | flagToSet;
+        }
+        
+        /// <summary>
+        /// Modifies the given <c>Require</c> unsetting the given flags.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref Zayats.Net.Shared.Require Unset(ref this Zayats.Net.Shared.Require flagInitial, Zayats.Net.Shared.Require flagToSet)
+        {
+            flagInitial = flagInitial & (~flagToSet);
+            return ref flagInitial;
+        }
+
+        /// <summary>
+        /// Returns a new <c>Require</c> with the given flags unset.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Zayats.Net.Shared.Require WithUnset(this Zayats.Net.Shared.Require flagInitial, Zayats.Net.Shared.Require flagToSet)
+        {
+            return flagInitial & (~flagToSet);
+        }
+        
+        /// <summary>
+        /// Modifies the given <c>Require</c> with the given flags set or unset, 
+        /// indicated by the <c>set</c> boolean parameter.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref Zayats.Net.Shared.Require Set(ref this Zayats.Net.Shared.Require flagInitial, Zayats.Net.Shared.Require flagToSet, bool set)
+        {
+            if (set) flagInitial = flagInitial | flagToSet;
+            else     flagInitial = flagInitial & (~flagToSet);
+            return ref flagInitial;
+        }
+
+        /// <summary>
+        /// Returns a new <c>Require</c> with the given flags set or unset, 
+        /// indicated by the <c>set</c> boolean parameter.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Zayats.Net.Shared.Require WithSet(this Zayats.Net.Shared.Require flagInitial, Zayats.Net.Shared.Require flagToSet, bool set)
+        {
+            if (set) return flagInitial | flagToSet;
+            else     return flagInitial & (~flagToSet);
+        }
+    }
+    
     public static class RoomFlagsFlagsExtensions
     {
         /// <summary>

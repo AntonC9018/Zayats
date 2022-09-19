@@ -23,7 +23,7 @@ namespace Kari.Plugins.AdvancedEnum
     }
 
     public class InvalidEnumValueException : Exception
-    {
+    { 
         public int RecordedValue { get; }
 
         public InvalidEnumValueException(int recordedValue)
