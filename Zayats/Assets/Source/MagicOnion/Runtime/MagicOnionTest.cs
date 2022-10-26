@@ -139,6 +139,38 @@ namespace Zayats.Unity.Net
             Result HandleInvalidFormatException(MessagePackSerializationException e);
         }
 
+        public class ResponseCompletionContext
+        {
+            private int _nextMessageId = 0;
+            private Dictionary<int, object> _responseFutures = new Dictionary<int, object>();
+            // private AsyncLock _lock = new AsyncLock();
+            private object Lock => _responseFutures;
+
+            public (int MessageId, TaskCompletionSource<T> TaskCompletionSource) StartAcceptingNextMessage<T>()
+            {
+                // using (await _lock.LockAsync())
+                lock (_responseFutures)
+                {
+                    int id = _nextMessageId;
+                    _nextMessageId++;
+                    var result = new TaskCompletionSource<T>();
+                    _responseFutures[id] = result;
+                    return (id, result);
+                }
+            }
+
+            public object MaybeAcceptMessage(int messageId)
+            {
+                lock (_responseFutures)
+                {
+                    if (_responseFutures.TryGetValue(messageId, out object taskCompletionSource))
+                        _responseFutures.Remove(messageId);
+
+                    return taskCompletionSource;
+                }
+            }
+        }
+
         public static Result ConsumeStandardMessage(
             byte[] data,
             SynchronizationContext syncContext,
@@ -194,10 +226,92 @@ namespace Zayats.Unity.Net
             }
         }
 
+
+        public interface IResponseHandler2
+        {
+            Result HandleResponse(int methodId, object taskCompletionSource, ArraySegment<byte> data);
+            Result HandleServerError(Status status, object taskCompletionSource, string errorMessage); 
+            Result HandleBroadcast(int methodId, ArraySegment<byte> data);
+        }
+
+        public interface IConsumeErrorHandler2
+        {
+            Result HandleRequestlessResponse(int messageId, ArraySegment<byte> data);
+            Result HandleRequestlessServerError(int messageId, Status status, string errorMessage);
+            Result HandleInvalidFormatException(MessagePackSerializationException e);
+        }
+
+        public static ArraySegment<byte> GetRest(in this MessagePackReader reader, byte[] buffer)
+        {
+            var offset = (int) reader.Consumed;
+            var rest = new ArraySegment<byte>(buffer, offset, buffer.Length - offset);
+            return rest;
+        }
+
+        public static Result ConsumeStandardMessage2(
+            byte[] data,
+            SynchronizationContext syncContext,
+            IResponseHandler2 responseHandler,
+            ResponseCompletionContext responseCompletion,
+            IConsumeErrorHandler2 errorHandler)
+        {
+            try
+            {
+                var messagePackReader = new MessagePackReader(data);
+                var arrayLength = messagePackReader.ReadArrayHeader();
+                
+                // Response to a request
+                // response: [messageId, methodId, response]
+                if (arrayLength == 3)
+                {
+                    var messageId = messagePackReader.ReadInt32();
+                    var taskCompletionSource = responseCompletion.MaybeAcceptMessage(messageId);
+                    if (taskCompletionSource is null)
+                    {
+                        return errorHandler.HandleRequestlessResponse(messageId, messagePackReader.GetRest(data));
+                    }
+                    else
+                    {
+                        var methodId = messagePackReader.ReadInt32();
+                        var rest = messagePackReader.GetRest(data);
+                        return responseHandler.HandleResponse(messageId, methodId, rest);
+                    }
+                }
+                // Server error in response to a request
+                // response: [messageId, statusCode, detail, error]
+                else if (arrayLength == 4)
+                {
+                    var messageId = messagePackReader.ReadInt32();
+                    var statusCode = messagePackReader.ReadInt32();
+                    var detail = messagePackReader.ReadString();
+                    var error = messagePackReader.ReadString();
+                    var status = new Status((StatusCode) statusCode, detail);
+
+                    var taskCompletionSource = responseCompletion.MaybeAcceptMessage(messageId);
+                    if (taskCompletionSource is null)
+                        return errorHandler.HandleRequestlessServerError(messageId, status, error);
+                    else
+                        return responseHandler.HandleServerError(status, taskCompletionSource, error);
+                }
+
+                // broadcast: [methodId, [argument]]
+                else
+                {
+                    var methodId = messagePackReader.ReadInt32();
+                    var rest = messagePackReader.GetRest(data);
+                    return responseHandler.HandleBroadcast(methodId, rest);
+                }
+            }
+            catch (MessagePackSerializationException e)
+            {
+                return errorHandler.HandleInvalidFormatException(e);
+            }
+        }
+
         public static async Task WriteMessageAsync<T>(
             int methodId,
             T message,
-            AsyncLock lock_,
+            AsyncLock writeLock,
             IClientStreamWriter<byte[]> writer,
             MessagePackSerializerOptions serializerOptions)
         {
@@ -215,17 +329,19 @@ namespace Zayats.Unity.Net
             }
 
             var messageBytes = BuildMessage();
-            using (await lock_.LockAsync().ConfigureAwait(false))
+            using (await writeLock.LockAsync().ConfigureAwait(false))
                 await writer.WriteAsync(messageBytes).ConfigureAwait(false);
         }
 
-        protected async Task<TResponse> WriteMessageWithResponseAsync<TRequest, TResponse>(int methodId, TRequest message)
+        public static async Task<TResponse> WriteMessageWithResponseAsync<TRequest, TResponse>(
+            int methodId,
+            ResponseCompletionContext responseContext,
+            TRequest message,
+            AsyncLock writeLock,
+            IClientStreamWriter<byte[]> writer,
+            MessagePackSerializerOptions serializerOptions)
         {
-            ThrowIfDisposed();
-
-            var mid = Interlocked.Increment(ref _currentMessageId);
-            var tcs = new TaskCompletionSourceEx<TResponse>(); // use Ex
-            _responseFutures[mid] = (object)tcs;
+            var (messageId, taskCompletionSource) = responseContext.StartAcceptingNextMessage<TResponse>();
 
             byte[] BuildMessage()
             {
@@ -233,21 +349,19 @@ namespace Zayats.Unity.Net
                 {
                     var writer = new MessagePackWriter(buffer);
                     writer.WriteArrayHeader(3);
-                    writer.Write(mid);
+                    writer.Write(messageId);
                     writer.Write(methodId);
-                    MessagePackSerializer.Serialize(ref writer, message, _serializerOptions);
+                    MessagePackSerializer.Serialize(ref writer, message, serializerOptions);
                     writer.Flush();
                     return buffer.WrittenSpan.ToArray();
                 }
             }
 
-            var v = BuildMessage();
-            using (await _asyncLock.LockAsync().ConfigureAwait(false))
-            {
-                await _connection.RawStreamingCall.RequestStream.WriteAsync(v).ConfigureAwait(false);
-            }
+            var messageBytes = BuildMessage();
+            using (await writeLock.LockAsync().ConfigureAwait(false))
+                await writer.WriteAsync(messageBytes).ConfigureAwait(false);
 
-            return await tcs.Task.ConfigureAwait(false); // wait until server return response(or error). if connection was closed, throws cancellation from DisposeAsyncCore.
+            return await taskCompletionSource.Task.ConfigureAwait(false);
         }
     }
 
@@ -368,6 +482,7 @@ namespace Zayats.Unity.Net
             }
 
             this._subscription = StartSubscribe(syncContext, firstMoveNextTask);
+            return ConnectionResult.Success;
         }
 
         protected abstract void OnResponseEvent(int methodId, object taskCompletionSource, ArraySegment<byte> data);
