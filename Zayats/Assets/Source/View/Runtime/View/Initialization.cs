@@ -66,10 +66,11 @@ namespace Zayats.Unity.View
             [SerializeField] private bool _shouldValidateConfigOnStart = true;
         #endif
 
-        #if UNITY_EDITOR
-            public
+        #if !UNITY_EDITOR
+        [NonSerialized]
         #endif
-        ViewContext _view;
+        [HideInInspector]
+        public ViewContext _view;
 
         private GameContext Game => _view.Game;
         private ref UIContext UI => ref _view.UI;
@@ -91,8 +92,31 @@ namespace Zayats.Unity.View
             [ContextMenu(nameof(FindCells))]
             public void FindCells()
             {
-                _ui.VisualCells = FindObjectsOfType<Transform>()
-                    .Where(t => t != null && t.gameObject.name.Contains("cell"))
+                Undo.RecordObject(this, nameof(FindCells));
+                _ui.VisualCells = FindObjectsByType<Transform>(sortMode: FindObjectsSortMode.None)
+                    .Where(t => t != null && t.gameObject.name.StartsWith("cell"))
+                    .Select(t =>
+                    {
+                        var numbersText = t.name["cell ".Length ..];
+                        var numbers = numbersText.Split(",");
+                        if (numbers.Length != 2)
+                        {
+                            return default;
+                        }
+                        if (!int.TryParse(numbers[0], out var x))
+                        {
+                            return default;
+                        }
+                        if (!int.TryParse(numbers[1], out var y))
+                        {
+                            return default;
+                        }
+                        return (Cell: t, Pos: new Vector2Int(x, y));
+                    })
+                    .Where(t => t.Cell != null)
+                    .OrderBy(t => t.Pos.x)
+                    .ThenBy(t => t.Pos.y)
+                    .Select(t => t.Cell)
                     .ToArray();
             }
         #endif

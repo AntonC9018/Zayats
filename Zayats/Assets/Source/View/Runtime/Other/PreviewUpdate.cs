@@ -6,7 +6,7 @@ namespace Zayats.Unity.View
 {
     using static Zayats.Core.Assert;
     
-    public class PreviewUpdate : MonoBehaviour
+    public sealed class PreviewUpdate : MonoBehaviour
     {
         private ViewContext _view;
 
@@ -43,7 +43,7 @@ namespace Zayats.Unity.View
                 var r = ViewLogic.RaycastRaycastable(ray);
                 // Pointing at a cell
                 if (r.HasValue)
-            {
+                {
                     assert(_view.State.Selection.TargetKind == TargetKind.Cell);
                     
                     var cellIndex = _view.GetCellIndex(r.Value.Transform);

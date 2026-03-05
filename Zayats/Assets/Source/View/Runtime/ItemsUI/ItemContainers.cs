@@ -176,13 +176,14 @@ namespace Zayats.Unity.View
                 {
                     var t = o.CCenter + o.CenterOffset;
                     t.z += ItemZOffset;
-                    var tween = item.DOMove(t, animationSpeed);
+                    var itemAnimationOrigin = Vector3.zero;
+                    var tween = item.DOMove(t, animationSpeed).From(itemAnimationOrigin);
                     animationSequence.Join(tween);
                 }
                 {
-                    // var scale = Vector3.one * o.MinRatio;
-                    // var tween = item.DOScale(scale, animationSpeed);
-                    // animationSequence.Join(tween);
+                    var scale = Vector3.one * o.MinRatio;
+                    var tween = item.DOScale(scale, animationSpeed).From(0);
+                    animationSequence.Join(tween);
                 }
             }
 
@@ -194,14 +195,6 @@ namespace Zayats.Unity.View
                 for (int i = 0; i < itemsToStore.Length; i++)
                 {
                     var item = itemsToStore[i];
-                    
-                    // TODO:
-                    // 1. Place another camera that only renders the overlay layer at the same position as the UI camera (or like beside it)
-                    // 2. Set the layer of these objects to the overlay layer.
-                    // 3. Before the frame gets rendered, render these objects on a texture.
-                    // 4. Use the item frame positions within the canvas in a custom shader with that texture as input to draw the corresponding items.
-                    // 5. Could do it even cooler. Set the camera at the center of the scroll rect's viewport, such that it sees only the viewport's rectangle.
-                    //    Render the thing there, then in the custom shader calculate the position within viewport.
                     item.SetVisualLayer(LayerIndex.Overlay3D);
 
                     var holder = _uiHolderInfos[i];

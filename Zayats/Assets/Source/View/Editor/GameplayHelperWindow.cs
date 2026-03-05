@@ -17,7 +17,7 @@ namespace Zayats.Unity.View.Editor
 
         public void Initialize()
         {
-            _initialization = GameObject.FindObjectOfType<Initialization>();
+            _initialization = FindFirstObjectByType<Initialization>();
             if (_initialization == null)
                 return;
             _viewHolderSerializedObject = new(_initialization);
