@@ -340,8 +340,6 @@ namespace Zayats.Unity.View
                         return;
 
                     ref var player = ref game.State.Players[context.PlayerIndex];
-                    var playerTransform = UI.Things[player.ThingId].transform;
-
                     var moveSequence = DOTween.Sequence();
                     {
                         var playerVisualInfo = _view.GetThingVisualInfo(player.ThingId);
@@ -352,8 +350,8 @@ namespace Zayats.Unity.View
                         {
                             var cell = UI.VisualCells[i];
                             var pos = _view.GetCellTopPosition(i);
-                            var t = _view.JumpAnimation(playerTransform, pos);
-                            t.OnComplete(() => playerTransform.SetParent(cell, worldPositionStays: true));
+                            var t = _view.JumpAnimation(playerVisualInfo.OuterObject, pos);
+                            t.OnComplete(() => playerVisualInfo.OuterObject.SetParent(cell, worldPositionStays: true));
                             moveSequence.Append(t);
                         }
                     }

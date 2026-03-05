@@ -181,13 +181,13 @@ namespace Zayats.Unity.View
                     animationSequence.Join(tween);
                 }
                 {
-                    var scale = Vector3.one * o.MinRatio;
-                    var tween = item.DOScale(scale, animationSpeed).From(0);
-                    animationSequence.Join(tween);
+                    // var scale = Vector3.one * o.MinRatio;
+                    // var tween = item.DOScale(scale, animationSpeed).From(0);
+                    // animationSequence.Join(tween);
                 }
             }
 
-            animationSequence.InsertCallback(0, () =>
+            animationSequence.AppendCallback(() =>
             {
                 for (int j = 0; j < _itemCount; j++)
                     _uiHolderInfos[j].StoredItem.parent = _ui.ParentForOldItems;
@@ -269,7 +269,7 @@ namespace Zayats.Unity.View
             IEnumerable<Color> colors,
             Sequence animationSequence)
         {
-            animationSequence.InsertCallback(0, () =>
+            animationSequence.AppendCallback(() =>
             {
                 int i = 0;
                 foreach (var color in colors)
