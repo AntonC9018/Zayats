@@ -1,23 +1,19 @@
+using Unity.Plastic.Newtonsoft.Json;
+using Unity.Plastic.Newtonsoft.Json.Linq;
+using Unity.Plastic.Newtonsoft.Json.Serialization;
+
 namespace Zayats.Serialization
 {
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
-    using System.IO;
     using System.Linq;
     using System.Reflection;
     using Kari.Plugins.Forward;
     using Kari.Zayats.Exporter;
-    using Newtonsoft.Json;
-    using Newtonsoft.Json.Bson;
-    using Newtonsoft.Json.Converters;
-    using Newtonsoft.Json.Linq;
-    using Newtonsoft.Json.Serialization;
-    using Zayats.Core;
-    using Zayats.Core.Generated;
-    using Zayats.Serialization.Generated;
-    using static Zayats.Core.Assert;
-    
+    using Core;
+    using Generated;
+
     public struct CommonSerializationContext
     {
         public Dictionary<System.Type, ExportCategory> InterfaceToCategory;
@@ -70,11 +66,13 @@ namespace Zayats.Serialization
                     int id = _context.ObjectToNumber[(int) category][value];
                     token = (JToken) id;
                 }
+                _ = token;
                 // else
                 {
                     string name = _context.ObjectToName[(int) category][value];
                     token = (JToken) name;
                 }
+                _ = token;
             }
             token.WriteTo(writer);
         }

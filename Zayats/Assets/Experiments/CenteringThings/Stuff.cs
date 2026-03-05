@@ -72,6 +72,8 @@ public class Stuff : MonoBehaviour
             }
 
             var holder = UIHolders[i];
+            _ = holder;
+
             if (thing.gameObject.activeInHierarchy
                 && false)
             {
@@ -109,6 +111,7 @@ public class Stuff : MonoBehaviour
             static Vector3 GetTop(Transform parent)
             {
                 var (t, model) = parent.GetObject(ObjectHierarchy.Model);
+                _ = t;
                 var worldSpaceBounds = model.bounds;
                 return (worldSpaceBounds.size.y / 2) * parent.up + worldSpaceBounds.center; 
             }

@@ -220,7 +220,7 @@ namespace Zayats.Core
         }
 
         [Export]
-        public static readonly KillPlayersAction KillPlayersWithPoisonAction = new KillPlayersAction(Reasons.PoisonId);
+        public static readonly KillPlayersAction KillPlayersWithPoisonAction = new(Reasons.PoisonId);
         public static ThingCreationProxy Snake(this ThingCreationProxy p)
         {
             p.AddComponent(Components.ActivatedItemId) = new()
@@ -236,7 +236,7 @@ namespace Zayats.Core
         }
 
         [Export]
-        public static readonly AddStatBonusToUser_Action BoozeAction = new AddStatBonusToUser_Action(
+        public static readonly AddStatBonusToUser_Action BoozeAction = new(
             boost: new(Stats.RollAdditiveBonus, value: 1),
             lastsForTurns: 1); 
         public static ThingCreationProxy Booze(this ThingCreationProxy p)

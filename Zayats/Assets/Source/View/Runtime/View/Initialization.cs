@@ -4,11 +4,10 @@ using static Zayats.Core.Assert;
 using System.Linq;
 using System;
 using System.Collections.Generic;
-using static Zayats.Core.Events;
 using Common;
 using static Zayats.Core.GameEvents;
 using DG.Tweening;
-using Newtonsoft.Json;
+using Unity.Plastic.Newtonsoft.Json;
 
 #if UNITY_EDITOR
     using UnityEditor;
@@ -140,6 +139,7 @@ namespace Zayats.Unity.View
                     return;
 
                 var (modelTransform, modelInfo) = t.GetObject(ObjectHierarchy.ModelInfo);
+                _ = modelTransform;
                 
                 var config = modelInfo.Config;
                 if (config == null)
@@ -254,7 +254,7 @@ namespace Zayats.Unity.View
             for (int i = 0; i < Game.State.Players.Length; i++)
             {
                 int thingId = Game.State.Players[i].ThingId;
-                var (_, renderer) = UI.ThingGameObjects[thingId].transform.GetObject(ObjectHierarchy.Model);
+                var (_, renderer) = UI.Things[thingId].transform.GetObject(ObjectHierarchy.Model);
                 var material = renderer.material;
                 // Instance materials need to be cleaned up.
                 _toDestroy.Add(material);
@@ -278,9 +278,9 @@ namespace Zayats.Unity.View
             Game.InitializeComponentStorages();
             
             {
-                var t = UI.ThingGameObjects;
+                var t = UI.Things;
                 Array.Resize(ref t, countsToSpawn.Array.Sum());
-                UI.ThingGameObjects = t;
+                UI.Things = t;
             }
             assertNoneNull(Game.State.Components.Storages);
 
@@ -316,11 +316,13 @@ namespace Zayats.Unity.View
                         return;
 
                     ref var player = ref game.State.Players[context.PlayerIndex];
-                    var playerTransform = UI.ThingGameObjects[player.ThingId].transform;
+                    var playerTransform = UI.Things[player.ThingId].transform;
 
                     var moveSequence = DOTween.Sequence();
                     {
                         var playerVisualInfo = _view.GetThingVisualInfo(player.ThingId);
+                        _ = playerVisualInfo;
+
                         int direction = Math.Sign(context.TargetPosition - context.InitialPosition);
                         for (int i = context.InitialPosition + direction; i != context.TargetPosition; i += direction)
                         {
@@ -332,8 +334,8 @@ namespace Zayats.Unity.View
                         }
                     }
                     {
-                        var s = _view.LastAnimationSequence;
-                        s.Join(moveSequence);
+                        var s1 = _view.LastAnimationSequence;
+                        s1.Join(moveSequence);
                         // s.AppendInterval(0);
                     }
                 });
@@ -426,10 +428,10 @@ namespace Zayats.Unity.View
                     if (context.BonusAmount > 0)
                         val += " (+" + context.BonusAmount.ToString() + ")";
                         
-                    var s = _view.LastAnimationSequence;
+                    var s1 = _view.LastAnimationSequence;
                     // Placeholder rotation animation
                     // s.AppendInterval(_view.Visual.AnimationSpeed.UI);
-                    s.AppendCallback(() => UI.GameplayText.RollValue.text = val);
+                    s1.AppendCallback(() => UI.GameplayText.RollValue.text = val);
                 });
 
             Game.GetEventProxy(GameEvents.OnPositionChanged).Add(
@@ -509,8 +511,8 @@ namespace Zayats.Unity.View
                 _view.UI.ItemContainers.ItemCount = 0;
 
                 _view.SkipAnimations();
-                foreach (var thing in UI.ThingGameObjects)
-                    Destroy(thing);
+                foreach (var thing in UI.Things)
+                    Destroy(thing.gameObject);
 
                 Seed = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
                 InitializeGame();
@@ -569,6 +571,7 @@ namespace Zayats.Unity.View
                     var scrollRect = view.UI.Static.ItemScrollUI.ScrollRect;
                     var targetPos = scrollRect.GetContentLocalPositionToScrollChildIntoView(context.Item.Index);
                     var t = scrollRect.content.DOLocalMove(targetPos, view.Visual.AnimationSpeed.UI);
+                    _ = t;
                 });
 
             _view.GetEventProxy(ViewEvents.OnSelection.Started).Add(

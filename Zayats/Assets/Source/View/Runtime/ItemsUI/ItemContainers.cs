@@ -155,6 +155,7 @@ namespace Zayats.Unity.View
             centering.localScale = Vector3.one * o.MinRatio;
 
             var (center, size) = holder.ItemFrameTransform.GetWorldSpaceRect();
+            _ = size;
             holder.AnimatedTransform.localPosition = new Vector3(center.x, center.y, ItemZOffset);
         }
 
@@ -171,6 +172,7 @@ namespace Zayats.Unity.View
                 var o = CalculateOffsets(item, holder);
 
                 var ct = holder.CenteringTransform;
+                _ = ct;
                 {
                     var t = o.CCenter + o.CenterOffset;
                     t.z += ItemZOffset;

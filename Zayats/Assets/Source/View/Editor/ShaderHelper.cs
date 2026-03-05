@@ -10,7 +10,7 @@ namespace Zayats.Unity.View.Editor
     public enum SurfaceType
     {
         Opaque,
-        Transparent
+        Transparent,
     }
 
     public static class ShaderHelper

@@ -105,7 +105,7 @@ namespace Zayats.Core
         
         protected void DoAttach(GameContext game, ItemInterationContext info)
         {
-            Events.Handler<GameContext, TEventData> wrappedDelegate = (GameContext game, ref TEventData eventData) => DoEffect(game, info, ref eventData);
+            Events.Handler<GameContext, TEventData> wrappedDelegate = (GameContext game1, ref TEventData eventData) => DoEffect(game1, info, ref eventData);
             game.GetPlayerEventProxy<TEventData>(info.PlayerIndex, EventId).Add(wrappedDelegate);
             game.GetComponent(Components.AttachedPickupDelegateId, info.ThingId) = wrappedDelegate;
         }
@@ -449,7 +449,7 @@ namespace Zayats.Core
                     {
                         Id = ReasonId,
                         Payload = context.ThingId,
-                    }
+                    },
                 });
             }
         }
@@ -518,6 +518,7 @@ namespace Zayats.Core
 
             var itemId = context.ItemId;
             var playerIndex = context.PlayerIndex;
+            _ = playerIndex;
 
             game.RemoveItemFromInventory(context);
             game.PlaceThing(itemId).At(t);

@@ -72,13 +72,13 @@ namespace Zayats.Unity.View
                     Transform GetPlayerTransform(int playerIndex)
                     {
                         int id = view.Game.State.Players[playerIndex].ThingId;
-                        return view.UI.ThingGameObjects[id].transform;
+                        return view.UI.Things[id].transform;
                     }
                     return players.Select(GetPlayerTransform);
                 }
                 case TargetKind.Thing:
                 {
-                    return validTargets.Select(id => view.UI.ThingGameObjects[id].transform);
+                    return validTargets.Select(id => view.UI.Things[id].transform);
                 }
             }
         }
@@ -147,6 +147,7 @@ namespace Zayats.Unity.View
             if (!raycastResult.HasValue)
                 return false;
             var (transform, obj) = raycastResult.Value;
+            _ = obj;
                 
             // Buying shop item.
             // TODO: should be decoupled.
@@ -212,7 +213,7 @@ namespace Zayats.Unity.View
                 }
                 case TargetKind.Thing:
                 {
-                    target = Array.IndexOf(view.UI.ThingGameObjects, raycastHitObject);
+                    target = Array.IndexOf(view.UI.Things, raycastHitObject);
                     break;
                 }
             }
@@ -224,6 +225,7 @@ namespace Zayats.Unity.View
         public static void AddOrRemoveObjectToSelection(this ViewContext view, Transform hitObject)
         {
             var (targetIndex, target) = view.GetSelectionTargetInfo(hitObject);
+            _ = target;
             assert(targetIndex != -1);
 
             ref var selection = ref view.State.Selection;

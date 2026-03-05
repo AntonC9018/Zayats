@@ -108,7 +108,7 @@ namespace Zayats.Unity.View
         public ItemContainers ItemContainers { readonly get => Dynamic.ItemContainers; set => Dynamic.ItemContainers = value; }
         public CanvasResolutionService ResolutionService { readonly get => Dynamic.ResolutionService; set => Dynamic.ResolutionService = value; }
         public OverlayTextureManager OverlayTextureManager { readonly get => Dynamic.OverlayTextureManager; set => Dynamic.OverlayTextureManager = value; }
-        public Transform[] ThingGameObjects { readonly get => Dynamic.ThingGameObjects; set => Dynamic.ThingGameObjects = value; }
+        public Transform[] Things { readonly get => Dynamic.ThingGameObjects; set => Dynamic.ThingGameObjects = value; }
         public List<GameObject> ItemBuyButtons { readonly get => Dynamic.ItemBuyButtons; set => Dynamic.ItemBuyButtons = value; }
         public readonly Transform[] VisualCells { get => Static.VisualCells; }
         public readonly GameplayButtonArray<Button> GameplayButtons { get => Static.GameplayButtons; }
@@ -165,7 +165,7 @@ namespace Zayats.Unity.View
         public static GameObject InstantiateThing(this ViewContext view, ThingCreationProxy create, ThingKind thingKind)
         {
             var obj = GameObject.Instantiate(view.SetupConfiguration.Game.PrefabsToSpawn[thingKind]);
-            view.UI.ThingGameObjects[create.Id] = obj.transform;
+            view.UI.Things[create.Id] = obj.transform;
 
             {
                 var c = view.SetupConfiguration.Game.ItemCosts[thingKind];
@@ -236,6 +236,7 @@ namespace Zayats.Unity.View
                 void Check<T>(TypedIdentifier<T> id) where T : Component
                 {
                     var (t, c) = transform.GetObject(Model);
+                    _ = t;
                     if (c == null)
                     {
                         errorHandler($"No component {typeof(T).Name} for object {_Names[id.Id]}");

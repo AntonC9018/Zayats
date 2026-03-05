@@ -174,7 +174,7 @@ namespace Zayats.Unity.View
 
         public static ref Transform GetThing(this ViewContext view, int id)
         {
-            return ref view.UI.ThingGameObjects[id];
+            return ref view.UI.Things[id];
         }
 
         public static ref Transform GetCell(this ViewContext view, int cellIndex)

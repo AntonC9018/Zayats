@@ -53,6 +53,7 @@ namespace Zayats.Unity.View
             
             var canvasTransform = (RectTransform) _resolution.Canvas.transform;
             var p = canvasTransform.position;
+            _ = p;
             var (center, size) = canvasTransform.GetWorldSpaceRect();
 
             const float far = 20;

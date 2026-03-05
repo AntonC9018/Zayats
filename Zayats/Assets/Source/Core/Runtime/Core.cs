@@ -266,6 +266,7 @@ namespace Zayats.Core
                     continue;
                 
                 ref var otherPlayer = ref game.State.Players[otherPlayerIndex];
+                _ = otherPlayer;
 
                 var contextCopy = new MovementStartContext
                 {
@@ -304,6 +305,7 @@ namespace Zayats.Core
             var stats = player.Stats;
             int jump = stats.Get(Stats.JumpAfterMoveCapacity);
             int playerId = player.ThingId;
+            _ = playerId;
             int distance = 0;
 
             if (jump == 0)
@@ -511,7 +513,7 @@ namespace Zayats.Core
                         Kind = MovementKind.Death,
                         PlayerIndex = context.PlayerIndex,
                         TargetPosition = respawnPosition,
-                    }
+                    },
                 });
             }
 
@@ -689,6 +691,7 @@ namespace Zayats.Core
                 "The list will be used to output the coin id's that need to be removed, and, as such," +
                 "needs to be initialized before calling this function.");
             ref var player = ref game.State.Players[context.PlayerIndex];
+            _ = player;
 
             var shopItems = game.State.Shop.Items;
             assert(context.ThingShopIndex < shopItems.Count);
@@ -1028,15 +1031,22 @@ namespace Zayats.Core
             int upperInclusive = cells.Length - 2;
             int attemptCounter = 0;
             const int maxAttempts = 10;
-            int t;
             bool maxAttemptsReached = false;
-            do
+            int t;
+            while (true)
             {
                 t = random.GetInt(lower, upperInclusive);
+                if (cells[t].Count > 0)
+                {
+                    break;
+                }
                 attemptCounter++;
+                maxAttemptsReached = attemptCounter >= maxAttempts;
+                if (maxAttemptsReached)
+                {
+                    break;
+                }
             }
-            while (cells[t].Count != 0
-                || (maxAttemptsReached = attemptCounter >= maxAttempts));
 
             if (maxAttemptsReached)
             {
@@ -1460,12 +1470,12 @@ namespace Zayats.Core
         public const int PlacementId = Waypoint0 + 1;
         public const int ItemUsedUpId = Waypoint0 + 2;
 
-        public static Data.Reason Unknown => new Data.Reason { Id = UnknownId };
-        public static Data.Reason Explosion(int explodedThingId) => new Data.Reason { Id = ExplosionId, Payload = explodedThingId };
-        public static Data.Reason Magic(int spellOrItemId) => new Data.Reason { Id = MagicId, Payload = spellOrItemId };
-        public static Data.Reason Buying(int playerIndex) => new Data.Reason { Id = BuyingId, Payload = playerIndex, };
+        public static Data.Reason Unknown => new() { Id = UnknownId };
+        public static Data.Reason Explosion(int explodedThingId) => new() { Id = ExplosionId, Payload = explodedThingId };
+        public static Data.Reason Magic(int spellOrItemId) => new() { Id = MagicId, Payload = spellOrItemId };
+        public static Data.Reason Buying(int playerIndex) => new() { Id = BuyingId, Payload = playerIndex };
         public static Data.Reason PlayerMovement(MovementKind movementKind, int playerId)
-            => new Data.Reason { Id = PlayerMovementOffset + (int) movementKind, Payload = playerId, };
+            => new() { Id = PlayerMovementOffset + (int) movementKind, Payload = playerId };
         
         public static (MovementKind Kind, int PlayerId)? MatchPlayerMovement(this Data.Reason reason)
         {
@@ -1474,9 +1484,9 @@ namespace Zayats.Core
             return ((MovementKind)(reason.Id - PlayerMovementOffset), reason.Payload);
         }
 
-        public static Data.Reason Debug => new Data.Reason { Id = DebugId };
-        public static Data.Reason Placement => new Data.Reason { Id = PlacementId };
-        public static Data.Reason ItemUsedUp(int playerIndex) => new Data.Reason { Id = ItemUsedUpId, Payload = playerIndex };
+        public static Data.Reason Debug => new() { Id = DebugId };
+        public static Data.Reason Placement => new() { Id = PlacementId };
+        public static Data.Reason ItemUsedUp(int playerIndex) => new() { Id = ItemUsedUpId, Payload = playerIndex };
     }
 
     public interface IComponentStorage

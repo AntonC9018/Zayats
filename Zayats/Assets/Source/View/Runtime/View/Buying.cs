@@ -86,6 +86,7 @@ namespace Zayats.Unity.View
             assert(shopItems.Count > shopItemIndex);
 
             var itemId = shopItems[shopItemIndex];
+            _ = itemId;
             
             ref var start = ref view.State.CurrentPurchase;
             start.PlayerIndex = view.Game.State.CurrentPlayerIndex;
@@ -126,6 +127,7 @@ namespace Zayats.Unity.View
 
 
             int targetCellCount = drop.RemovedItems.Count;
+            _ = targetCellCount;
             int validCellCount = selection.ValidTargets.Count;
 
             // Resolve immediately
@@ -161,7 +163,7 @@ namespace Zayats.Unity.View
                 assert(drop.SelectedPositions[^1] != -1);
 
             var nextCoinId = drop.RemovedItems[coinsPlacedSoFar].ThingId;
-            var nextCoinPrefab = view.UI.ThingGameObjects[nextCoinId];
+            var nextCoinPrefab = view.UI.Things[nextCoinId];
             var nextCoinPreviewObject = GameObject.Instantiate(original: nextCoinPrefab).transform;
             
             drop.PreviewObjects.Add(nextCoinPreviewObject);
@@ -375,6 +377,7 @@ namespace Zayats.Unity.View
             Vector2 desiredBoxSize = grid.Size / alignment.WidthInBoxes;             
 
             int gapCount = closestApproximationSizeLength + 1;
+            _ = gapCount;
             alignment.GapSize = gapPercentage * desiredBoxSize;
 
             alignment.BoxSize = (grid.Size - (alignment.WidthInBoxes + 1) * alignment.GapSize) / alignment.WidthInBoxes;

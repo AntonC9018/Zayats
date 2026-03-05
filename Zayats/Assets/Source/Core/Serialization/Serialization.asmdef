@@ -3,8 +3,7 @@
     "rootNamespace": "Zayats.Serialization",
     "references": [
         "Common",
-        "Zayats.Core",
-        "Newtonsoft.Json"
+        "Zayats.Core"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

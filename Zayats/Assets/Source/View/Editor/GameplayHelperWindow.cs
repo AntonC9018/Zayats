@@ -117,7 +117,7 @@ namespace Zayats.Unity.View.Editor
 
         private int MapId(int unityId)
         {
-            var l = _view.UI.ThingGameObjects;
+            var l = _view.UI.Things;
             for (int i = 0; i < l.Length; i++)
             {
                 if (l[i].GetInstanceID() == unityId)

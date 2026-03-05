@@ -39,6 +39,8 @@ namespace Zayats.Unity.View
             container1.parent = container;
             
             var (center, size) = ItemFrameTransform.GetWorldSpaceRect();
+            _ = size;
+
             AnimatedTransform.localPosition = new Vector3(center.x, center.y, 0);
         }
     }

@@ -118,6 +118,7 @@ namespace Zayats.Unity.View.Editor
                 foreach (var t in GetThings())
                 {
                     var (child, modelInfo) = GetOrCreateModel(t);
+                    _ = child;
                     Undo.RegisterCompleteObjectUndo(modelInfo, "change model info");
 
                     var meshRenderers = modelInfo.gameObject.GetComponentsInChildren<MeshRenderer>();
@@ -142,7 +143,7 @@ namespace Zayats.Unity.View.Editor
                             allSharedMaterials.Add(sharedMaterial);
                     }
 
-                    var allMaterials = allSharedMaterials.OrderBy(t => t.name).ToArray();
+                    var allMaterials = allSharedMaterials.OrderBy(x => x.name).ToArray();
                     // Useful for setting stuff in the editor, doesn't exist at runtime.
                     modelConfig.AllMaterials = allMaterials;
                     allSharedMaterials.Clear();
@@ -195,6 +196,7 @@ namespace Zayats.Unity.View.Editor
                 foreach (var t in GetThings())
                 {
                     var (child, modelInfo) = GetOrCreateModel(t);
+                    _ = child;
                     
                     var config = modelInfo.Config;
                     if (config == null)

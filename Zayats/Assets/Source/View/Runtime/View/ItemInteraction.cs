@@ -37,7 +37,7 @@ namespace Zayats.Unity.View
             var s = DOTween.Sequence();
             view.UI.ItemContainers.ChangeItems(
                 view.Game.State.Players[playerIndex].Items.Select(
-                    id => view.UI.ThingGameObjects[id].transform).ToArray(),
+                    id => view.UI.Things[id].transform).ToArray(),
                 s,
                 animationSpeed: view.Visual.AnimationSpeed.UI);
             view.ResetUsabilityColors(playerIndex, s);
@@ -161,7 +161,7 @@ namespace Zayats.Unity.View
             view.Game.UseItem(new()
             {
                 Interaction = view.Game.GetItemInteractionContextForCurrentPlayer(itemH.Index),
-                Item = view.Game.GetComponentProxy(Components.ActivatedItemId, itemH.ThingId),
+                // Item = view.Game.GetComponentProxy(Components.ActivatedItemId, itemH.ThingId),
                 SelectedTargets = selection.TargetIndices.Select(i => validTargets[i]).ToArray(),
             });
 

@@ -59,6 +59,8 @@ namespace DG.Tweening
         {
             Assembly[] loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies();
             MethodInfo mi = typeof(MonoBehaviour).GetMethod("Stub");
+            _ = loadedAssemblies;
+            _ = mi;
         }
 #pragma warning restore
 #endif

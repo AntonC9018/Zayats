@@ -26,7 +26,7 @@ namespace Zayats.Unity.View
             var viewport = scrollRect.viewport;
 
             var vsize = viewport.rect.size;
-            var (cpos, csize) = TransformRectFromTo(content, viewport);
+            _ = TransformRectFromTo(content, viewport);
             var (ipos, isize) = TransformRectFromTo(child, viewport);
 
             var d1 = ipos;
