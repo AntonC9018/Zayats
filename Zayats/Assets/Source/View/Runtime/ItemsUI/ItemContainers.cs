@@ -187,7 +187,7 @@ namespace Zayats.Unity.View
                 }
             }
 
-            animationSequence.AppendCallback(() =>
+            animationSequence.InsertCallback(0, () =>
             {
                 for (int j = 0; j < _itemCount; j++)
                     _uiHolderInfos[j].StoredItem.parent = _ui.ParentForOldItems;
@@ -269,7 +269,7 @@ namespace Zayats.Unity.View
             IEnumerable<Color> colors,
             Sequence animationSequence)
         {
-            animationSequence.AppendCallback(() =>
+            animationSequence.InsertCallback(0, () =>
             {
                 int i = 0;
                 foreach (var color in colors)

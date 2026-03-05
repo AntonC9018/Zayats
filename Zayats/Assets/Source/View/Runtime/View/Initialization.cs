@@ -461,7 +461,9 @@ namespace Zayats.Unity.View
             Game.GetEventProxy(GameEvents.OnPositionChanged).Add(
                 (GameContext game, ref PlayerPositionChangedContext context) =>
                 {
-                    _view.ResetUsabilityColors(game.State.CurrentPlayerIndex, _view.LastAnimationSequence);
+                    var s1 = DOTween.Sequence();
+                    _view.ResetUsabilityColors(game.State.CurrentPlayerIndex, s1);
+                    _view.LastAnimationSequence.Append(s1);
                 });
 
             Game.GetEventProxy(GameEvents.OnThingAddedToShop).Add(
